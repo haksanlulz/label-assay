@@ -18,6 +18,7 @@ from functools import lru_cache
 class OcrLine:
     text: str
     confidence: float
+    box: tuple[tuple[float, float], ...] | None = None  # 4 corner points, if known
 
 
 @lru_cache(maxsize=1)
@@ -36,4 +37,11 @@ def read_lines(image: bytes) -> list[OcrLine]:
     result, _elapsed = _engine()(np.asarray(rgb))
     if not result:
         return []
-    return [OcrLine(text=str(text), confidence=float(score)) for _box, text, score in result]
+    return [
+        OcrLine(
+            text=str(text),
+            confidence=float(score),
+            box=tuple((float(x), float(y)) for x, y in box),
+        )
+        for box, text, score in result
+    ]

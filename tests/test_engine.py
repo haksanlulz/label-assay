@@ -13,7 +13,9 @@ import pytest
 from label_assay.config import get_settings
 from label_assay.domain.models import Application, Verdict
 from label_assay.extract.base import ExtractedField, Extraction
+from label_assay.extract.ocr import OcrLine
 from label_assay.rulebook.loader import load_rulebook
+from label_assay.verify.confidence import unconfirmed_fields
 from label_assay.verify.engine import infer_beverage_class, verify
 
 SAMPLE = Path(__file__).resolve().parents[1] / "samples" / "bourbon_compliant.png"
@@ -106,3 +108,46 @@ def test_full_pipeline_image_to_verdict() -> None:
     # A compliant label must never FAIL; PASS expected, REVIEW tolerated.
     assert report.verdict in (Verdict.PASS, Verdict.NEEDS_REVIEW)
     assert report.verdict != Verdict.FAIL
+
+
+# --- the legibility gate (confidence cross-check) ---
+
+
+def _ocr_of_everything_but_brand() -> list[OcrLine]:
+    return [
+        OcrLine("Kentucky Straight Bourbon Whiskey", 0.95),
+        OcrLine("45% Alc./Vol. (90 Proof)", 0.95),
+        OcrLine("750 mL", 0.95),
+        OcrLine(_warning_reference(), 0.95),
+    ]
+
+
+def test_field_is_unconfirmed_when_ocr_does_not_show_it() -> None:
+    unconfirmed = unconfirmed_fields(_compliant_extraction(), _ocr_of_everything_but_brand())
+    assert "brand_name" in unconfirmed  # OCR never saw the brand text
+    assert "class_type" not in unconfirmed  # OCR corroborates it
+
+
+def test_unconfirmed_field_is_held_for_review_not_passed() -> None:
+    # Brand PASSes on the extraction alone, but OCR can't corroborate it, so the
+    # engine must hold it for review rather than pass it.
+    report = verify(
+        _compliant_extraction(),
+        _application(),
+        load_rulebook(),
+        ocr_lines=_ocr_of_everything_but_brand(),
+    )
+    brand = next(f for f in report.findings if f.rule_id == "brand_name_matches_application")
+    assert brand.verdict == Verdict.NEEDS_REVIEW
+    assert report.verdict == Verdict.NEEDS_REVIEW
+
+
+def test_corroborating_ocr_leaves_the_pass_intact() -> None:
+    ocr = _ocr_of_everything_but_brand() + [OcrLine("OLD TOM DISTILLERY", 0.98)]
+    report = verify(_compliant_extraction(), _application(), load_rulebook(), ocr_lines=ocr)
+    assert report.verdict == Verdict.PASS
+
+
+def test_dead_ocr_does_not_single_out_any_field() -> None:
+    # An unreadable image must not manufacture per-field failures.
+    assert unconfirmed_fields(_compliant_extraction(), [OcrLine("", 0.0)]) == set()
