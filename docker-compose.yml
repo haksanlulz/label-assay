@@ -1,0 +1,9 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      # Optional: the app runs without a key (degraded / demo mode).
+      - path: .env
+        required: false

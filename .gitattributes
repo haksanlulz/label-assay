@@ -1,0 +1,5 @@
+# Deterministic line endings across platforms (a reviewer may clone on Linux/Mac).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary

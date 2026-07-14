@@ -1,0 +1,36 @@
+# Health Warning Statement — 27 CFR part 16.
+#
+# The reference text below is reproduced verbatim from 27 CFR 16.21. The Code of
+# Federal Regulations is a U.S. Government work in the public domain (17 U.S.C.
+# 105). This file is the ONLY place that text may appear — no source file may
+# hardcode it (enforced by tests/test_ssot.py).
+#
+# The statute (27 U.S.C. 215) fixes the wording; TTB cannot change it by
+# regulation, so it is stable. The string is pure ASCII (no curly quotes, no
+# apostrophes), which is what makes "any non-ASCII glyph is an OCR artifact" a
+# defensible normalization rule.
+
+rules:
+  - id: health_warning_verbatim
+    citation: 27 CFR 16.21
+    beverage_classes: [all]
+    severity: fail
+    description: >-
+      The Government Warning must appear verbatim. Compared by
+      canonicalize-then-exact (all whitespace collapsed to single spaces first);
+      a changed, omitted, or added word fails.
+    match:
+      strategy: verbatim
+      reference: |-
+        GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.
+
+  - id: health_warning_caps_and_bold
+    citation: 27 CFR 16.22(a)(2)
+    beverage_classes: [all]
+    severity: fail
+    description: >-
+      "GOVERNMENT WARNING" must appear in capital letters and bold type; the
+      remainder of the statement may not be bold. Checked by relative stroke
+      width (heading vs. body) plus an all-caps string check.
+    match:
+      strategy: caps_bold

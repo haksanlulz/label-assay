@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.DS_Store
+
+# The scraped COLA evaluation corpus is not committed (public-registry artwork
+# may carry the applicant's own copyright, and it is large). The scraper + a
+# handful of synthetic sample labels are committed instead. See docs/DESIGN.md.
+fixtures/

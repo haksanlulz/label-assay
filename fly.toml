@@ -1,0 +1,17 @@
+app = "ttb-label-verifier"
+primary_region = "iad"
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  # Keep one machine always running so a reviewer never hits a cold-start spinner.
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  # 512mb is ample for the skeleton; bump to 1024 once the OCR/CV deps land.
+  memory = "512mb"
