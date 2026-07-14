@@ -97,13 +97,18 @@ def test_beverage_class_inference() -> None:
     reason="needs the sample image and ANTHROPIC_API_KEY",
 )
 def test_full_pipeline_image_to_verdict() -> None:
+    import anthropic
+
     from label_assay.extract.haiku import HaikuExtractor
 
     settings = get_settings()
     assert settings.anthropic_api_key is not None
-    extraction = HaikuExtractor(api_key=settings.anthropic_api_key, model=settings.haiku_model).extract(
-        SAMPLE.read_bytes()
-    )
+    try:
+        extraction = HaikuExtractor(api_key=settings.anthropic_api_key, model=settings.haiku_model).extract(
+            SAMPLE.read_bytes()
+        )
+    except anthropic.AuthenticationError:
+        pytest.skip("ANTHROPIC_API_KEY is invalid or expired")
     report = verify(extraction, _application(), load_rulebook())
     # A compliant label must never FAIL; PASS expected, REVIEW tolerated.
     assert report.verdict in (Verdict.PASS, Verdict.NEEDS_REVIEW)

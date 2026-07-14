@@ -74,12 +74,17 @@ def test_ocr_reads_the_sample_label() -> None:
     reason="needs the sample image and ANTHROPIC_API_KEY",
 )
 def test_haiku_extracts_expected_fields_from_sample_label() -> None:
+    import anthropic
+
     from label_assay.extract.haiku import HaikuExtractor
 
     settings = get_settings()
     assert settings.anthropic_api_key is not None
     extractor = HaikuExtractor(api_key=settings.anthropic_api_key, model=settings.haiku_model)
-    result = extractor.extract(_sample_bytes())
+    try:
+        result = extractor.extract(_sample_bytes())
+    except anthropic.AuthenticationError:
+        pytest.skip("ANTHROPIC_API_KEY is invalid or expired")
 
     assert result.brand_name.found
     assert result.government_warning.found

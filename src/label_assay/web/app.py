@@ -8,10 +8,13 @@ stack trace.
 
 from __future__ import annotations
 
+import asyncio
+import csv
+import io
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -19,7 +22,10 @@ from label_assay import __version__
 from label_assay.config import get_settings
 from label_assay.domain.models import Application, Verdict
 from label_assay.rulebook.loader import load_rulebook
+from label_assay.web import batch as batchmod
 from label_assay.web.service import ExtractionUnavailable, check_label, default_extractor
+
+_BG_TASKS: set = set()  # keep references so fire-and-forget batch jobs aren't GC'd
 
 _WEB = Path(__file__).parent
 _TEMPLATES = Jinja2Templates(directory=str(_WEB / "templates"))
@@ -120,3 +126,73 @@ def sample(request: Request) -> HTMLResponse:
     except ExtractionUnavailable as exc:
         return _error_page(request, str(exc))
     return _report_page(request, report)
+
+
+@app.get("/batch", response_class=HTMLResponse)
+def batch_new(request: Request) -> HTMLResponse:
+    return _TEMPLATES.TemplateResponse(request, "batch_upload.html", _ctx({"max_files": batchmod.MAX_FILES}))
+
+
+@app.post("/batch")
+async def batch_create(request: Request, images: list[UploadFile]):
+    files: list[tuple[str, bytes]] = []
+    for upload in images:
+        data = await upload.read()
+        if data and data.startswith(_MAGIC):
+            files.append((upload.filename or "label", data))
+    if not files:
+        return _error_page(request, "No PNG or JPEG images were uploaded.")
+    files = files[: batchmod.MAX_FILES]
+
+    try:
+        extractor = default_extractor(get_settings())
+    except ExtractionUnavailable as exc:
+        return _error_page(request, str(exc))
+
+    job = batchmod.create_job([name for name, _ in files])
+    task = asyncio.create_task(batchmod.run_job(job, files, extractor))
+    _BG_TASKS.add(task)
+    task.add_done_callback(_BG_TASKS.discard)
+    return RedirectResponse(f"/batch/{job.id}", status_code=303)
+
+
+@app.get("/batch/{job_id}", response_class=HTMLResponse)
+def batch_result(request: Request, job_id: str) -> HTMLResponse:
+    if batchmod.get_job(job_id) is None:
+        return _error_page(request, "That batch was not found. It may have expired.", 404)
+    return _TEMPLATES.TemplateResponse(request, "batch_result.html", _ctx({"job_id": job_id}))
+
+
+@app.get("/batch/{job_id}/data")
+def batch_data(job_id: str) -> JSONResponse:
+    job = batchmod.get_job(job_id)
+    if job is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return JSONResponse(
+        {
+            "total": job.total,
+            "done": job.done,
+            "summary": job.summary(),
+            "items": [
+                {"filename": i.filename, "status": i.status, "verdict": i.verdict, "detail": i.detail}
+                for i in job.items
+            ],
+        }
+    )
+
+
+@app.get("/batch/{job_id}/export.csv")
+def batch_csv(job_id: str) -> Response:
+    job = batchmod.get_job(job_id)
+    if job is None:
+        return Response("batch not found", status_code=404, media_type="text/plain")
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["filename", "status", "verdict", "detail"])
+    for item in job.items:
+        writer.writerow([item.filename, item.status, item.verdict or "", item.detail or ""])
+    return Response(
+        buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="label-assay-{job_id}.csv"'},
+    )

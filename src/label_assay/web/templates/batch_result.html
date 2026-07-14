@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Batch &middot; LabelAssay{% endblock %}
+{% block main %}
+<a class="back" href="/batch">&larr; New batch</a>
+<h1>Batch results</h1>
+
+<p id="progress" class="lead" aria-live="polite">Starting&hellip;</p>
+<p id="summary" class="summary" aria-live="polite"></p>
+
+<div class="batch-controls">
+  <div class="filters" role="group" aria-label="Filter results">
+    <button type="button" class="chip chip--on" data-filter="all">All</button>
+    <button type="button" class="chip" data-filter="fail">Needs correction</button>
+    <button type="button" class="chip" data-filter="needs_review">Needs review</button>
+    <button type="button" class="chip" data-filter="pass">Compliant</button>
+  </div>
+  <a class="csv-link" href="/batch/{{ job_id }}/export.csv">Export CSV</a>
+</div>
+
+<table class="results">
+  <thead><tr><th scope="col">File</th><th scope="col">Result</th><th scope="col">Detail</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<span id="job" data-job="{{ job_id }}" hidden></span>
+<script src="/static/batch.js" defer></script>
+{% endblock %}

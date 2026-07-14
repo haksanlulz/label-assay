@@ -65,6 +65,8 @@ def _match_warning_verbatim(rule: Rule, ctx: VerifyContext) -> Finding:
 
 
 def _match_brand(rule: Rule, ctx: VerifyContext) -> Finding:
+    if not ctx.application.brand_name:
+        return _finding(rule, Verdict.NOT_EVALUABLE, "No application brand name was provided to compare against.")
     label_value = getattr(ctx.extraction, rule.match.field).value
     result = match_brand(label_value, ctx.application.brand_name)
     mapping = {
@@ -127,7 +129,8 @@ def verify(
     image: bytes | None = None,
 ) -> LabelReport:
     ctx = VerifyContext(extraction, application, ocr_lines, image)
-    bev = beverage_class or infer_beverage_class(application.class_type)
+    # Prefer the filed class; fall back to what the label itself says (batch mode).
+    bev = beverage_class or infer_beverage_class(application.class_type or (extraction.class_type.value or ""))
     unconfirmed = unconfirmed_fields(extraction, ocr_lines) if ocr_lines is not None else set()
 
     findings: list[Finding] = []
