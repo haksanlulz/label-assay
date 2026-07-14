@@ -1,0 +1,31 @@
+# Label-vs-application and label-internal consistency checks.
+#
+# Citations here are the distilled-spirits sections (Part 5); the wine (Part 4)
+# and malt (Part 7) equivalents are added with their own per-class rules when
+# those classes are wired. The sample corpus is spirits.
+
+rules:
+  - id: brand_name_matches_application
+    citation: 27 CFR 5.64
+    beverage_classes: [all]
+    severity: fail
+    description: >-
+      The brand name on the label must match the brand name filed on the COLA
+      application. Matched after normalization (case, punctuation, legal
+      suffixes), so cosmetic differences pass while a real difference does not.
+    match:
+      strategy: brand_match
+      field: brand_name
+
+  - id: alcohol_content_internally_consistent
+    citation: 27 CFR 5.65
+    beverage_classes: [all]
+    severity: fail
+    description: >-
+      When a proof statement accompanies the alcohol content, the proof must
+      equal twice the stated alcohol by volume (proof is defined as 2x ABV in
+      27 CFR 5.1). This is a label-internal check; the CFR label-vs-actual
+      tolerance is a laboratory fact and is not evaluable from an image.
+    match:
+      strategy: abv_consistency
+      field: alcohol_content

@@ -48,3 +48,18 @@ class LabelReport(BaseModel):
     verdict: Verdict
     findings: list[Finding]
     rulebook_version: str
+
+
+class Application(BaseModel):
+    """The data filed on the COLA application — the "application data" side of
+    the comparison.
+
+    There is deliberately no alcohol-content or net-contents field: TTB Form
+    5100.31 does not carry them, so alcohol content is checked for internal
+    consistency, never against the application.
+    """
+
+    brand_name: str
+    class_type: str
+    fanciful_name: str | None = None
+    origin: str | None = None
