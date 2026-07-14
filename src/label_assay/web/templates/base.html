@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}LabelAssay{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="site-title" href="/">LabelAssay</a>
+      <span class="site-tag">Alcohol beverage label check &middot; 27 CFR</span>
+    </div>
+  </header>
+  <main class="container">
+    {% block main %}{% endblock %}
+  </main>
+  <footer class="container site-footer">
+    Advisory tool &mdash; a compliance specialist makes the final decision.
+    {% if version %}<span aria-hidden="true">&middot;</span> v{{ version }}{% endif %}
+  </footer>
+</body>
+</html>

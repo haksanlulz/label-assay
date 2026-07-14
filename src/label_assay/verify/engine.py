@@ -46,8 +46,8 @@ def infer_beverage_class(class_type: str | None) -> str:
     return "spirits"
 
 
-def _finding(rule: Rule, verdict: Verdict, detail: str) -> Finding:
-    return Finding(rule_id=rule.id, citation=rule.citation, verdict=verdict, detail=detail)
+def _finding(rule: Rule, verdict: Verdict, detail: str, diff: tuple = ()) -> Finding:
+    return Finding(rule_id=rule.id, citation=rule.citation, verdict=verdict, detail=detail, diff=list(diff))
 
 
 def _match_warning_verbatim(rule: Rule, ctx: VerifyContext) -> Finding:
@@ -61,7 +61,7 @@ def _match_warning_verbatim(rule: Rule, ctx: VerifyContext) -> Finding:
         # routes to review rather than a silent auto-fail.
         WarningVerdict.ABSENT: Verdict.NEEDS_REVIEW,
     }
-    return _finding(rule, mapping[result.verdict], result.detail)
+    return _finding(rule, mapping[result.verdict], result.detail, result.diff)
 
 
 def _match_brand(rule: Rule, ctx: VerifyContext) -> Finding:

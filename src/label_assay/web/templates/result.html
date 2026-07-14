@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Result &middot; LabelAssay{% endblock %}
+{% block main %}
+<a class="back" href="/">&larr; Check another label</a>
+
+<div class="alert alert--{{ report.verdict.value }}">
+  <p class="alert__heading">{{ heading }}</p>
+  <p>{{ summary }}</p>
+</div>
+
+<h2>Findings</h2>
+<ul class="findings">
+  {% for f in report.findings %}
+  <li class="finding finding--{{ f.verdict.value }}">
+    <div class="finding__head">
+      <span class="badge badge--{{ f.verdict.value }}">{{ f.verdict.value|replace('_', ' ') }}</span>
+      <span class="finding__cite">{{ f.citation }}</span>
+    </div>
+    <p class="finding__detail">{{ f.detail }}</p>
+    {% if f.diff %}
+    <div class="diff">
+      <p class="diff__label">Differences from the required text:</p>
+      <ul>
+        {% for op, expected, found in f.diff %}
+        <li>
+          {% if op == 'replace' %}
+            Expected <span class="expected">&ldquo;{{ expected }}&rdquo;</span>,
+            found <span class="found">&ldquo;{{ found }}&rdquo;</span>
+          {% elif op == 'delete' %}
+            Missing <span class="expected">&ldquo;{{ expected }}&rdquo;</span>
+          {% elif op == 'insert' %}
+            Extra <span class="found">&ldquo;{{ found }}&rdquo;</span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endblock %}

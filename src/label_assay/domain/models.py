@@ -40,6 +40,9 @@ class Finding(BaseModel):
     citation: str
     verdict: Verdict
     detail: str
+    # Optional word-level differences (op, expected_span, found_span) for showing
+    # a reviewer exactly what deviates — e.g. from the warning-text comparison.
+    diff: list[tuple[str, str, str]] = []
 
 
 class LabelReport(BaseModel):
