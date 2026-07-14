@@ -11,11 +11,16 @@ dependencies = [
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "pyyaml>=6.0",
+    # Deterministic text-processing core (normalization + fuzzy backstop). Small,
+    # pure, permissively licensed; the compliance logic runs on these.
+    "rapidfuzz>=3.10",
+    "anyascii>=0.3",
+    "ftfy>=6.3",
 ]
 
 [project.optional-dependencies]
-# Extraction + vision + CV layers. Declared here as the plan; installed at their
-# build stage (extraction Day 3, bold/CV Day 4) to keep the base image lean.
+# Vision + OCR + CV layers only. Heavy wheels, installed at their build stage
+# (extraction Day 3, bold/CV Day 4) to keep the base image lean.
 ml = [
     "rapidocr-onnxruntime>=1.4",
     "anthropic>=0.42",
@@ -23,10 +28,6 @@ ml = [
     "scikit-image>=0.24",
     "numpy>=2.0",
     "pillow>=11.0",
-    "rapidfuzz>=3.10",
-    "anyascii>=0.3",
-    "cleanco>=2.3",
-    "ftfy>=6.3",
 ]
 
 [dependency-groups]
