@@ -11,19 +11,15 @@ dependencies = [
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "pyyaml>=6.0",
-    # Deterministic text-processing core (normalization + fuzzy backstop). Small,
-    # pure, permissively licensed; the compliance logic runs on these.
+    # Deterministic text-processing core (normalization + fuzzy backstop).
     "rapidfuzz>=3.10",
     "anyascii>=0.3",
     "ftfy>=6.3",
-]
-
-[project.optional-dependencies]
-# Vision + OCR + CV layers only. Heavy wheels, installed at their build stage
-# (extraction Day 3, bold/CV Day 4) to keep the base image lean.
-ml = [
-    "rapidocr-onnxruntime>=1.4",
+    # Vision + OCR + CV. The running app imports these (the extractor imports
+    # anthropic at module load; OCR and the bold check use the rest), so they are
+    # real runtime dependencies, not optional.
     "anthropic>=0.42",
+    "rapidocr-onnxruntime>=1.4",
     "opencv-python-headless>=4.10",
     "scikit-image>=0.24",
     "numpy>=2.0",
