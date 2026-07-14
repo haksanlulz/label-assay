@@ -40,9 +40,11 @@ def _font(weight: str, size: int) -> ImageFont.FreeTypeFont:
 
 
 def _draw_warning(draw: ImageDraw.ImageDraw, x: int, y: int, right: int) -> None:
-    bold, regular = _font("bold", 15), _font("regular", 15)
+    # Rendered larger than a real 1-2mm warning so the bold check is judgeable
+    # from pixels (below a ~14px cap height it correctly abstains to review).
+    bold, regular = _font("bold", 22), _font("regular", 22)
     space = draw.textlength(" ", font=regular)
-    cx, cy, line_h = x, y, 22
+    cx, cy, line_h = x, y, 30
     for i, word in enumerate(WARNING.split(" ")):
         font = bold if i < 2 else regular  # "GOVERNMENT" and "WARNING:" are bold
         w = draw.textlength(word, font=font)
@@ -59,7 +61,7 @@ def make_bourbon_compliant() -> Path:
     d.text((350, 190), "Kentucky Straight Bourbon Whiskey", font=_font("regular", 24), fill="black", anchor="mm")
     d.text((350, 270), "45% Alc./Vol. (90 Proof)", font=_font("regular", 22), fill="black", anchor="mm")
     d.text((350, 330), "750 mL", font=_font("regular", 22), fill="black", anchor="mm")
-    _draw_warning(d, 45, 640, 655)
+    _draw_warning(d, 45, 520, 655)
     path = OUT / "bourbon_compliant.png"
     img.save(path)
     return path
