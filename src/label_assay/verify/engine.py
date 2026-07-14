@@ -1,25 +1,40 @@
 """The compliance engine — pure.
 
-``verify(extraction, application, rulebook)`` dispatches each applicable rule to
-the matcher registered for its strategy, collects a Finding per rule (each
-carrying the rule's CFR citation), and returns a LabelReport. It never branches
-on an individual rule and never calls a model.
+``verify(...)`` dispatches each applicable rule to the matcher registered for its
+strategy, collects a Finding per rule (each carrying the rule's CFR citation),
+and returns a LabelReport. It never branches on an individual rule and never
+calls a model.
 
-Overall verdict = the worst finding: any FAIL fails; else any NEEDS_REVIEW needs
-review; else PASS. NOT_EVALUABLE findings (a rule that cannot be checked from the
-artifact) never force a verdict.
+Two safety layers wrap the matchers:
+
+- The legibility gate (when OCR is supplied): a finding drawn from a field the
+  independent OCR read cannot corroborate is held for review, never passed or
+  failed.
+- Worst-finding aggregation: any FAIL fails; else any NEEDS_REVIEW needs review;
+  else PASS. NOT_EVALUABLE findings never force a verdict.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from label_assay.domain.models import Application, Finding, LabelReport, Verdict
 from label_assay.extract.base import Extraction
+from label_assay.extract.ocr import OcrLine
 from label_assay.match.brand import BrandVerdict, match_brand
 from label_assay.match.warning import WarningVerdict, compare_warning
 from label_assay.rulebook.loader import Rule, Rulebook
 from label_assay.text.numbers import parse_alcohol_content
+from label_assay.verify.confidence import unconfirmed_fields
+
+
+@dataclass(frozen=True)
+class VerifyContext:
+    extraction: Extraction
+    application: Application
+    ocr_lines: list[OcrLine] | None = None
+    image: bytes | None = None
 
 
 def infer_beverage_class(class_type: str | None) -> str:
@@ -35,24 +50,23 @@ def _finding(rule: Rule, verdict: Verdict, detail: str) -> Finding:
     return Finding(rule_id=rule.id, citation=rule.citation, verdict=verdict, detail=detail)
 
 
-def _match_warning_verbatim(rule: Rule, extraction: Extraction, application: Application) -> Finding:
-    field = getattr(extraction, rule.match.field)
+def _match_warning_verbatim(rule: Rule, ctx: VerifyContext) -> Finding:
+    field = getattr(ctx.extraction, rule.match.field)
     result = compare_warning(field.verbatim, rule.match.reference or "")
     mapping = {
         WarningVerdict.MATCH: Verdict.PASS,
         WarningVerdict.CAPITALIZATION: Verdict.FAIL,
         WarningVerdict.ALTERED: Verdict.FAIL,
-        # "removed" and "we couldn't read it" are indistinguishable until the
-        # confidence gate (OCR cross-check) lands, so absence routes to review,
-        # never a silent auto-fail.
+        # "removed" vs. "we couldn't read it" is indistinguishable, so absence
+        # routes to review rather than a silent auto-fail.
         WarningVerdict.ABSENT: Verdict.NEEDS_REVIEW,
     }
     return _finding(rule, mapping[result.verdict], result.detail)
 
 
-def _match_brand(rule: Rule, extraction: Extraction, application: Application) -> Finding:
-    label_value = getattr(extraction, rule.match.field).value
-    result = match_brand(label_value, application.brand_name)
+def _match_brand(rule: Rule, ctx: VerifyContext) -> Finding:
+    label_value = getattr(ctx.extraction, rule.match.field).value
+    result = match_brand(label_value, ctx.application.brand_name)
     mapping = {
         BrandVerdict.MATCH: Verdict.PASS,
         BrandVerdict.REVIEW: Verdict.NEEDS_REVIEW,
@@ -61,8 +75,8 @@ def _match_brand(rule: Rule, extraction: Extraction, application: Application) -
     return _finding(rule, mapping[result.verdict], result.detail)
 
 
-def _match_abv_consistency(rule: Rule, extraction: Extraction, application: Application) -> Finding:
-    field = getattr(extraction, rule.match.field)
+def _match_abv_consistency(rule: Rule, ctx: VerifyContext) -> Finding:
+    field = getattr(ctx.extraction, rule.match.field)
     content = parse_alcohol_content(field.verbatim or field.value)
     if content is None:
         return _finding(rule, Verdict.NEEDS_REVIEW, "Could not read the alcohol content to check it.")
@@ -78,11 +92,13 @@ def _match_abv_consistency(rule: Rule, extraction: Extraction, application: Appl
 
 # Strategy name -> matcher. The rulebook selects the strategy; the engine never
 # names an individual rule. A rule whose strategy has no matcher yet is skipped.
-_MATCHERS: dict[str, Callable[[Rule, Extraction, Application], Finding]] = {
+_MATCHERS: dict[str, Callable[[Rule, VerifyContext], Finding]] = {
     "verbatim": _match_warning_verbatim,
     "brand_match": _match_brand,
     "abv_consistency": _match_abv_consistency,
 }
+
+_REVIEW_NOTE = " (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)"
 
 
 def verify(
@@ -91,13 +107,22 @@ def verify(
     rulebook: Rulebook,
     *,
     beverage_class: str | None = None,
+    ocr_lines: list[OcrLine] | None = None,
+    image: bytes | None = None,
 ) -> LabelReport:
+    ctx = VerifyContext(extraction, application, ocr_lines, image)
     bev = beverage_class or infer_beverage_class(application.class_type)
+    unconfirmed = unconfirmed_fields(extraction, ocr_lines) if ocr_lines is not None else set()
+
     findings: list[Finding] = []
     for rule in rulebook.rules_for(bev):
         matcher = _MATCHERS.get(rule.match.strategy)
-        if matcher is not None:
-            findings.append(matcher(rule, extraction, application))
+        if matcher is None:
+            continue
+        finding = matcher(rule, ctx)
+        if rule.match.field in unconfirmed and finding.verdict in (Verdict.PASS, Verdict.FAIL):
+            finding = _finding(rule, Verdict.NEEDS_REVIEW, finding.detail + _REVIEW_NOTE)
+        findings.append(finding)
 
     verdicts = {f.verdict for f in findings}
     if Verdict.FAIL in verdicts:
