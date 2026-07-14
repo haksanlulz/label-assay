@@ -19,13 +19,14 @@ from pydantic import BaseModel, Field
 # A rule naming anything outside this set fails to load. New strategies are
 # added deliberately, in code and here — never invented in a rule file.
 KNOWN_STRATEGIES = frozenset(
-    {"verbatim", "caps_bold", "exact_normalized", "fuzzy_ratio", "numeric_tolerance", "presence"}
+    {"verbatim", "brand_match", "abv_consistency", "caps_bold", "presence"}
 )
 
 
 class Match(BaseModel):
     strategy: str
-    reference: str | None = None
+    field: str | None = None       # the extraction field this rule checks
+    reference: str | None = None   # statutory text, for verbatim comparisons
     params: dict[str, Any] = Field(default_factory=dict)
 
 

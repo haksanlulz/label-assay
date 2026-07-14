@@ -21,16 +21,6 @@ rules:
       a changed, omitted, or added word fails.
     match:
       strategy: verbatim
+      field: government_warning
       reference: |-
         GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.
-
-  - id: health_warning_caps_and_bold
-    citation: 27 CFR 16.22(a)(2)
-    beverage_classes: [all]
-    severity: fail
-    description: >-
-      "GOVERNMENT WARNING" must appear in capital letters and bold type; the
-      remainder of the statement may not be bold. Checked by relative stroke
-      width (heading vs. body) plus an all-caps string check.
-    match:
-      strategy: caps_bold
