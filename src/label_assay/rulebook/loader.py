@@ -53,7 +53,7 @@ class Rulebook(BaseModel):
 def load_rulebook() -> Rulebook:
     rules: list[Rule] = []
     hasher = hashlib.sha256()
-    rules_dir = resources.files("ttb_verifier.rulebook") / "rules"
+    rules_dir = resources.files("label_assay.rulebook") / "rules"
 
     for entry in sorted(rules_dir.iterdir(), key=lambda p: p.name):
         if not entry.name.endswith((".yaml", ".yml")):

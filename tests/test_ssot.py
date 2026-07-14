@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from ttb_verifier.rulebook.loader import load_rulebook
+from label_assay.rulebook.loader import load_rulebook
 
 SRC = Path(__file__).resolve().parents[1] / "src"
 

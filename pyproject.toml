@@ -1,5 +1,5 @@
 [project]
-name = "ttb-label-verifier"
+name = "label-assay"
 version = "0.1.0"
 description = "Verifies alcohol beverage labels against TTB labeling requirements (27 CFR)."
 requires-python = ">=3.12"
@@ -42,7 +42,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/ttb_verifier"]
+packages = ["src/label_assay"]
 
 [tool.ruff]
 line-length = 100

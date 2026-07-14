@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from ttb_verifier.web.app import app
+from label_assay.web.app import app
 
 client = TestClient(app)
 
@@ -21,4 +21,4 @@ def test_health_ok() -> None:
 def test_index_renders() -> None:
     resp = client.get("/")
     assert resp.status_code == 200
-    assert "TTB Label Verifier" in resp.text
+    assert "LabelAssay" in resp.text

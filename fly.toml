@@ -1,4 +1,4 @@
-app = "ttb-label-verifier"
+app = "label-assay"
 primary_region = "iad"
 
 [build]
