@@ -1,32 +1,23 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LabelAssay</title>
-  <style>
-    /* Minimal placeholder styling. The federal-native UI (USWDS compiled CSS)
-       wires in at the Day-5 stage. Base size 18px suits the older-reviewer
-       audience; contrast meets WCAG AA. */
-    body { font-family: system-ui, -apple-system, sans-serif; max-width: 42rem;
-           margin: 3rem auto; padding: 0 1rem; font-size: 18px; line-height: 1.5;
-           color: #1b1b1b; }
-    h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
-    .muted { color: #565c65; }
-    code { background: #f0f0f0; padding: 0.1em 0.35em; border-radius: 3px; }
-    footer { margin-top: 2.5rem; font-size: 0.85rem; color: #71767a; }
-  </style>
-</head>
-<body>
-  <h1>LabelAssay</h1>
-  <p>Checks alcohol beverage labels against TTB labeling requirements
-     (27 CFR parts 4, 5, 7, and 16).</p>
-  <p class="muted">Upload a label image plus its application data; get
-     pass / needs&nbsp;review / fail with the specific rule and CFR citation
-     behind each finding.</p>
-  <p class="muted"><strong>Skeleton build.</strong> {{ rule_count }} rule(s)
-     loaded from the rulebook. The upload and results flow lands in a later
-     stage. Health: <code>/health</code>.</p>
-  <footer>v{{ version }}</footer>
-</body>
-</html>
+{% extends "base.html" %}
+{% block main %}
+<h1>Check a label</h1>
+<p class="lead">Upload a label image and the details filed on the application. You'll get a
+result &mdash; compliant, needs review, or needs correction &mdash; with the specific rule
+and citation behind each finding.</p>
+
+<form class="card" method="post" action="/check" enctype="multipart/form-data">
+  <label for="image">Label image (PNG or JPEG)</label>
+  <input type="file" id="image" name="image" accept="image/png,image/jpeg" required>
+
+  <label for="brand_name">Brand name on the application</label>
+  <input type="text" id="brand_name" name="brand_name" required autocomplete="off">
+
+  <label for="class_type">Class or type on the application</label>
+  <input type="text" id="class_type" name="class_type" required autocomplete="off"
+         placeholder="e.g. Kentucky Straight Bourbon Whiskey">
+
+  <button type="submit">Check the label</button>
+</form>
+
+<p style="margin-top:1.25rem"><a href="/sample">Or try the built-in sample label &rarr;</a></p>
+{% endblock %}
