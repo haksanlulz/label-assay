@@ -62,7 +62,10 @@ class Application(BaseModel):
     consistency, never against the application.
     """
 
-    brand_name: str
-    class_type: str
+    # Both default to empty so a batch of loose label images (which carries no
+    # per-label application) can be verified for label-internal compliance; the
+    # brand match is then reported not-evaluable rather than forced.
+    brand_name: str = ""
+    class_type: str = ""
     fanciful_name: str | None = None
     origin: str | None = None

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block main %}
+<a class="back" href="/">&larr; Back</a>
+<h1>Check many labels</h1>
+<p class="lead">Upload up to {{ max_files }} label images at once. Each is checked for the
+label-internal requirements &mdash; the government warning, its bold heading, and
+alcohol-content consistency. (Brand matching needs the paired application, so it stays part
+of the single-label check.)</p>
+
+<form class="card" method="post" action="/batch" enctype="multipart/form-data">
+  <label for="images">Label images (PNG or JPEG)</label>
+  <input type="file" id="images" name="images" accept="image/png,image/jpeg" multiple required>
+  <button type="submit">Check the batch</button>
+</form>
+{% endblock %}
