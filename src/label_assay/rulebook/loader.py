@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 # A rule naming anything outside this set fails to load. New strategies are
 # added deliberately, in code and here — never invented in a rule file.
 KNOWN_STRATEGIES = frozenset(
-    {"verbatim", "brand_match", "abv_consistency", "caps_bold", "presence"}
+    {"verbatim", "brand_match", "abv_consistency", "warning_bold", "presence"}
 )
 
 

@@ -24,3 +24,16 @@ rules:
       field: government_warning
       reference: |-
         GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.
+
+  - id: health_warning_bold
+    citation: 27 CFR 16.22(a)(2)
+    beverage_classes: [all]
+    severity: fail
+    description: >-
+      The words "GOVERNMENT WARNING" must appear in bold type, and the remainder
+      of the statement must not. Checked by comparing the stroke width of the
+      heading against the body text on the same line; abstains to review when the
+      text is too small to judge from the image.
+    match:
+      strategy: warning_bold
+      field: government_warning

@@ -90,12 +90,28 @@ def _match_abv_consistency(rule: Rule, ctx: VerifyContext) -> Finding:
     return _finding(rule, Verdict.PASS, "The stated alcohol content is internally consistent.")
 
 
+def _match_warning_bold(rule: Rule, ctx: VerifyContext) -> Finding:
+    if ctx.image is None or not ctx.ocr_lines:
+        return _finding(rule, Verdict.NOT_EVALUABLE, "Boldness was not checked (image or OCR not available).")
+    # Imported lazily so the engine stays importable without the CV dependencies.
+    from label_assay.match.bold import BoldVerdict, check_warning_bold
+
+    result = check_warning_bold(ctx.image, ctx.ocr_lines)
+    mapping = {
+        BoldVerdict.BOLD_OK: Verdict.PASS,
+        BoldVerdict.NOT_BOLD: Verdict.FAIL,
+        BoldVerdict.REVIEW: Verdict.NEEDS_REVIEW,
+    }
+    return _finding(rule, mapping[result.verdict], result.detail)
+
+
 # Strategy name -> matcher. The rulebook selects the strategy; the engine never
 # names an individual rule. A rule whose strategy has no matcher yet is skipped.
 _MATCHERS: dict[str, Callable[[Rule, VerifyContext], Finding]] = {
     "verbatim": _match_warning_verbatim,
     "brand_match": _match_brand,
     "abv_consistency": _match_abv_consistency,
+    "warning_bold": _match_warning_bold,
 }
 
 _REVIEW_NOTE = " (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)"

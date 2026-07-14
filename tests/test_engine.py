@@ -151,3 +151,22 @@ def test_corroborating_ocr_leaves_the_pass_intact() -> None:
 def test_dead_ocr_does_not_single_out_any_field() -> None:
     # An unreadable image must not manufacture per-field failures.
     assert unconfirmed_fields(_compliant_extraction(), [OcrLine("", 0.0)]) == set()
+
+
+@pytest.mark.skipif(not SAMPLE.exists(), reason="run samples/make_samples.py first")
+def test_bold_finding_runs_when_image_and_ocr_supplied() -> None:
+    # Offline (no key): fixture extraction + real image + real OCR exercise the
+    # bold check through the engine. A compliant label must not FAIL.
+    from label_assay.extract.ocr import read_lines
+
+    image = SAMPLE.read_bytes()
+    report = verify(
+        _compliant_extraction(),
+        _application(),
+        load_rulebook(),
+        image=image,
+        ocr_lines=read_lines(image),
+    )
+    bold = next((f for f in report.findings if f.rule_id == "health_warning_bold"), None)
+    assert bold is not None
+    assert bold.verdict != Verdict.FAIL
