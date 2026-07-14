@@ -13,5 +13,5 @@ primary_region = "iad"
 
 [[vm]]
   size = "shared-cpu-1x"
-  # 512mb is ample for the skeleton; bump to 1024 once the OCR/CV deps land.
-  memory = "512mb"
+  # 1 GB for the OCR/CV runtime (opencv + onnxruntime + the RapidOCR model).
+  memory = "1024mb"
