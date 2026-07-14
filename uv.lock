@@ -71,15 +71,6 @@ wheels = [
 ]
 
 [[package]]
-name = "cleanco"
-version = "2.3"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e9/e1/0b7b567c915ef1d619713b0caee14041536814767bad0c30b5e6542a40c9/cleanco-2.3.tar.gz", hash = "sha256:26b899b2be871be288408205686c5a1dd5f3ab085b709d041a77f3e3049d2961", size = 12311, upload-time = "2024-05-15T16:18:19.314Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f8/4e/e4a24eec01fbfda0df23582bc9be5d8c32b324d79481edf6d1ff52b03733/cleanco-2.3-py3-none-any.whl", hash = "sha256:7ab4672cdfdabe2375a608686da86005b33df6f347ebf7849c9d0e2651f27e01", size = 11139, upload-time = "2024-05-15T16:18:18.032Z" },
-]
-
-[[package]]
 name = "click"
 version = "8.4.2"
 source = { registry = "https://pypi.org/simple" }
@@ -392,25 +383,24 @@ name = "label-assay"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "anyascii" },
     { name = "fastapi" },
+    { name = "ftfy" },
     { name = "jinja2" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-multipart" },
     { name = "pyyaml" },
+    { name = "rapidfuzz" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.optional-dependencies]
 ml = [
     { name = "anthropic" },
-    { name = "anyascii" },
-    { name = "cleanco" },
-    { name = "ftfy" },
     { name = "numpy" },
     { name = "opencv-python-headless" },
     { name = "pillow" },
-    { name = "rapidfuzz" },
     { name = "rapidocr-onnxruntime" },
     { name = "scikit-image" },
 ]
@@ -426,10 +416,9 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", marker = "extra == 'ml'", specifier = ">=0.42" },
-    { name = "anyascii", marker = "extra == 'ml'", specifier = ">=0.3" },
-    { name = "cleanco", marker = "extra == 'ml'", specifier = ">=2.3" },
+    { name = "anyascii", specifier = ">=0.3" },
     { name = "fastapi", specifier = ">=0.115" },
-    { name = "ftfy", marker = "extra == 'ml'", specifier = ">=6.3" },
+    { name = "ftfy", specifier = ">=6.3" },
     { name = "jinja2", specifier = ">=3.1" },
     { name = "numpy", marker = "extra == 'ml'", specifier = ">=2.0" },
     { name = "opencv-python-headless", marker = "extra == 'ml'", specifier = ">=4.10" },
@@ -438,7 +427,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.7" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "rapidfuzz", marker = "extra == 'ml'", specifier = ">=3.10" },
+    { name = "rapidfuzz", specifier = ">=3.10" },
     { name = "rapidocr-onnxruntime", marker = "extra == 'ml'", specifier = ">=1.4" },
     { name = "scikit-image", marker = "extra == 'ml'", specifier = ">=0.24" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
