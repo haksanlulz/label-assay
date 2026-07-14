@@ -12,12 +12,12 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from ttb_verifier import __version__
-from ttb_verifier.rulebook.loader import load_rulebook
+from label_assay import __version__
+from label_assay.rulebook.loader import load_rulebook
 
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
-app = FastAPI(title="TTB Label Verifier", version=__version__)
+app = FastAPI(title="LabelAssay", version=__version__)
 
 
 @app.get("/health")
