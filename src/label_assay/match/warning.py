@@ -9,14 +9,21 @@ because the regulation treats them differently:
   between the rendered heading words (the same concern the bold check
   handles), then compared case-sensitively.
 - body: the remainder. 16.21 fixes its wording, but no regulation fixes its
-  case — TTB-approved labels routinely set the entire statement in capitals —
-  so it is compared casefolded.
+  case or its typesetting — TTB-approved labels routinely set the entire
+  statement in capitals, and OCR of the small print routinely joins correctly
+  printed words ("Consumptionofalcoholicbeverages...") — so it is judged on
+  its squashed form: casefolded alphanumerics only (text/normalize.squash, the
+  same transform the corroboration gate in verify/confidence.py runs on).
+  Deliberate trade: squashing drops punctuation too, so a period-for-comma
+  deviation alone no longer reads as ALTERED. Letter-substance over
+  punctuation — chosen after real approved labels in the COLA corpus
+  false-failed on space-joined OCR reads; 16.21 fixes the words.
 
-Heading exact and body words equal -> MATCH. Heading present in the wrong
-case with the body words equal -> CAPITALIZATION. Any changed, missing, or
+Heading exact and body squash-equal -> MATCH. Heading present in the wrong
+case with the body squash-equal -> CAPITALIZATION. Any changed, missing, or
 added word -> ALTERED, which takes precedence over CAPITALIZATION. The
-word-level diff is for explaining the finding to a reviewer, never for
-deciding it.
+word-level diff of the space-separated forms is best-effort explanation for a
+reviewer, never the decision.
 
 A VLM must never adjudicate this: vision models recite this famous paragraph
 from memory and will "read" the mandated text off a label that does not carry
@@ -32,7 +39,7 @@ import difflib
 import enum
 from dataclasses import dataclass
 
-from label_assay.text.normalize import canon_statutory
+from label_assay.text.normalize import canon_statutory, squash
 
 
 class WarningVerdict(enum.StrEnum):
@@ -70,7 +77,7 @@ def compare_warning(found_text: str | None, reference: str) -> WarningFinding:
         return WarningFinding(WarningVerdict.ALTERED, _ALTERED_DETAIL, _word_diff(ref, got))
     got_heading, got_body = located
 
-    if got_body.casefold() != ref_body.casefold():
+    if squash(got_body) != squash(ref_body):
         # ALTERED outranks CAPITALIZATION: wrong words are the graver finding.
         return WarningFinding(WarningVerdict.ALTERED, _ALTERED_DETAIL, _word_diff(ref, got))
 

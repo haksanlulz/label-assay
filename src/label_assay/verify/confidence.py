@@ -14,23 +14,14 @@ globally illegible image means.
 
 from __future__ import annotations
 
-import re
-
 from rapidfuzz import fuzz
 
 from label_assay.extract.base import Extraction
 from label_assay.extract.ocr import OcrLine
+from label_assay.text.normalize import squash as _squash
 
-_ALNUM = re.compile(r"[^a-z0-9]")
 _SUPPORT_FLOOR = 0.60  # below this, the model's quote is not corroborated by OCR
 _FIELDS = ("brand_name", "class_type", "alcohol_content", "net_contents", "government_warning")
-
-
-def _squash(s: str) -> str:
-    """Space- and punctuation-insensitive form. OCR often drops spaces between
-    rendered words ("OLDTOMDISTILLERY"), so corroboration is checked on the
-    collapsed alphanumerics rather than token by token."""
-    return _ALNUM.sub("", s.casefold())
 
 
 def ocr_is_alive(lines: list[OcrLine]) -> bool:

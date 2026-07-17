@@ -1,6 +1,6 @@
 """Text canonicalization.
 
-Two normalizers, because the domain needs opposite things from them:
+Three transforms, because the domain needs different things from them:
 
 - ``canon_statutory`` — for the Government Warning. Collapses benign OCR noise
   (whitespace runs, line-break hyphenation, curly quotes, width variants) but
@@ -9,6 +9,10 @@ Two normalizers, because the domain needs opposite things from them:
 - ``canon_brand`` — for brand names. Aggressive: repairs mojibake, folds
   diacritics, strips legal suffixes, casefolds — so "STONE'S THROW" and
   "Stone's Throw" collapse to the same string and the match is exact, not fuzzy.
+- ``squash`` — the flattest form: casefolded alphanumerics, nothing else. For
+  comparisons that must survive OCR dropping the spaces between rendered words
+  (corroboration in verify/confidence.py, the warning-body wording check in
+  match/warning.py).
 
 Admissibility rule (enforced in tests): every step of ``canon_statutory`` is a
 provable no-op on the verbatim 27 CFR 16.21 reference. casefold is therefore
@@ -37,6 +41,7 @@ _DASHES = {c: "-" for c in (0x2010, 0x2011, 0x2012, 0x2013, 0x2014, 0x2015, 0x22
 _APOSTROPHE = dict.fromkeys((0x27,), None)
 
 _WS = re.compile(r"\s+")
+_ALNUM = re.compile(r"[^a-z0-9]")
 _HYPHEN_LINEBREAK = re.compile(r"-\s*\n\s*")  # "de-\nfects" -> "defects"
 _NON_WORD = re.compile(r"[^\w\s]")
 _ARTICLES = frozenset({"the", "a", "an"})
@@ -66,6 +71,14 @@ def _base(s: str) -> str:
 def canon_statutory(s: str) -> str:
     """Case-preserving canonical form for verbatim statutory-text comparison."""
     return _base(s)
+
+
+def squash(s: str) -> str:
+    """Space-, punctuation-, and case-insensitive form: the casefolded
+    alphanumerics and nothing else. OCR of small print routinely drops the
+    spaces between rendered words ("OLDTOMDISTILLERY"), so checks that must
+    survive that read compare this collapsed form."""
+    return _ALNUM.sub("", s.casefold())
 
 
 def canon_brand(s: str) -> str:
