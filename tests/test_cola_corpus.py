@@ -36,6 +36,10 @@ def test_applications_csv_parses_with_the_apps_own_parser() -> None:
     for application in applications.values():
         assert application.brand_name
         assert application.class_type
+    # The fanciful-name column round-trips through the app's own parser; an
+    # empty cell means the registry record filed none.
+    assert applications["cola_24071001001099.png"].fanciful_name == "YELLOW CARD PILS"
+    assert applications["cola_24093001000375.png"].fanciful_name == ""
 
 
 def test_every_png_passes_the_apps_upload_checks() -> None:

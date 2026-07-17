@@ -24,6 +24,8 @@ An independent OCR pass reads the same image. Where the two readings disagree, t
 | Brand name matches the application | 27 CFR 5.64 |
 | Alcohol content internally consistent (proof = 2 × ABV) | 27 CFR 5.65, 5.1 |
 
+An application may also file an optional fanciful name alongside the brand name (both are fields on the COLA form), and when one was filed the brand check accepts the label displaying either filed name — on the single-label form it is the optional "Fanciful name (if filed)" field, in a batch CSV the optional `fanciful_name` column.
+
 Every finding carries its citation. Verdicts are **advisory** — a compliance specialist makes the decision.
 
 ## Verdict model
@@ -78,7 +80,7 @@ Regenerate with `uv run python tools/make_test_labels.py`. Output is determinist
 
 To try the app with them: upload any fixture PNG on the single-label page together with its `brand_name` and `class_type` row from `applications.csv` — or upload several PNGs plus `applications.csv` itself on `/batch`. `manifest.csv` says what each label should produce on a faithful read; through the live app, the OCR corroboration can additionally hold a finding for review when the second read of a dark or decorative label is degraded.
 
-A second, real corpus lives in `tests/fixtures/cola/`: 11 label filings from TTB's public COLA Registry, one composite PNG per application, with the brand and class/type as filed. All eleven were approved by TTB, which makes them ground truth in one direction: `uv run python tools/eval_cola.py` uploads them through a running instance's `/batch` endpoint and reports per-label outcomes, where a content-rule **fail** is a candidate false positive, **needs review** is legitimate abstention (rotated and low-contrast warnings are in the set on purpose), and bold-check findings are soft ground truth because the registry disclaims the rendered typography. One documented exception: `cola_24100001000120` misspells the mandated heading as `GOVERMENT WARNING` on the label itself (approval does not guarantee textual perfection), so a wording **fail** on that row is a true positive, not a checker bug. Provenance and per-label notes: [tests/fixtures/cola/README.md](tests/fixtures/cola/README.md).
+A second, real corpus lives in `tests/fixtures/cola/`: 11 label filings from TTB's public COLA Registry, one composite PNG per application, with the brand, fanciful name, and class/type as filed. All eleven were approved by TTB, which makes them ground truth in one direction: `uv run python tools/eval_cola.py` uploads them through a running instance's `/batch` endpoint and reports per-label outcomes, where a content-rule **fail** is a candidate false positive, **needs review** is legitimate abstention (rotated and low-contrast warnings are in the set on purpose), and bold-check findings are soft ground truth because the registry disclaims the rendered typography. One documented exception: `cola_24100001000120` misspells the mandated heading as `GOVERMENT WARNING` on the label itself (approval does not guarantee textual perfection), so a wording **fail** on that row is a true positive, not a checker bug. Provenance and per-label notes: [tests/fixtures/cola/README.md](tests/fixtures/cola/README.md).
 
 ## Layout
 

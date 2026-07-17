@@ -1,6 +1,6 @@
 # Real-label evaluation corpus (TTB Public COLA Registry)
 
-Eleven real, TTB-approved label applications pulled from the [Public COLA Registry](https://ttbonline.gov/colasonline/publicSearchColasBasic.do) on 2026-07-17. Each `cola_<TTBID>.png` is the label set filed on that application; multi-panel filings (front + back) are stacked vertically into one width-matched image, because the app's contract is one image per application. `applications.csv` carries the data as filed, taken from the registry record: `filename,brand_name,class_type` — the same schema the batch parser expects.
+Eleven real, TTB-approved label applications pulled from the [Public COLA Registry](https://ttbonline.gov/colasonline/publicSearchColasBasic.do) on 2026-07-17. Each `cola_<TTBID>.png` is the label set filed on that application; multi-panel filings (front + back) are stacked vertically into one width-matched image, because the app's contract is one image per application. `applications.csv` carries the data as filed, taken from the registry record: `filename,brand_name,fanciful_name,class_type` — the same schema the batch parser expects; `fanciful_name` is empty where the registry record filed none.
 
 COLA records are public records of a federal agency. The label artwork itself may carry applicants' trademarks; these files are test fixtures for compliance-checking, not assets for reuse.
 
@@ -11,7 +11,7 @@ Every label here was approved by TTB, so the content rules should not fail on th
 Stress cases and known deviations this corpus includes (verified by inspecting the composites):
 
 - `cola_25178001000103` (Nascent Spirits bourbon): the entire warning is printed rotated 90° along the right edge, white on black. A legibility-gate test: OCR that cannot read it must hold the finding for review, never fail it.
-- `cola_24066001000900` (The Greek Theatre): the warning is likewise rotated 90° in a narrow side panel, and the fanciful names ("THIRST TRAP", "WATERMELON SUGAR HIGH") are far more prominent than the brand — brand-matching noise as it actually occurs on craft labels.
+- `cola_24066001000900` (The Greek Theatre): the warning is likewise rotated 90° in a narrow side panel, and the filed fanciful name ("THIRST TRAP WATERMELON SUGAR HIGH") is far more prominent than the brand — brand-matching noise as it actually occurs on craft labels.
 - `cola_25178001000103` and `cola_24093001000375`: the warning **body** is set in all capitals. 27 CFR 16.22(a)(2) mandates capitals and bold only for the heading words; an all-caps body is legal and common on real labels. These catch case-handling false positives.
 - `cola_24064001000356` (Mortalis): a keg collar, not a bottle label — calendar date ring around the rim, checkbox net contents in U.S. gallons, and the alcohol content as a fill-in blank ("8 __% Alc./Vol."). Layout noise as filings actually look.
 - `cola_24093001000375`: the filed brand name is `7` while the label art reads "VODKA 7" — the brand-judgment case (27 CFR 5.64) on a one-character brand.

@@ -61,6 +61,24 @@ def test_application_csv_is_parsed_and_headers_are_case_insensitive() -> None:
     assert applications["a.png"].class_type == "Kentucky Straight Bourbon Whiskey"
 
 
+def test_application_csv_without_a_fanciful_column_yields_empty_fanciful_names() -> None:
+    # The two mandatory-column exports importers already have keep working; a
+    # missing column and an empty cell both mean no fanciful name was filed.
+    raw = b"filename,brand_name,class_type\na.png,Old Tom Distillery,Whiskey\n"
+    assert parse_application_csv(raw)["a.png"].fanciful_name == ""
+
+
+def test_application_csv_fanciful_column_is_parsed_and_empty_cells_stay_empty() -> None:
+    raw = (
+        b"filename,brand_name,fanciful_name,class_type\n"
+        b"a.png,Earthbound Beer,Yellow Card Pils,Beer\n"
+        b"b.png,Alsina & Sarda,,Sparkling Wine\n"
+    )
+    applications = parse_application_csv(raw)
+    assert applications["a.png"].fanciful_name == "Yellow Card Pils"
+    assert applications["b.png"].fanciful_name == ""
+
+
 def test_application_csv_skips_rows_without_a_filename() -> None:
     raw = b"filename,brand_name,class_type\n,Nobody,Whiskey\nb.png,Real Brand,Whiskey\n"
     applications = parse_application_csv(raw)

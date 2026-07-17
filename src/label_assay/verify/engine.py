@@ -80,17 +80,48 @@ def _match_warning_verbatim(rule: Rule, ctx: VerifyContext) -> Finding:
     return _finding(rule, verdict, result.detail, result.diff)
 
 
+_BRAND_VERDICTS = {
+    BrandVerdict.MATCH: Verdict.PASS,
+    BrandVerdict.REVIEW: Verdict.NEEDS_REVIEW,
+    BrandVerdict.MISMATCH: Verdict.FAIL,
+}
+
+
 def _match_brand(rule: Rule, ctx: VerifyContext) -> Finding:
-    if not ctx.application.brand_name:
+    application = ctx.application
+    if not application.brand_name:
         return _finding(rule, Verdict.NOT_EVALUABLE, "No application brand name was provided to compare against.")
     label_value = getattr(ctx.extraction, rule.match.field).value
-    result = match_brand(label_value, ctx.application.brand_name)
-    mapping = {
-        BrandVerdict.MATCH: Verdict.PASS,
-        BrandVerdict.REVIEW: Verdict.NEEDS_REVIEW,
-        BrandVerdict.MISMATCH: Verdict.FAIL,
-    }
-    return _finding(rule, mapping[result.verdict], result.detail)
+    brand = match_brand(label_value, application.brand_name)
+    if not application.fanciful_name:
+        return _finding(rule, _BRAND_VERDICTS[brand.verdict], brand.detail)
+
+    # A filing carries a brand name and, optionally, a fanciful name (both are
+    # items on Form 5100.31), and real labels often display the fanciful name
+    # most prominently. The label read is therefore judged against both filed
+    # names and the better outcome stands; match_brand itself stays a pure
+    # two-string compare, so the either-name orchestration lives here.
+    fanciful = match_brand(label_value, application.fanciful_name)
+    if BrandVerdict.MATCH in (brand.verdict, fanciful.verdict):
+        which, filed = (
+            ("brand name", application.brand_name)
+            if brand.verdict is BrandVerdict.MATCH
+            else ("fanciful name", application.fanciful_name)
+        )
+        return _finding(
+            rule, Verdict.PASS, f"The label matches the filed {which} ({filed!r}) after normalization."
+        )
+    if brand.verdict is BrandVerdict.REVIEW:
+        return _finding(rule, Verdict.NEEDS_REVIEW, brand.detail)
+    if fanciful.verdict is BrandVerdict.REVIEW:
+        return _finding(rule, Verdict.NEEDS_REVIEW, "Compared against the filed fanciful name: " + fanciful.detail)
+    return _finding(
+        rule,
+        Verdict.FAIL,
+        f"The brand read from the label ({label_value!r}) matches neither the filed "
+        f"brand name ({application.brand_name!r}) nor the filed fanciful name "
+        f"({application.fanciful_name!r}).",
+    )
 
 
 def _match_abv_consistency(rule: Rule, ctx: VerifyContext) -> Finding:

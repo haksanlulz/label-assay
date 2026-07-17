@@ -13,8 +13,10 @@ exactly as it would be one at a time. Results appear as they finish.</p>
 
   <label for="applications">Application data (CSV, optional)</label>
   <input type="file" id="applications" name="applications" accept=".csv,text/csv">
-  <p class="hint">Columns: <code>filename</code>, <code>brand_name</code>, <code>class_type</code>.
-     Without it, every label-internal check still runs &mdash; only the brand comparison is
+  <p class="hint">Columns: <code>filename</code>, <code>brand_name</code>, <code>class_type</code>,
+     and optionally <code>fanciful_name</code> &mdash; when a fanciful name was filed, the label
+     may display either name and the brand check accepts both.
+     Without the CSV, every label-internal check still runs &mdash; only the brand comparison is
      skipped, since there is nothing filed to compare against.</p>
 
   <button type="submit">Check the batch</button>
