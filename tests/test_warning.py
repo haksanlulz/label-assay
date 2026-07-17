@@ -17,6 +17,23 @@ def _ref() -> str:
     return next(r for r in rb.rules if r.id == "health_warning_verbatim").match.reference
 
 
+# Verbatim local OCR reads of two TTB-approved labels in tests/fixtures/cola
+# (cola_24106001000404, cola_25150001000637): every word is printed correctly
+# on the labels, but the OCR of the tiny print drops most inter-word spaces.
+_SPACE_JOINED_OCR = (
+    "GOVERNMENTWARNING:(1)Accordingto theSurgeonGeneral, womenshouldnot "
+    "drinkalcoholicbeveragesduringpregnancy becauseoftheriskofbirth defects.(2) "
+    "Consumptionofalcoholicbeveragesimpairs yourabilitytodriveacaroroperate "
+    "machinery,and maycausehealthproblems."
+)
+_SPACE_JOINED_ALL_CAPS_OCR = (
+    "GOVERNMENT WARNING:(1) ACCORDINGTOTHESURGEON GENERAL,WOMENSHOULDNOT "
+    "DRINKALCOHOLICBEVERAGES DURINGPREGNANCY BECAUSEOFTHERISK OF BIRTH "
+    "DEFECTS.(2) CONSUMPTIONOFALCOHOLIC BEVERAGESIMPAIRSYOURABILITY "
+    "TODRIVEACAROROPERATE MACHINERY,AND MAYCAUSE HEALTH PROBLEMS."
+)
+
+
 def test_exact_text_matches() -> None:
     ref = _ref()
     assert compare_warning(ref, ref).verdict == WarningVerdict.MATCH
@@ -47,6 +64,52 @@ def test_ocr_joined_heading_words_still_match() -> None:
     ref = _ref()
     joined = ref.replace("GOVERNMENT WARNING:", "GOVERNMENTWARNING:")
     assert compare_warning(joined, ref).verdict == WarningVerdict.MATCH
+
+
+def test_real_space_joined_ocr_read_matches() -> None:
+    # Correct wording must not fail because print kerning and OCR dropped the
+    # spaces: the body is judged on its letters and digits, not its tokenization.
+    assert compare_warning(_SPACE_JOINED_OCR, _ref()).verdict == WarningVerdict.MATCH
+
+
+def test_real_space_joined_all_caps_ocr_read_matches() -> None:
+    # Same defense on the all-caps variant: a fully capitalized body is legal,
+    # and the space drops on top of it must not turn MATCH into ALTERED.
+    assert compare_warning(_SPACE_JOINED_ALL_CAPS_OCR, _ref()).verdict == WarningVerdict.MATCH
+
+
+def test_letter_level_change_is_still_altered_when_space_joined() -> None:
+    # Space-insensitivity must not become letter-insensitivity: a real wording
+    # change inside a space-joined read still fails.
+    mangled = _SPACE_JOINED_OCR.replace("birth defects.", "birtheffects.")
+    result = compare_warning(mangled, _ref())
+    assert result.verdict == WarningVerdict.ALTERED
+    assert result.diff  # best-effort word diff still comes along for the reviewer
+
+
+def test_misspelled_goverment_heading_is_altered() -> None:
+    # The real Alsina & Sarda label (cola_24100001000120) prints "GOVERMENT
+    # WARNING:" — a letter missing from the mandated heading. The heading
+    # locator walks the mandated characters and refuses at the first mismatch,
+    # and that code path reports ALTERED: the heading words themselves are
+    # wrong. ABSENT is reserved for no warning text at all, and text was found
+    # here — it is just not the mandated heading. A wording fail on this label
+    # is the corpus's one true positive and must survive the space-insensitive
+    # body comparison.
+    ref = _ref()
+    misspelled = ref.replace("GOVERNMENT WARNING:", "GOVERMENT WARNING:")
+    result = compare_warning(misspelled, ref)
+    assert result.verdict == WarningVerdict.ALTERED
+    assert result.diff
+
+
+def test_punctuation_only_deviation_is_not_flagged() -> None:
+    # Deliberate trade, documented in the module docstring: the body comparison
+    # runs on letters and digits alone, so a period-for-comma slip is invisible
+    # to it. Letter-substance over punctuation.
+    ref = _ref()
+    repunctuated = ref.replace("machinery, and", "machinery. and")
+    assert compare_warning(repunctuated, ref).verdict == WarningVerdict.MATCH
 
 
 def test_changed_word_with_correct_heading_is_altered() -> None:

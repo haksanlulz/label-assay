@@ -14,7 +14,9 @@ rules:
     description: >-
       The brand name on the label must match the brand name filed on the COLA
       application. Matched after normalization (case, punctuation, legal
-      suffixes), so cosmetic differences pass while a real difference does not.
+      suffixes), so cosmetic differences pass while a real difference does not;
+      when one name contains the other, the finding is held for a person's
+      judgment rather than failed.
     match:
       strategy: brand_match
       field: brand_name
