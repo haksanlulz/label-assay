@@ -25,7 +25,8 @@ from fastapi.templating import Jinja2Templates
 
 from label_assay import __version__
 from label_assay.config import get_settings
-from label_assay.domain.models import Application, Verdict
+from label_assay.domain.models import Application, LabelReport, Verdict
+from label_assay.extract.base import Extraction
 from label_assay.rulebook.loader import load_rulebook
 from label_assay.web import batch as batchmod
 from label_assay.web.budget import DailyBudget
@@ -68,6 +69,16 @@ _VERDICT_LABEL = {
     Verdict.NOT_EVALUABLE: "Not checked",
 }
 _TEMPLATES.env.globals["verdict_label"] = _VERDICT_LABEL
+
+# The reader's fields echoed back on the result page, in display order, using
+# the form's own vocabulary. The government warning is rendered as presence
+# only — its wording and format are already judged (and diffed) in the findings.
+_READ_FIELDS = (
+    ("brand_name", "Brand name"),
+    ("class_type", "Class or type"),
+    ("alcohol_content", "Alcohol content"),
+    ("net_contents", "Net contents"),
+)
 
 
 _WARM_ON_STARTUP = True  # tests flip this off; a deployed process warms the reader
@@ -128,12 +139,23 @@ def _ctx(extra: dict) -> dict:
     return {"version": __version__, **extra}
 
 
-def _report_page(request: Request, report, elapsed: float | None = None) -> HTMLResponse:
+def _report_page(
+    request: Request, report: LabelReport, extraction: Extraction, elapsed: float | None = None
+) -> HTMLResponse:
     heading, summary = _VERDICT_COPY.get(report.verdict, ("Result", ""))
     return _TEMPLATES.TemplateResponse(
         request,
         "result.html",
-        _ctx({"report": report, "heading": heading, "summary": summary, "elapsed": elapsed}),
+        _ctx(
+            {
+                "report": report,
+                "heading": heading,
+                "summary": summary,
+                "elapsed": elapsed,
+                "extraction": extraction,
+                "read_fields": [(label, getattr(extraction, name)) for name, label in _READ_FIELDS],
+            }
+        ),
     )
 
 
@@ -225,14 +247,16 @@ async def check(
         # Off the event loop, exactly as the batch path runs it: check_label is
         # CPU-bound OCR plus a synchronous network call, and running it inline
         # would freeze every other request for its duration.
-        report = await asyncio.to_thread(
+        result = await asyncio.to_thread(
             check_label, data, application, extractor=default_extractor(get_settings()), budget=_BUDGET
         )
     except ExtractionUnavailable as exc:
         # 503 so a monitor or scripted client can tell this failure from a
         # rendered verdict; the page itself is the same clean message either way.
         return _error_page(request, str(exc), 503)
-    return _report_page(request, report, elapsed=time.perf_counter() - started)
+    return _report_page(
+        request, result.report, result.extraction, elapsed=time.perf_counter() - started
+    )
 
 
 @app.get("/batch", response_class=HTMLResponse)

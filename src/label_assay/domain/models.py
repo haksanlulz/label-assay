@@ -71,4 +71,3 @@ class Application(BaseModel):
     # empty when none was filed. Labels often display it more prominently than
     # the brand, so the brand check accepts either filed name.
     fanciful_name: str = ""
-    origin: str | None = None

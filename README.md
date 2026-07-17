@@ -26,7 +26,7 @@ An independent OCR pass reads the same image. Where the two readings disagree, t
 
 An application may also file an optional fanciful name alongside the brand name (both are fields on the COLA form), and when one was filed the brand check accepts the label displaying either filed name — on the single-label form it is the optional "Fanciful name (if filed)" field, in a batch CSV the optional `fanciful_name` column.
 
-Two further fields are read but not checked: net contents is extracted and available at the extractor port, but no verification rule shipped for it (a standards-of-fill check needs the authorized-container data in 27 CFR part 5 subpart E), and class/type selects which rules apply to a label but is never compared against the application.
+Two further fields are read but not checked: net contents is extracted and available at the extractor port, but no verification rule shipped for it (a standards-of-fill check needs the authorized-container data in 27 CFR part 5 subpart E), and class/type selects which rules apply to a label but is never compared against the application. The result page echoes what was read from the label, and notes that fields outside the checks above are shown for reference, not judged. Bottler name and address, and country of origin, are neither read nor checked.
 
 Every finding carries its citation. Verdicts are **advisory** — a compliance specialist makes the decision.
 

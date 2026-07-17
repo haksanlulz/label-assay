@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from typing import NamedTuple
 
 from label_assay.config import Settings
 from label_assay.domain.models import Application, LabelReport
-from label_assay.extract.base import ExtractorPort
+from label_assay.extract.base import Extraction, ExtractorPort
 from label_assay.extract.haiku import HaikuExtractor
 from label_assay.extract.images import ImageTooLarge, downscale_for_vision, open_bounded
 from label_assay.extract.ocr import read_lines
@@ -24,6 +25,16 @@ logger = logging.getLogger(__name__)
 class ExtractionUnavailable(Exception):
     """The label could not be read (no key configured, the reader failed, or the
     day's spend limit is reached). The message is safe to show a user."""
+
+
+class CheckResult(NamedTuple):
+    """One check's verdict report together with the extraction it was judged
+    from. The result page shows the reviewer what the reader actually returned,
+    and carrying the extraction here keeps extractor types out of the domain
+    report."""
+
+    report: LabelReport
+    extraction: Extraction
 
 
 # One extractor per (key, model): the SDK client owns an httpx connection pool,
@@ -50,7 +61,7 @@ def check_label(
     extractor: ExtractorPort,
     budget: DailyBudget | None = None,
     background: bool = False,
-) -> LabelReport:
+) -> CheckResult:
     # ``background=True`` marks a batch item: its OCR read yields to any pending
     # interactive check at the engine's priority gate (see extract/ocr.py).
     # Reject undecodable or bomb-sized images before any money or CPU is spent.
@@ -108,4 +119,5 @@ def check_label(
         # page for the vision call's timeout; the stray call finishes on its own.
         pool.shutdown(wait=False)
 
-    return verify(extraction, application, load_rulebook(), image=image, ocr_lines=ocr_lines)
+    report = verify(extraction, application, load_rulebook(), image=image, ocr_lines=ocr_lines)
+    return CheckResult(report=report, extraction=extraction)

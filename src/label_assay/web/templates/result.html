@@ -40,4 +40,26 @@
   </li>
   {% endfor %}
 </ul>
+
+{% if extraction %}
+<h2>What was read from the label</h2>
+<table class="results">
+  <thead>
+    <tr><th scope="col">Field</th><th scope="col">Read from the label</th></tr>
+  </thead>
+  <tbody>
+    {% for label, field in read_fields %}
+    <tr>
+      <th scope="row">{{ label }}</th>
+      <td>{% if field.verbatim %}&ldquo;{{ field.verbatim }}&rdquo;{% else %}<span class="hint">Not found on the label.</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    <tr>
+      <th scope="row">Government warning</th>
+      <td>{% if extraction.government_warning.found %}Present. Its wording and format are judged in the findings above.{% else %}<span class="hint">Not found on the label.</span>{% endif %}</td>
+    </tr>
+  </tbody>
+</table>
+<p class="hint">Fields that no check above covers are shown for your reference; they were read from the label, not judged.</p>
+{% endif %}
 {% endblock %}

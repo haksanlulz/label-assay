@@ -15,12 +15,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 import fixture_corpus
-from label_assay.domain.models import Application
+from label_assay.domain.models import Application, LabelReport, Verdict
 from label_assay.extract.fixture import FixtureExtractor
 from label_assay.match.brand import BrandVerdict, match_brand
 from label_assay.web import app as webapp
 from label_assay.web import batch as batchmod
 from label_assay.web.batch import ApplicationCSVError, create_job, parse_application_csv, run_job
+from label_assay.web.service import CheckResult
 from synthetic_images import bomb_png
 
 SPEC = fixture_corpus.known_good_compliant()
@@ -484,7 +485,10 @@ def test_batch_items_read_from_disk_at_processing_time_as_background_priority(
     def capture(data, application, *, extractor, budget=None, background=False):
         captured["data"] = data
         captured["background"] = background
-        return None
+        return CheckResult(
+            report=LabelReport(verdict=Verdict.PASS, findings=[], rulebook_version="test"),
+            extraction=fixture_corpus.perfect_extraction(SPEC),
+        )
 
     monkeypatch.setattr(batchmod, "check_label", capture)
     path = tmp_path / "x.png"
