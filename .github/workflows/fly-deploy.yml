@@ -16,6 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only
+      # --ha=false: batch job state lives in the process, so this app must run as
+      # a single instance. Fly provisions two machines by default, which silently
+      # breaks batch — a job created on one machine 404s when the poll is routed
+      # to the other.
+      - run: flyctl deploy --remote-only --ha=false
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

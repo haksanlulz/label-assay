@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import csv
 import io
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -114,6 +115,9 @@ def health() -> dict[str, object]:
         "rulebook_rules": len(rulebook.rules),
         "ai_reader": "configured" if settings.anthropic_api_key else "not-configured",
         "ocr": _ocr_status(),
+        # Which instance answered. Batch job state lives in this process, so the
+        # app must run as a single instance; seeing two ids here means it does not.
+        "instance": os.environ.get("FLY_MACHINE_ID", "local"),
     }
 
 
