@@ -13,5 +13,6 @@ primary_region = "iad"
 
 [[vm]]
   size = "shared-cpu-1x"
-  # 1 GB for the OCR/CV runtime (opencv + onnxruntime + the RapidOCR model).
-  memory = "1024mb"
+  # 2 GB: the OCR/CV runtime (opencv + onnxruntime + the RapidOCR model) plus a
+  # batch's uploaded images held in memory. 1 GB was killing the process mid-batch.
+  memory = "2048mb"
