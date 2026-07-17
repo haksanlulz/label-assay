@@ -35,4 +35,15 @@ Stress cases and known deviations this corpus includes (verified by inspecting t
 
 Source record for any row: `https://ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=<TTB ID>`. Images were fetched at human-browsing pace through the registry's own public pages.
 
+## Measured outcomes (deployed instance, 2026-07-18)
+
+Three full runs against the deployed instance, ~50 seconds per 11-label batch. Nothing false-passed in any run. Hard fails went from six to one as the matchers were corrected against this corpus: space-joined OCR reads of tiny print stopped failing the wording check, contained brand names (MORTALIS on the label, Mortalis Brewing Company as filed) moved to review, and reads matching the filed fanciful name (Yellow Card Pils) stopped failing the brand check.
+
+What remains, by class:
+
+- **Held for review, warning unreadable** (bottle photography, rotated or very small warnings): the reader finds no warning text, or its transcription cannot be corroborated by the independent scan. Honest abstention.
+- **Recitation trap, working as designed**: on the misspelled-GOVERMENT label the vision model transcribed the *canonical* warning — reciting from memory over what the label actually prints — while OCR read the real text. The corroboration gate refused to auto-pass it. Held for a person, which is the correct failure mode for a model that silently "fixes" the defect it is supposed to catch.
+- **Correlated misread, fails closed** (`cola_24100001000210`, Andechs): the warning is printed correctly in an ultra-condensed face at low scan resolution, and *both* reading channels misread the same glyphs. Two channels are not independent when the failure is glyph-level legibility; the result oscillates between a wording fail and a review across runs, and never a false pass. This is the corpus's standing demonstration of the design's epistemic limit.
+- **Stylized letterforms** (`cola_24093001000375`, the V-diamond-DKA "7" mark): the reader's brand read varies run to run ("vodka 7", "vodka"), redistributing the row between review and fail. Reader variance on decorative marks, not a comparator defect.
+
 Run the evaluation against a running instance: `uv run python tools/eval_cola.py --base-url http://127.0.0.1:8000` (see the script's docstring). `tests/test_cola_corpus.py` checks corpus integrity offline.
