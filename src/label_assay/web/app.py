@@ -23,9 +23,13 @@ from label_assay.config import get_settings
 from label_assay.domain.models import Application, Verdict
 from label_assay.rulebook.loader import load_rulebook
 from label_assay.web import batch as batchmod
+from label_assay.web.budget import DailyBudget
 from label_assay.web.service import ExtractionUnavailable, check_label, default_extractor
 
 _BG_TASKS: set = set()  # keep references so fire-and-forget batch jobs aren't GC'd
+# Bounds what this public demo can spend in a day. The provider-side workspace
+# spend cap is the hard ceiling; this makes the app degrade politely first.
+_BUDGET = DailyBudget(limit_usd=get_settings().daily_budget_usd)
 
 _WEB = Path(__file__).parent
 _TEMPLATES = Jinja2Templates(directory=str(_WEB / "templates"))
@@ -109,7 +113,7 @@ async def check(
 
     application = Application(brand_name=brand_name.strip(), class_type=class_type.strip())
     try:
-        report = check_label(data, application, extractor=default_extractor(get_settings()))
+        report = check_label(data, application, extractor=default_extractor(get_settings()), budget=_BUDGET)
     except ExtractionUnavailable as exc:
         return _error_page(request, str(exc))
     return _report_page(request, report)
@@ -122,7 +126,9 @@ def sample(request: Request) -> HTMLResponse:
         return _error_page(request, "The sample label isn't available on this server.")
     application = Application(brand_name="Old Tom Distillery", class_type="Kentucky Straight Bourbon Whiskey")
     try:
-        report = check_label(path.read_bytes(), application, extractor=default_extractor(get_settings()))
+        report = check_label(
+            path.read_bytes(), application, extractor=default_extractor(get_settings()), budget=_BUDGET
+        )
     except ExtractionUnavailable as exc:
         return _error_page(request, str(exc))
     return _report_page(request, report)
@@ -150,7 +156,7 @@ async def batch_create(request: Request, images: list[UploadFile]):
         return _error_page(request, str(exc))
 
     job = batchmod.create_job([name for name, _ in files])
-    task = asyncio.create_task(batchmod.run_job(job, files, extractor))
+    task = asyncio.create_task(batchmod.run_job(job, files, extractor, _BUDGET))
     _BG_TASKS.add(task)
     task.add_done_callback(_BG_TASKS.discard)
     return RedirectResponse(f"/batch/{job.id}", status_code=303)

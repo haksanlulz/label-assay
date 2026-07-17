@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 
 from label_assay.domain.models import Application, LabelReport, Verdict
 from label_assay.extract.base import ExtractorPort
+from label_assay.web.budget import DailyBudget
 from label_assay.web.service import ExtractionUnavailable, check_label
 
 MAX_FILES = 50          # bounds cost + abuse on the public demo (see docs)
@@ -78,14 +79,21 @@ def _headline(report: LabelReport) -> str:
     return worst.detail if worst else "No findings."
 
 
-async def run_job(job: BatchJob, files: list[tuple[str, bytes]], extractor: ExtractorPort) -> None:
+async def run_job(
+    job: BatchJob,
+    files: list[tuple[str, bytes]],
+    extractor: ExtractorPort,
+    budget: DailyBudget | None = None,
+) -> None:
     semaphore = asyncio.Semaphore(_CONCURRENCY)
 
     async def process(index: int, data: bytes) -> None:
         async with semaphore:
             item = job.items[index]
             try:
-                report = await asyncio.to_thread(check_label, data, Application(), extractor=extractor)
+                report = await asyncio.to_thread(
+                    check_label, data, Application(), extractor=extractor, budget=budget
+                )
                 item.verdict = report.verdict.value
                 item.detail = _headline(report)
                 item.status = "done"
