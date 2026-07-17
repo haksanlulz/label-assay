@@ -4,6 +4,13 @@ name: Scheduled health check
 # app self-reports, and fails loudly (workflow email) if anything degrades.
 # Side effect: the free-tier Space never idles long enough to sleep, so a
 # reviewer's first request is never a cold start.
+#
+# The second step runs one real end-to-end check per schedule tick — a
+# committed fixture posted to /check. It doubles as transaction-level
+# monitoring (a healthy /health cannot prove the check path works) and keeps
+# the model path warm: the first model call after an idle stretch measured
+# 8.9s, well over the interactive target. Cost is one Haiku call, about half
+# a cent per run.
 
 on:
   schedule:
@@ -37,3 +44,48 @@ jobs:
               raise SystemExit('DEGRADED: ' + '; '.join(problems))
           print('healthy:', d)
           "
+
+      - name: Synthetic transaction (one fixture through /check)
+        run: |
+          # The Space snapshot excludes tests/, so the fixture and its filed
+          # application row come from the GitHub repo at run time. label_023 is
+          # the lightest compliant label in the corpus (46 KB, white palette).
+          raw="https://raw.githubusercontent.com/haksanlulz/label-assay/main/tests/fixtures/labels"
+          curl -sSf -o label.png "$raw/label_023.png"
+          curl -sSf -o applications.csv "$raw/applications.csv"
+          python3 - <<'PY'
+          import csv
+          with open("applications.csv", newline="", encoding="utf-8") as fh:
+              row = next(r for r in csv.DictReader(fh) if r["filename"] == "label_023.png")
+          with open("brand.txt", "w", encoding="utf-8") as fh:
+              fh.write(row["brand_name"])
+          with open("class.txt", "w", encoding="utf-8") as fh:
+              fh.write(row["class_type"])
+          PY
+          code=$(curl -sS --max-time 180 -o response.html -w '%{http_code}' \
+            -F "image=@label.png;type=image/png" \
+            -F "brand_name=<brand.txt" \
+            -F "class_type=<class.txt" \
+            "https://haksanlulz-label-assay.hf.space/check")
+          if [ "$code" != "200" ]; then
+            echo "::error::POST /check returned $code, expected 200"
+            exit 1
+          fi
+          if ! grep -q 'alert alert--' response.html; then
+            echo "::error::the /check response carries no verdict marker; it is not a result page"
+            exit 1
+          fi
+          python3 - <<'PY'
+          import re
+          page = open("response.html", encoding="utf-8").read()
+          verdict = re.search(r'class="alert alert--([a-z_]+)"', page).group(1)
+          print(f"verdict marker: {verdict}")
+          elapsed = re.search(r"Checked in ([0-9.]+)", page)
+          if elapsed is None:
+              print("::warning::no 'Checked in' timing printed on the result page")
+          else:
+              seconds = float(elapsed.group(1))
+              print(f"checked in {seconds}s on the instance")
+              if seconds > 5:
+                  print(f"::warning::live check took {seconds}s, over the 5-second target")
+          PY

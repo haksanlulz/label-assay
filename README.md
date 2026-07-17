@@ -26,6 +26,8 @@ An independent OCR pass reads the same image. Where the two readings disagree, t
 
 An application may also file an optional fanciful name alongside the brand name (both are fields on the COLA form), and when one was filed the brand check accepts the label displaying either filed name — on the single-label form it is the optional "Fanciful name (if filed)" field, in a batch CSV the optional `fanciful_name` column.
 
+Two further fields are read but not checked: net contents is extracted and available at the extractor port, but no verification rule shipped for it (a standards-of-fill check needs the authorized-container data in 27 CFR part 5 subpart E), and class/type selects which rules apply to a label but is never compared against the application.
+
 Every finding carries its citation. Verdicts are **advisory** — a compliance specialist makes the decision.
 
 ## Verdict model
@@ -58,14 +60,14 @@ uv run pytest                 # live-API tests skip cleanly without a key
 
 ## Deploying
 
-Pushes to `main` deploy automatically (`.github/workflows/fly-deploy.yml`), pinned to a single instance because batch job state lives in the process. The workflow runs `uv run pytest` and `uv run ruff check .` first and only deploys when both pass. A push is the only thing that moves the deployment, so anything short of one — local commits not pushed, a green suite on uncommitted work — leaves the public URL serving older code with no local signal. After every push:
+Pushes to `main` deploy automatically. `.github/workflows/hf-deploy.yml` runs `uv run pytest` and `uv run ruff check .` in a `test` job, and only when both pass does the `deploy` job push a one-commit build snapshot of the tree to the Hugging Face Space, which builds and runs the same Docker image as a single container (the in-process batch job store requires exactly one instance). A second workflow, `.github/workflows/uptime.yml`, probes the deployed instance on a six-hour schedule and exercises one end-to-end check against a committed fixture, so a degraded subsystem emails and the free-tier Space never idles into sleep. A push is the only thing that moves the deployment, so anything short of one — local commits not pushed, a green suite on uncommitted work — leaves the public URL serving older code with no local signal. After every push:
 
 ```
-uv run python tools/verify_deploy.py                 # base URL comes from fly.toml
+uv run python tools/verify_deploy.py                 # against the deployed Space URL
 uv run python tools/verify_deploy.py --health-only   # same, without spending a model call
 ```
 
-It fails unless `/health` answers with every subsystem ready and this tree's exact rulebook hash, removed routes actually 404, and one timed check of a known-compliant fixture comes back compliant through the deployed instance. The Live link above is only claimed after this passes; a dropped connection means the machine is stopped, and the workflow can be re-run by hand from the Actions tab.
+It fails unless `/health` answers with every subsystem ready and this tree's exact rulebook hash, removed routes actually 404, and one timed check of a known-compliant fixture comes back compliant through the deployed instance. The Live link above is only claimed after this passes; a dropped connection means the Space is stopped or still building, and the deploy workflow can be re-run by hand from the Actions tab.
 
 ## Test labels
 

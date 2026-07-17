@@ -8,7 +8,7 @@ use a shared job store.
 
 A batch is labels *plus the data filed on their applications* — importers submit
 applications, not loose artwork. The application data arrives as a CSV keyed by
-filename, so each label is checked against its own filed brand and class. Labels
+filename, so each label is checked against its own filed application row. Labels
 with no matching CSV row still run every label-internal check; only the
 brand-vs-application comparison reports not-evaluable for those.
 """

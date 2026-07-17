@@ -674,8 +674,13 @@ def generate(out_dir: Path, seed: int = DEFAULT_SEED, count: int = DEFAULT_COUNT
     for spec in specs:
         render(spec, out_dir)
 
+    # LF line endings, explicitly: the csv module defaults to CRLF, but the
+    # committed copies are checked out with LF (.gitattributes eol=lf), and the
+    # suite byte-compares generated CSVs against committed ones on fresh clones.
     with (out_dir / "applications.csv").open("w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=["filename", "brand_name", "class_type"])
+        writer = csv.DictWriter(
+            fh, fieldnames=["filename", "brand_name", "class_type"], lineterminator="\n"
+        )
         writer.writeheader()
         writer.writerows(
             {"filename": s.filename, "brand_name": s.filed_brand, "class_type": s.class_type}
@@ -683,7 +688,11 @@ def generate(out_dir: Path, seed: int = DEFAULT_SEED, count: int = DEFAULT_COUNT
         )
 
     with (out_dir / "manifest.csv").open("w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=["filename", "defect", "expected_verdict", "notes"])
+        writer = csv.DictWriter(
+            fh,
+            fieldnames=["filename", "defect", "expected_verdict", "notes"],
+            lineterminator="\n",
+        )
         writer.writeheader()
         writer.writerows(
             {
