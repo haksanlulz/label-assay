@@ -35,6 +35,35 @@ def test_title_case_government_warning_is_a_capitalization_violation() -> None:
     assert compare_warning(titlecased, ref).verdict == WarningVerdict.CAPITALIZATION
 
 
+def test_all_caps_statement_matches() -> None:
+    # 16.22(a)(2) regulates the case of the heading words ONLY; TTB-approved
+    # labels routinely set the entire statement in capitals, and those are legal.
+    ref = _ref()
+    assert compare_warning(ref.upper(), ref).verdict == WarningVerdict.MATCH
+
+
+def test_ocr_joined_heading_words_still_match() -> None:
+    # OCR often drops the space between the rendered heading words.
+    ref = _ref()
+    joined = ref.replace("GOVERNMENT WARNING:", "GOVERNMENTWARNING:")
+    assert compare_warning(joined, ref).verdict == WarningVerdict.MATCH
+
+
+def test_changed_word_with_correct_heading_is_altered() -> None:
+    ref = _ref()
+    swapped = ref.replace("birth defects", "birth effects")
+    assert compare_warning(swapped, ref).verdict == WarningVerdict.ALTERED
+
+
+def test_title_case_heading_with_changed_word_is_altered_not_capitalization() -> None:
+    # ALTERED takes precedence when both violations apply.
+    ref = _ref()
+    both = ref.replace("GOVERNMENT WARNING", "Government Warning").replace(
+        "birth defects", "birth effects"
+    )
+    assert compare_warning(both, ref).verdict == WarningVerdict.ALTERED
+
+
 def test_missing_word_is_altered_and_reports_a_diff() -> None:
     ref = _ref()
     dropped = ref.replace("birth defects", "defects")  # "birth" removed

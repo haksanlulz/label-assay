@@ -1,4 +1,4 @@
-"""Daily spend guard — bounds what a public demo can cost.
+"""Daily spend guard — bounds what a public instance can cost.
 
 A publicly reachable app wired to a paid vision API is an open wallet: without a
 bound, anyone can run up the bill. Defence is layered. The provider-side

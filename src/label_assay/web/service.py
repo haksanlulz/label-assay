@@ -33,7 +33,7 @@ def check_label(
     extractor: ExtractorPort,
     budget: DailyBudget | None = None,
 ) -> LabelReport:
-    # Account for the paid call before making it, so a public demo cannot be
+    # Account for the paid call before making it, so a public instance cannot be
     # driven past its daily bound.
     if budget is not None:
         try:

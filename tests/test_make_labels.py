@@ -61,7 +61,11 @@ def test_every_defect_type_appears_at_least_twice() -> None:
         counts[spec.defect] = counts.get(spec.defect, 0) + 1
     for defect in gen.DEFECTS:
         assert counts.get(defect, 0) >= 2, f"{defect} appears fewer than twice"
-    assert counts["compliant"] >= len(specs) // 2  # about half the set is compliant
+    # The body-caps rows are compliant (16.22(a)(2) fixes only the heading case),
+    # so they count toward the compliant half of the corpus.
+    assert counts.get("warning_body_caps", 0) == gen.N_BODY_CAPS
+    compliant = counts["compliant"] + counts.get("warning_body_caps", 0)
+    assert compliant >= len(specs) // 2  # about half the set is compliant
 
 
 def test_brand_mismatch_covers_both_variants() -> None:

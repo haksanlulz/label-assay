@@ -10,7 +10,7 @@ The reading is done by AI. The deciding is not.
 
 A vision model transcribes what is on the label. Compliance verdicts are then computed in plain Python against a rulebook of TTB rules held as data. Two reasons drove that split:
 
-- **A model will confidently pass a non-compliant label.** Vision models reproduce the Government Warning from memory instead of reading it — they score near-perfectly on canonical images and badly on altered ones. A label whose warning is subtly wrong *is* an altered image. So the statutory text is compared byte-for-byte in code, where it either matches or it does not.
+- **A model will confidently pass a non-compliant label.** Vision models reproduce the Government Warning from memory instead of reading it — they score near-perfectly on canonical images and badly on altered ones. A label whose warning is subtly wrong *is* an altered image. So the statutory text is compared deterministically in code — word-for-word, with the mandated heading capitals checked exactly — where it either matches or it does not.
 - **Speed.** The prior vendor took 30–40 seconds per label, so reviewers went back to checking by eye. One terse model call plus microseconds of deterministic checking stays inside the 5-second target.
 
 An independent OCR pass reads the same image. Where the two readings disagree, the finding is held for a human rather than passed or failed — the two channels fail in different ways, so their agreement is real evidence in a way a model's self-reported confidence is not.
@@ -56,7 +56,7 @@ uv run pytest                 # live-API tests skip cleanly without a key
 
 ## Test labels
 
-`tools/make_test_labels.py` generates the corpus in `tests/fixtures/labels/`: 24 synthetic labels spanning distilled spirits, wine, and malt classes, four layouts, six palettes, several font families, and four canvas sizes, with invented brands in varied casings. About half are compliant; the rest each carry one specific defect mapped to a check the engine actually performs — warning heading in title case, heading not bold, altered statutory text, missing warning, proof ≠ 2 × ABV, and a label brand differing from the filed brand (both a typo-level variant and a different brand).
+`tools/make_test_labels.py` generates the corpus in `tests/fixtures/labels/`: 24 synthetic labels spanning distilled spirits, wine, and malt classes, four layouts, six palettes, several font families, and four canvas sizes, with invented brands in varied casings. About half are compliant — two of those render the entire warning statement in capitals, which is legal because 27 CFR 16.22(a)(2) fixes only the heading's case; the rest each carry one specific defect mapped to a check the engine actually performs — warning heading in title case, heading not bold, altered statutory text, missing warning, proof ≠ 2 × ABV, and a label brand differing from the filed brand (both a typo-level variant and a different brand).
 
 Two CSVs ride along:
 
@@ -66,6 +66,8 @@ Two CSVs ride along:
 Regenerate with `uv run python tools/make_test_labels.py`. Output is deterministic for a given `--seed` on one machine; fonts differ across machines, so committed bytes are machine-specific.
 
 To try the app with them: upload any fixture PNG on the single-label page together with its `brand_name` and `class_type` row from `applications.csv` — or upload several PNGs plus `applications.csv` itself on `/batch`. `manifest.csv` says what each label should produce.
+
+A second, real corpus lives in `tests/fixtures/cola/`: 11 label filings from TTB's public COLA Registry, one composite PNG per application, with the brand and class/type as filed. All eleven were approved by TTB, which makes them ground truth in one direction: `uv run python tools/eval_cola.py` uploads them through a running instance's `/batch` endpoint and reports per-label outcomes, where a content-rule **fail** is a candidate false positive, **needs review** is legitimate abstention (rotated and low-contrast warnings are in the set on purpose), and bold-check findings are soft ground truth because the registry disclaims the rendered typography. One documented exception: `cola_24100001000120` misspells the mandated heading as `GOVERMENT WARNING` on the label itself (approval does not guarantee textual perfection), so a wording **fail** on that row is a true positive, not a checker bug. Provenance and per-label notes: [tests/fixtures/cola/README.md](tests/fixtures/cola/README.md).
 
 ## Layout
 

@@ -5,8 +5,11 @@ Build-time asserts pin the text, brand, and alcohol-content defects to the
 engine's own matchers; the not-bold and missing-warning defects give those
 matchers nothing to check at build time, so tests/test_make_labels.py verifies
 every manifest verdict against the engine instead (the not-bold rows through
-real OCR and the stroke-width detector on the rendered pixels). The variety is
-the point: classes across spirits/wine/malt, four layouts, six palettes, several
+real OCR and the stroke-width detector on the rendered pixels). Alongside the
+defects, a compliant body-caps variant renders the whole warning statement in
+capitals — legal under 16.22(a)(2), which fixes only the heading's case — so
+the corpus also catches case-handling false positives. The variety is the
+point: classes across spirits/wine/malt, four layouts, six palettes, several
 font families, four canvas sizes, and invented brands in varied casings, so the
 checks are exercised on labels that do not all look alike.
 
@@ -187,6 +190,14 @@ DEFECTS: tuple[str, ...] = (
     "brand_mismatch",
 )
 
+# A compliant VARIANT, not a defect: the warning body painted in capitals
+# (heading in capitals and bold as always). 27 CFR 16.22(a)(2) fixes the case
+# of the heading words only, and TTB-approved labels routinely set the entire
+# statement in capitals — these rows pin the comparator's heading/body split
+# at pixel level, so a regression back to whole-statement case-sensitivity
+# fails a fixture with expected_verdict pass.
+N_BODY_CAPS = 2
+
 _ALTERATIONS: tuple[tuple[str, str, str], ...] = (
     # (find, replace, note) — each produces WarningVerdict.ALTERED, asserted below.
     ("birth defects", "birth effects", '"birth defects" -> "birth effects"'),
@@ -323,6 +334,16 @@ def build_corpus(seed: int, count: int) -> list[LabelSpec]:
         else:
             raise RuntimeError(f"could not place defect {defect!r}")
 
+    # The body-caps variant lands on otherwise-compliant labels. Reuses the
+    # already-shuffled order and draws nothing from the rng, so every other
+    # label in the corpus is byte-identical to a build without the variant.
+    body_caps: set[int] = set()
+    for idx in order:
+        if len(body_caps) == N_BODY_CAPS:
+            break
+        if idx not in assigned:
+            body_caps.add(idx)
+
     brand_mismatch_kind = 0  # alternate typo / different-name across the set
     specs: list[LabelSpec] = []
     for i in range(count):
@@ -330,7 +351,7 @@ def build_corpus(seed: int, count: int) -> list[LabelSpec]:
         palette = palette_cycle[i % len(palette_cycle)]
         layout = layout_cycle[(i // len(size_cycle)) % len(layout_cycle)]
         size = size_cycle[i % len(size_cycle)]
-        defect = assigned.get(i, "compliant")
+        defect = "warning_body_caps" if i in body_caps else assigned.get(i, "compliant")
 
         suffix = rng.choice(_FAMILY_SUFFIXES[cls.family])
         brand = f"{picked_brands[i]} {suffix}"
@@ -357,6 +378,8 @@ def build_corpus(seed: int, count: int) -> list[LabelSpec]:
         alteration_note = ""
         if defect == "warning_title_case":
             warning_text = reference.replace("GOVERNMENT WARNING:", "Government Warning:", 1)
+        elif defect == "warning_body_caps":
+            warning_text = reference.upper()  # heading already capital; body joins it
         elif defect == "warning_not_bold":
             warning_bold = False
         elif defect == "warning_altered_text":
@@ -402,6 +425,9 @@ def build_corpus(seed: int, count: int) -> list[LabelSpec]:
 
         expected_verdict, note = {
             "compliant": ("pass", "all four checks pass"),
+            "warning_body_caps": (
+                "pass", "statement body painted in capitals; 16.22(a)(2) fixes only the heading case -> pass"
+            ),
             "warning_title_case": (
                 "fail", 'heading painted "Government Warning:" — 16.22(a)(2) capitalization -> fail'
             ),

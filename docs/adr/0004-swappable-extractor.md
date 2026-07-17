@@ -14,7 +14,7 @@ The environment is Azure, and FedRAMP scarring is real. A production deployment 
 
 ## Decision
 
-The extractor is a `Protocol` — a label image in, a structured extraction out, nothing else — with adapters behind it: the hosted vision model for this demo, a fixture replay for deterministic tests, and room for a local or in-tenant endpoint without touching the compliance engine.
+The extractor is a `Protocol` — a label image in, a structured extraction out, nothing else — with adapters behind it: the hosted vision model for the deployed instance, a fixture replay for deterministic tests, and room for a local or in-tenant endpoint without touching the compliance engine.
 
 A Protocol rather than a base class, so an adapter never imports the core to subclass it.
 

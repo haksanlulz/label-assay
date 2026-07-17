@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import csv
 import hashlib
+import io
 
 import pytest
 from fastapi.testclient import TestClient
@@ -80,13 +82,12 @@ def test_batch_checks_each_label_against_its_own_application() -> None:
         for b in fixture_corpus.generator().BRANDS
         if match_brand(SPEC.painted_brand, b).verdict == BrandVerdict.MISMATCH
     )
-    applications = parse_application_csv(
-        (
-            f"filename,brand_name,class_type\n"
-            f"right.png,{SPEC.filed_brand},{SPEC.class_type}\n"
-            f"wrong.png,{other_brand},{SPEC.class_type}\n"
-        ).encode("utf-8")
-    )
+    buf = io.StringIO()
+    writer = csv.writer(buf)  # quotes as needed, so a brand containing a comma survives
+    writer.writerow(["filename", "brand_name", "class_type"])
+    writer.writerow(["right.png", SPEC.filed_brand, SPEC.class_type])
+    writer.writerow(["wrong.png", other_brand, SPEC.class_type])
+    applications = parse_application_csv(buf.getvalue().encode("utf-8"))
     job = create_job(["right.png", "wrong.png"])
     asyncio.run(
         run_job(job, [("right.png", image), ("wrong.png", image)], fixture, None, applications)
