@@ -207,10 +207,11 @@ def _check_spooled(
     budget: DailyBudget | None,
 ) -> LabelReport:
     # One file's bytes live in memory only for the duration of its own check;
-    # background=True lets an interactive check jump the OCR queue.
+    # background=True lets an interactive check jump the OCR queue. The batch
+    # row shows a one-line headline, so the extraction rides no further here.
     return check_label(
         path.read_bytes(), application, extractor=extractor, budget=budget, background=True
-    )
+    ).report
 
 
 async def run_job(

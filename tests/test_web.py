@@ -8,15 +8,18 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import io
 import re
 import time
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 import fixture_corpus
 from label_assay.config import Settings
+from label_assay.extract.base import ExtractedField, Extraction
 from label_assay.extract.fixture import FixtureExtractor
 from label_assay.web import app as webapp
 from label_assay.web.service import ExtractionUnavailable
@@ -161,6 +164,83 @@ def test_fail_page_renders_plain_language_badges_and_the_diff(
     # The word-level diff block renders for the altered warning.
     assert "Differences from the required text" in resp.text
     assert 'class="diff"' in resp.text
+
+
+def _read_field(text: str | None) -> ExtractedField:
+    return ExtractedField(verbatim=text, found=text is not None, value=text)
+
+
+def _read_extraction(**overrides: ExtractedField) -> Extraction:
+    fields: dict[str, ExtractedField] = {
+        "brand_name": _read_field("Old Tom Gin"),
+        "class_type": _read_field("London Dry Gin"),
+        "alcohol_content": _read_field("45% ALC./VOL. (90 PROOF)"),
+        "net_contents": _read_field("750 ML"),
+        "government_warning": _read_field("GOVERNMENT WARNING: shortened for the test."),
+    }
+    fields.update(overrides)
+    return Extraction(**fields)
+
+
+class _FixedExtractor:
+    """Returns one prepared extraction for any image."""
+
+    def __init__(self, extraction: Extraction) -> None:
+        self.extraction = extraction
+
+    def extract(self, image: bytes) -> Extraction:
+        return self.extraction
+
+
+def _post_check_with(monkeypatch: pytest.MonkeyPatch, extraction: Extraction):
+    """One /check round-trip with a stubbed reader and a silent OCR pass, so
+    the page under test renders exactly the given extraction."""
+    monkeypatch.setattr(webapp, "default_extractor", lambda _settings: _FixedExtractor(extraction))
+    monkeypatch.setattr("label_assay.web.service.read_lines", lambda _image, background=False: [])
+    buffer = io.BytesIO()
+    Image.new("RGB", (64, 64), "white").save(buffer, format="PNG")
+    return client.post(
+        "/check",
+        files={"image": ("label.png", buffer.getvalue(), "image/png")},
+        data={"brand_name": "Old Tom Gin", "class_type": "Gin"},
+    )
+
+
+def test_result_page_reads_back_what_the_reader_returned(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The read-back section shows the reviewer each field's verbatim text as the
+    # reader returned it, and the warning as presence (its wording is judged in
+    # the findings, not here).
+    resp = _post_check_with(monkeypatch, _read_extraction())
+    assert resp.status_code == 200
+    assert "What was read from the label" in resp.text
+    assert "&ldquo;Old Tom Gin&rdquo;" in resp.text
+    assert "&ldquo;London Dry Gin&rdquo;" in resp.text
+    assert "&ldquo;45% ALC./VOL. (90 PROOF)&rdquo;" in resp.text
+    assert "&ldquo;750 ML&rdquo;" in resp.text
+    assert "Present. Its wording and format are judged in the findings above." in resp.text
+    assert "Not found on the label." not in resp.text  # every field was read
+    # The reference-only note about unchecked fields is on the page.
+    assert "read from the label, not judged" in resp.text
+
+
+def test_result_page_marks_absent_fields_as_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    absent = ExtractedField(verbatim=None, found=False, value=None)
+    resp = _post_check_with(
+        monkeypatch, _read_extraction(net_contents=absent, government_warning=absent)
+    )
+    assert resp.status_code == 200
+    assert resp.text.count("Not found on the label.") == 2
+    assert "Present. Its wording and format are judged" not in resp.text
+
+
+def test_result_page_escapes_hostile_verbatim_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A label can print anything, so the reader's quoted text is data, never
+    # markup; autoescape must hold on this page.
+    hostile = ExtractedField(verbatim="<script>alert('x')</script>", found=True, value="x")
+    resp = _post_check_with(monkeypatch, _read_extraction(brand_name=hostile))
+    assert resp.status_code == 200
+    assert "&lt;script&gt;" in resp.text
+    assert "<script>" not in resp.text
 
 
 def test_batch_js_verdict_labels_match_the_server_map() -> None:
