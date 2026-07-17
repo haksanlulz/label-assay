@@ -9,8 +9,10 @@ dist/
 build/
 .DS_Store
 
-# A scraped COLA evaluation corpus is not committed (public-registry artwork
-# may carry the applicant's own copyright, and it is large). The synthetic test
-# corpus under tests/fixtures/labels/ IS committed — root-anchored so that path
-# is not swallowed by this entry. Regenerate: uv run python tools/make_test_labels.py
+# Scratch scrapes land in a root fixtures/ and stay out of the repo. The two
+# committed corpora live under tests/fixtures/: the synthetic set (labels/,
+# regenerate with: uv run python tools/make_test_labels.py) and the 11-record
+# real COLA set (cola/ — public federal registry records; provenance and the
+# trademark caution are in its README). Root-anchored so those paths are not
+# swallowed by this entry.
 /fixtures/
