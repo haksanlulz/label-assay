@@ -41,14 +41,20 @@ def check_label(
         except BudgetExhausted as exc:
             raise ExtractionUnavailable(str(exc)) from exc
 
+    # The two readers fail for different reasons and are worth telling apart, both
+    # for the person looking at the page and for whoever has to fix the server.
     try:
         ocr_lines = read_lines(image)
     except Exception as exc:  # OCR engine/decode failure is infrastructure, not a verdict
-        raise ExtractionUnavailable("The label reader was unavailable. Please try again.") from exc
+        raise ExtractionUnavailable(
+            "The label scanner could not run on this server. Please try again later."
+        ) from exc
 
     try:
         extraction = extractor.extract(image)
     except Exception as exc:  # network / API / decode — surface cleanly, never a 500
-        raise ExtractionUnavailable("The label reader was unavailable. Please try again.") from exc
+        raise ExtractionUnavailable(
+            "The AI label reader was unavailable. Please try again."
+        ) from exc
 
     return verify(extraction, application, load_rulebook(), image=image, ocr_lines=ocr_lines)
