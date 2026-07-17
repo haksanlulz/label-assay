@@ -95,10 +95,15 @@ def _match_abv_consistency(rule: Rule, ctx: VerifyContext) -> Finding:
 def _match_warning_bold(rule: Rule, ctx: VerifyContext) -> Finding:
     if ctx.image is None or not ctx.ocr_lines:
         return _finding(rule, Verdict.NOT_EVALUABLE, "Boldness was not checked (image or OCR not available).")
-    # Imported lazily so the engine stays importable without the CV dependencies.
-    from label_assay.match.bold import BoldVerdict, check_warning_bold
+    try:
+        # Imported lazily so the engine stays importable without the CV dependencies.
+        from label_assay.match.bold import BoldVerdict, check_warning_bold
 
-    result = check_warning_bold(ctx.image, ctx.ocr_lines)
+        result = check_warning_bold(ctx.image, ctx.ocr_lines)
+    except Exception:
+        # A vision-library failure degrades this one check; it never sinks a verdict.
+        return _finding(rule, Verdict.NOT_EVALUABLE, "Boldness could not be checked on this image.")
+
     mapping = {
         BoldVerdict.BOLD_OK: Verdict.PASS,
         BoldVerdict.NOT_BOLD: Verdict.FAIL,

@@ -41,9 +41,14 @@ def check_label(
         except BudgetExhausted as exc:
             raise ExtractionUnavailable(str(exc)) from exc
 
-    ocr_lines = read_lines(image)
+    try:
+        ocr_lines = read_lines(image)
+    except Exception as exc:  # OCR engine/decode failure is infrastructure, not a verdict
+        raise ExtractionUnavailable("The label reader was unavailable. Please try again.") from exc
+
     try:
         extraction = extractor.extract(image)
     except Exception as exc:  # network / API / decode — surface cleanly, never a 500
         raise ExtractionUnavailable("The label reader was unavailable. Please try again.") from exc
+
     return verify(extraction, application, load_rulebook(), image=image, ocr_lines=ocr_lines)
