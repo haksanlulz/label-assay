@@ -102,6 +102,7 @@ button:hover { background: var(--primary-dark); }
 .diff .found { text-decoration: underline; }
 
 /* batch */
+.hint { font-size: 0.85rem; color: var(--muted); margin: 0.4rem 0 0; }
 .summary { font-weight: 600; margin: 0.25rem 0 1rem; }
 .batch-controls { display: flex; justify-content: space-between; align-items: center;
   gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
