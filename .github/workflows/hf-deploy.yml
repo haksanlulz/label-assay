@@ -39,7 +39,20 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::error::HF_TOKEN secret is missing or empty — add it under Settings > Secrets and variables > Actions"
+            exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -am "deploy: prepend Space metadata header"
-          git push --force "https://haksanlulz:${HF_TOKEN}@huggingface.co/spaces/haksanlulz/label-assay" HEAD:main
+          set +e
+          out=$(git push --force "https://haksanlulz:${HF_TOKEN}@huggingface.co/spaces/haksanlulz/label-assay" HEAD:main 2>&1)
+          code=$?
+          set -e
+          if [ $code -ne 0 ]; then
+            safe=$(printf '%s' "$out" | sed "s/${HF_TOKEN}/***/g" | tr '\n' ' ')
+            echo "::error::Space push failed (exit $code): ${safe}"
+            exit $code
+          fi
+          echo "pushed to the Space"
