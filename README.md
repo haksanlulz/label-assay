@@ -67,7 +67,11 @@ Regenerate the sample labels: `uv run python samples/make_samples.py`.
 
 ## Limitations
 
-Rules regulated in millimetres (type size, characters per inch, contrasting background) are **not** checked: a flat image carries no physical scale, so they are unverifiable from the artifact and are reported as not evaluable rather than guessed. Batch mode runs label-internal checks only. Full list, with reasoning: [docs/DESIGN.md](docs/DESIGN.md).
+Rules regulated in millimetres (type size, characters per inch, contrasting background) are **not** checked: a flat image carries no physical scale, so they are unverifiable from the artifact and are reported as not evaluable rather than guessed.
+
+**Batch throughput is bound by the host, and this demo's host is a shared-CPU tier.** Every label runs local OCR — a detection and recognition pass, i.e. sustained CPU work. A shared-CPU machine grants burst credits and then throttles hard, which is measurable: **~2.3s per label while burst lasts, then 20–30s per label once it is spent** — a 40× cliff on identical work, after roughly 20 labels. A ~25-label batch completes in ~164s. A 300-label batch does not complete on this tier. The pipeline is not the constraint; the machine is. On dedicated CPU the same code holds the burst rate, which puts 300 labels in the ten-minute range.
+
+Full list, with reasoning: [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Approach, tools, and assumptions
 
