@@ -98,23 +98,50 @@ def server_elapsed(page: str) -> float | None:
     return float(found.group(1)) if found else None
 
 
+_FINDING_RE = re.compile(
+    r'<li class="finding[^>]*>.*?badge--([a-z_]+)".*?finding__cite">([^<]+)<', re.S
+)
+
+
+def page_findings(page: str) -> list[tuple[str, str]]:
+    """(verdict, citation) per finding, in page order."""
+    return [(m.group(1), m.group(2).strip()) for m in _FINDING_RE.finditer(page)]
+
+
 def check_problems(status_code: int, page: str) -> list[str]:
+    """Judge the live check per finding, not by the overall verdict alone.
+
+    The probe label discriminates the comparator (capitals body, 27 CFR 16.21
+    must PASS — the pre-fix comparator fails it), but its bold check may
+    legitimately abstain when the render puts the heading on its own line, and
+    an abstention is the designed behavior, not a deploy fault.
+    """
     if status_code != 200:
         return [f"POST /check returned {status_code}, expected 200"]
-    verdict = page_verdict(page)
-    if verdict is None:
+    if page_verdict(page) is None:
         return ["the response carries no verdict marker; it is not a result page"]
-    if verdict == "pass":
-        return []
-    if verdict == "fail":
-        return [
-            "the deployed checker failed a known-compliant label — its comparator does "
-            "not behave like this tree's"
-        ]
-    return [
-        f"the deployed checker returned {verdict!r} on a known-compliant, legible fixture; "
-        "investigate the instance's OCR read before claiming the deploy"
-    ]
+    findings = page_findings(page)
+    if not findings:
+        return ["the result page carries no findings; it is not a result page"]
+    problems = []
+    warning_text = [v for v, cite in findings if "16.21" in cite]
+    if not warning_text:
+        problems.append("no 27 CFR 16.21 finding on the result page")
+    elif warning_text[0] != "pass":
+        problems.append(
+            f"the 16.21 warning-text check returned {warning_text[0]!r} on the "
+            "capitals-body fixture — the deployed comparator does not behave like "
+            "this tree's"
+        )
+    for verdict, cite in findings:
+        if verdict == "fail":
+            problems.append(f"the deployed checker failed {cite} on a known-compliant label")
+        elif verdict == "needs_review" and "16.22" not in cite and "16.21" not in cite:
+            problems.append(
+                f"{cite} abstained on a known-legible fixture; investigate the "
+                "instance's OCR read"
+            )
+    return problems
 
 
 def pick_probe(rows: list[dict[str, str]]) -> dict[str, str]:
