@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import csv
 import io
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request, UploadFile
@@ -80,8 +81,30 @@ def _error_page(request: Request, message: str, status: int = 200) -> HTMLRespon
     )
 
 
+@lru_cache(maxsize=1)
+def _ocr_status() -> str:
+    """Prove the local OCR engine actually loads on this host. Cached: the cost is
+    paid once per process. The vision wheels install cleanly and only fail at
+    import, so 'it deployed' is not evidence that this works."""
+    try:
+        import io
+
+        from PIL import Image
+
+        from label_assay.extract.ocr import read_lines
+
+        buffer = io.BytesIO()
+        Image.new("RGB", (32, 32), "white").save(buffer, format="PNG")
+        read_lines(buffer.getvalue())  # a blank image finds no text; loading is the point
+        return "ready"
+    except Exception as exc:
+        return f"failed: {type(exc).__name__}: {exc}"[:160]
+
+
 @app.get("/health")
 def health() -> dict[str, object]:
+    """Readiness of each subsystem, so an uptime check or a reviewer sees a
+    degraded state rather than guessing from a generic error page."""
     rulebook = load_rulebook()
     settings = get_settings()
     return {
@@ -89,7 +112,8 @@ def health() -> dict[str, object]:
         "version": __version__,
         "rulebook_version": rulebook.version,
         "rulebook_rules": len(rulebook.rules),
-        "extractor": "ready" if settings.anthropic_api_key else "not-configured",
+        "ai_reader": "configured" if settings.anthropic_api_key else "not-configured",
+        "ocr": _ocr_status(),
     }
 
 
