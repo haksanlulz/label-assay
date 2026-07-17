@@ -46,7 +46,7 @@ def test_ocr_and_vision_reads_run_concurrently(monkeypatch: pytest.MonkeyPatch) 
     # Sequential execution makes the recorded windows disjoint, which this fails.
     ocr_window = {}
 
-    def slow_read_lines(image: bytes) -> list:
+    def slow_read_lines(image: bytes, *, background: bool = False) -> list:
         start = time.perf_counter()
         time.sleep(0.25)
         ocr_window["span"] = (start, time.perf_counter())
@@ -62,7 +62,7 @@ def test_ocr_and_vision_reads_run_concurrently(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_ocr_failure_reports_the_scanner_message(monkeypatch: pytest.MonkeyPatch) -> None:
-    def broken_read_lines(image: bytes) -> list:
+    def broken_read_lines(image: bytes, *, background: bool = False) -> list:
         raise RuntimeError("engine exploded")
 
     monkeypatch.setattr(service, "read_lines", broken_read_lines)
@@ -71,7 +71,7 @@ def test_ocr_failure_reports_the_scanner_message(monkeypatch: pytest.MonkeyPatch
 
 
 def test_vision_failure_reports_the_reader_message(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(service, "read_lines", lambda image: [])
+    monkeypatch.setattr(service, "read_lines", lambda image, background=False: [])
     with pytest.raises(ExtractionUnavailable, match="AI label reader"):
         check_label(
             FIXTURE.read_bytes(), Application(), extractor=_StubExtractor(error=RuntimeError("api down"))

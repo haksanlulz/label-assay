@@ -16,6 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import fixture_corpus
+from label_assay.config import Settings
 from label_assay.extract.fixture import FixtureExtractor
 from label_assay.web import app as webapp
 from label_assay.web.service import ExtractionUnavailable
@@ -141,7 +142,9 @@ def test_fail_page_renders_plain_language_badges_and_the_diff(
 
     painted = (spec.painted_brand, spec.class_type, spec.alcohol_text, spec.net_contents, spec.warning_text)
     lines = [OcrLine(text, 0.95) for text in painted if text]
-    monkeypatch.setattr("label_assay.web.service.read_lines", lambda _image: lines)
+    monkeypatch.setattr(
+        "label_assay.web.service.read_lines", lambda _image, background=False: lines
+    )
 
     resp = client.post(
         "/check",
@@ -184,6 +187,53 @@ def test_check_rejects_a_decompression_bomb_with_a_clean_message(
     )
     assert resp.status_code == 503
     assert "too large to process" in resp.text
+
+
+def test_startup_warm_fires_exactly_once_when_a_key_is_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The lifespan fires one budget-accounted warm extraction so the first user
+    # request never pays the provider cold start. Stubbed at check_label: the
+    # test pins the wiring (once, real budget, background priority), not the
+    # network call.
+    calls: list[dict] = []
+    sentinel = object()
+
+    def capture(data, application, *, extractor, budget=None, background=False):
+        calls.append({"extractor": extractor, "budget": budget, "background": background})
+        return None
+
+    monkeypatch.setattr(webapp, "_WARM_ON_STARTUP", True)
+    monkeypatch.setattr(webapp, "get_settings", lambda: Settings(anthropic_api_key="test-key"))
+    monkeypatch.setattr(webapp, "default_extractor", lambda _settings: sentinel)
+    monkeypatch.setattr(webapp, "check_label", capture)
+    monkeypatch.setattr(webapp, "_ocr_status", lambda: "ready")
+
+    with TestClient(webapp.app):
+        deadline = time.time() + 5
+        while not calls and time.time() < deadline:
+            time.sleep(0.01)  # the warm-up is fire-and-forget; give the loop a beat
+        time.sleep(0.05)  # room for a hypothetical second call to surface
+
+    assert len(calls) == 1, f"warm extraction ran {len(calls)} times"
+    assert calls[0]["extractor"] is sentinel
+    assert calls[0]["budget"] is webapp._BUDGET  # accounted against the real daily budget
+    assert calls[0]["background"] is True  # a user's first click still outranks the warm-up
+
+
+def test_startup_warm_is_skipped_when_no_key_is_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list = []
+    monkeypatch.setattr(webapp, "_WARM_ON_STARTUP", True)
+    monkeypatch.setattr(webapp, "get_settings", lambda: Settings(anthropic_api_key=None))
+    monkeypatch.setattr(webapp, "check_label", lambda *a, **k: calls.append(1))
+    monkeypatch.setattr(webapp, "_ocr_status", lambda: "ready")
+
+    with TestClient(webapp.app):
+        time.sleep(0.1)
+
+    assert calls == []
 
 
 def test_check_does_not_block_the_event_loop(monkeypatch: pytest.MonkeyPatch) -> None:

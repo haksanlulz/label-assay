@@ -2,9 +2,11 @@
 
 The 5-second promise is a per-label interactive target; a batch is minutes, so
 labels are fanned out (bounded) and their rows land as they finish, rather than
-one request blocking on all of them. Job state is in-memory and single-instance
-— fine for a prototype on one always-on machine; a production deployment would
-use a shared job store.
+one request blocking on all of them. Uploads are spooled to named temp files at
+create time and a worker reads one file's bytes only while processing its item,
+so peak memory is concurrency × one file, never the whole drop. Job state is
+in-memory and single-instance — fine for a prototype on one always-on machine;
+a production deployment would use a shared job store.
 
 A batch is labels *plus the data filed on their applications* — importers submit
 applications, not loose artwork. The application data arrives as a CSV keyed by
@@ -20,8 +22,10 @@ import csv
 import io
 import logging
 import uuid
+from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 from label_assay.domain.models import Application, LabelReport, Verdict
 from label_assay.extract.base import ExtractorPort
@@ -29,18 +33,28 @@ from label_assay.web.budget import DailyBudget
 from label_assay.web.service import ExtractionUnavailable, check_label
 
 # A file count is not the real constraint, so it is not the real bound. What
-# actually limits a batch is memory (total upload size) and money (the daily
+# actually limits a batch is disk (total spooled upload) and money (the daily
 # budget), and both are enforced separately. This is a sanity ceiling with room
 # well above the stated 200-300 peak, so a larger test run is answered rather
 # than refused.
 MAX_FILES = 1000
-# Total upload size: at the 5 MB per-file limit, a few hundred files would be
-# gigabytes, and no single machine should hold that in memory at once.
-MAX_TOTAL_BYTES = 150 * 1024 * 1024
+# Total DISK spooled per batch, not memory: uploads stream to temp files and
+# each worker holds one file's bytes at a time. At the 5 MB per-file cap this
+# covers a full 300-label drop (~1.5 GB) in one upload; past it, the drop is a
+# mistake or an attack, not a bigger batch.
+MAX_TOTAL_DISK_BYTES = 1600 * 1024 * 1024
 # The applications CSV for a few hundred labels is tens of kilobytes; matching
 # the per-image cap gives ~200x headroom while keeping the read bounded.
 MAX_CSV_BYTES = 5 * 1024 * 1024
 _CONCURRENCY = 6
+# Batch items run on their own thread pool, not asyncio.to_thread. to_thread
+# borrows the event loop's default executor — the one the interactive /check
+# handler also needs — and that executor is only cpu_count + 4 threads wide: on
+# a small host, _CONCURRENCY in-flight batch items can occupy every thread, and
+# an interactive check then queues for a thread before it ever reaches the OCR
+# priority gate. A dedicated pool keeps the interactive path's executor free
+# regardless of host size.
+_WORKERS = ThreadPoolExecutor(max_workers=_CONCURRENCY, thread_name_prefix="batch")
 
 logger = logging.getLogger(__name__)
 
@@ -175,9 +189,33 @@ def parse_application_csv(data: bytes) -> dict[str, Application]:
     return applications
 
 
+def discard_spooled(paths: Iterable[Path]) -> None:
+    """Best-effort deletion of spooled upload files. Missing files are fine
+    (each worker already deletes its own); a file the OS still holds open is
+    logged rather than raised, so cleanup can never crash a job."""
+    for path in paths:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("Could not delete spooled upload %s", path)
+
+
+def _check_spooled(
+    path: Path,
+    application: Application,
+    extractor: ExtractorPort,
+    budget: DailyBudget | None,
+) -> LabelReport:
+    # One file's bytes live in memory only for the duration of its own check;
+    # background=True lets an interactive check jump the OCR queue.
+    return check_label(
+        path.read_bytes(), application, extractor=extractor, budget=budget, background=True
+    )
+
+
 async def run_job(
     job: BatchJob,
-    files: list[tuple[str, bytes]],
+    files: list[tuple[str, Path]],
     extractor: ExtractorPort,
     budget: DailyBudget | None = None,
     applications: dict[str, Application] | None = None,
@@ -185,15 +223,15 @@ async def run_job(
     semaphore = asyncio.Semaphore(_CONCURRENCY)
     applications = applications or {}
 
-    async def process(index: int, name: str, data: bytes) -> None:
+    async def process(index: int, name: str, path: Path) -> None:
         async with semaphore:
             item = job.items[index]
             # An unmatched label still gets every label-internal check; only the
             # brand comparison abstains.
             application = applications.get(pairing_key(name), Application())
             try:
-                report = await asyncio.to_thread(
-                    check_label, data, application, extractor=extractor, budget=budget
+                report = await asyncio.get_running_loop().run_in_executor(
+                    _WORKERS, _check_spooled, path, application, extractor, budget
                 )
                 item.verdict = report.verdict.value
                 item.detail = _headline(report)
@@ -208,5 +246,12 @@ async def run_job(
                 # file; the log record is what tells them apart.
                 logger.exception("Batch item %r: unhandled error", name)
                 item.status, item.detail = "error", "Could not process this file."
+            finally:
+                discard_spooled([path])
 
-    await asyncio.gather(*(process(i, name, data) for i, (name, data) in enumerate(files)))
+    try:
+        await asyncio.gather(*(process(i, name, path) for i, (name, path) in enumerate(files)))
+    finally:
+        # Belt over the per-item braces: a cancelled job (shutdown mid-batch)
+        # must not strand hundreds of temp files on disk.
+        discard_spooled(path for _name, path in files)
