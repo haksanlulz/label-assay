@@ -12,11 +12,12 @@ from label_assay.extract.haiku import HaikuExtractor
 from label_assay.extract.ocr import read_lines
 from label_assay.rulebook.loader import load_rulebook
 from label_assay.verify.engine import verify
+from label_assay.web.budget import BudgetExhausted, DailyBudget
 
 
 class ExtractionUnavailable(Exception):
-    """The label could not be read (no key configured, or the reader failed).
-    The message is safe to show a user."""
+    """The label could not be read (no key configured, the reader failed, or the
+    day's spend limit is reached). The message is safe to show a user."""
 
 
 def default_extractor(settings: Settings) -> ExtractorPort:
@@ -25,7 +26,21 @@ def default_extractor(settings: Settings) -> ExtractorPort:
     return HaikuExtractor(api_key=settings.anthropic_api_key, model=settings.haiku_model)
 
 
-def check_label(image: bytes, application: Application, *, extractor: ExtractorPort) -> LabelReport:
+def check_label(
+    image: bytes,
+    application: Application,
+    *,
+    extractor: ExtractorPort,
+    budget: DailyBudget | None = None,
+) -> LabelReport:
+    # Account for the paid call before making it, so a public demo cannot be
+    # driven past its daily bound.
+    if budget is not None:
+        try:
+            budget.reserve()
+        except BudgetExhausted as exc:
+            raise ExtractionUnavailable(str(exc)) from exc
+
     ocr_lines = read_lines(image)
     try:
         extraction = extractor.extract(image)
