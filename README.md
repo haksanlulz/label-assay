@@ -2,7 +2,7 @@
 
 Checks alcohol beverage labels against TTB labeling requirements (27 CFR parts 5 and 16; the wine and malt equivalents in parts 4 and 7 are a documented gap). Upload a label image and the details filed on the application; get **compliant / needs review / needs correction**, with the specific rule and CFR citation behind each finding.
 
-**Live:** https://label-assay.fly.dev
+**Live:** https://haksanlulz-label-assay.hf.space
 
 ## Why it works this way
 
@@ -93,11 +93,14 @@ A second, real corpus lives in `tests/fixtures/cola/`: 11 label filings from TTB
 
 Rules regulated in millimetres (type size, characters per inch, contrasting background) are **not** checked: a flat image carries no physical scale, so they are unverifiable from the artifact and are reported as not evaluable rather than guessed.
 
-**Batch throughput is bound by the host, and the deployed host is a shared-CPU tier.** Every label runs local OCR — a detection and recognition pass, i.e. sustained CPU work. A shared-CPU machine grants burst credits and then throttles hard, which is measurable: **~2.3s per label while burst lasts, then 20–30s per label once it is spent** — roughly a tenfold cliff on identical work, after roughly 20 labels. A ~25-label batch completes in ~164s. A 300-label batch does not complete on this tier. The pipeline is not the constraint; the machine is. On dedicated CPU the same code holds the burst rate, which puts 300 labels — run as sub-batches under the upload cap — in the ten-minute range.
+**Batch throughput is bound by the host CPU.** Every label runs local OCR — a detection and recognition pass, i.e. sustained CPU work. On the previous host, a burst-credit shared-CPU tier, this measured ~2.3s per label until the credits ran out and 20–30s per label after — the reason a 300-label batch could not complete there. The current host runs two full vCPUs with no burst mechanic, so the sustained rate is the steady rate; the measured figure for this host is recorded with the deployment checks in `tools/verify_deploy.py` output rather than promised here.
 
 **A batch upload is capped at 150 MB total**, because uploads are held in process memory on a 2 GB machine. At registry-grade image sizes (~1 MB average) that is roughly 150 labels per upload, so a 300-application drop is two or three sub-batches; an oversized upload is asked to split, and the upload page states the limit.
 
-**The same shared-CPU budget bounds the single-label path.** Timed against the deployed instance while the two reads still ran sequentially, one check took 5.6–8.5 s. The reads now run concurrently, which removes the sum, but with burst credits spent — for example right after a large batch — a single check degrades toward the 20–30 s OCR cost, and the 5-second target is not met until the machine recovers.
+**Single-label latency is bound by the slower of the two reads.** The OCR pass and the vision-model call run concurrently, so a check costs the slower one, not the sum. The result page prints the measured time for every check; the 5-second target holds when the host CPU is not saturated by a concurrent batch, and degrades with it — stated because a compliance agent checking one label mid-batch will see it.
+
+**Hosting sleeps when idle.** The deployed instance runs on a free-tier Space that suspends after long inactivity; a scheduled health check (.github/workflows/uptime.yml) probes it every six hours, which keeps it warm and emails on any degraded subsystem. If it ever lapses, the first request pays a cold start of about a minute.
+
 
 Full list, with reasoning: [docs/DESIGN.md](docs/DESIGN.md).
 

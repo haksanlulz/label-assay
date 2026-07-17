@@ -1,0 +1,39 @@
+name: Scheduled health check
+
+# External monitoring for the deployed instance: asserts every subsystem the
+# app self-reports, and fails loudly (workflow email) if anything degrades.
+# Side effect: the free-tier Space never idles long enough to sleep, so a
+# reviewer's first request is never a cold start.
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe /health (retry through a cold start)
+        run: |
+          url="https://haksanlulz-label-assay.hf.space/health"
+          for attempt in 1 2 3; do
+            resp=$(curl -sS --max-time 180 "$url") && break
+            echo "attempt $attempt failed; waiting for wake"
+            sleep 60
+          done
+          echo "$resp"
+          echo "$resp" | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          problems = []
+          if d.get('ocr') != 'ready':
+              problems.append(f\"ocr: {d.get('ocr')}\")
+          if d.get('ai_reader') != 'configured':
+              problems.append(f\"ai_reader: {d.get('ai_reader')}\")
+          if not d.get('rulebook_rules'):
+              problems.append('rulebook empty')
+          if problems:
+              raise SystemExit('DEGRADED: ' + '; '.join(problems))
+          print('healthy:', d)
+          "

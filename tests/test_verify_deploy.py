@@ -146,7 +146,7 @@ def test_probe_selection_against_the_committed_manifest() -> None:
 
 
 def test_default_base_url_matches_the_readme_live_link() -> None:
-    # fly.toml owns the app name; the README's Live link must agree with it.
+    # verify_deploy.DEPLOY_URL owns the public URL; the README's Live link must agree.
     readme = (REPO / "README.md").read_text(encoding="utf-8")
     assert f"**Live:** {verify_deploy.default_base_url()}" in readme
 

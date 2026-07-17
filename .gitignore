@@ -16,3 +16,6 @@ build/
 # trademark caution are in its README). Root-anchored so those paths are not
 # swallowed by this entry.
 /fixtures/
+
+# test artifacts
+.coverage
