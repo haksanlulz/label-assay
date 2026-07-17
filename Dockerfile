@@ -4,12 +4,20 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
-# System libraries the vision stack needs on a slim image: opencv links libglib
-# (libgthread), and onnxruntime needs OpenMP. Without these the wheels install
-# fine and then fail at import, which is a runtime error, not a build one.
+# System libraries the vision stack needs on a slim image. The wheels install
+# fine and then fail at *import* without these, so a green build proves nothing —
+# /health self-checks the OCR engine for exactly this reason.
+#
+# RapidOCR pulls the full opencv-python (not headless), which links X11/GL at
+# import even though nothing here ever draws a window; onnxruntime needs OpenMP.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libglib2.0-0 \
         libgomp1 \
+        libgl1 \
+        libxcb1 \
+        libsm6 \
+        libxext6 \
+        libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Dependency layer first (cached across app-code changes).
