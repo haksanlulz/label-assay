@@ -26,12 +26,14 @@ from label_assay.extract.base import ExtractorPort
 from label_assay.web.budget import DailyBudget
 from label_assay.web.service import ExtractionUnavailable, check_label
 
-# The stakeholder ask is a peak-season dump of 200-300 applications at once, so
-# that is the ceiling. Spend is bounded by the daily budget guard, not by an
-# arbitrarily small file cap — the two are different concerns.
-MAX_FILES = 300
-# Total upload size: 300 files at the 5 MB per-file limit would be 1.5 GB, which
-# no single machine should hold in memory at once.
+# A file count is not the real constraint, so it is not the real bound. What
+# actually limits a batch is memory (total upload size) and money (the daily
+# budget), and both are enforced separately. This is a sanity ceiling with room
+# well above the stated 200-300 peak, so a larger test run is answered rather
+# than refused.
+MAX_FILES = 1000
+# Total upload size: at the 5 MB per-file limit, a few hundred files would be
+# gigabytes, and no single machine should hold that in memory at once.
 MAX_TOTAL_BYTES = 150 * 1024 * 1024
 _CONCURRENCY = 6
 
