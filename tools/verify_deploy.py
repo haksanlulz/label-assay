@@ -34,7 +34,6 @@ import csv
 import re
 import sys
 import time
-import tomllib
 from pathlib import Path
 
 import httpx
@@ -48,11 +47,12 @@ _VERDICT_RE = re.compile(r'class="alert alert--([a-z_]+)"')
 _ELAPSED_RE = re.compile(r"Checked in ([0-9.]+)")
 
 
+DEPLOY_URL = "https://haksanlulz-label-assay.hf.space"
+
+
 def default_base_url() -> str:
-    """Derive the public URL from the app name in fly.toml, which owns it."""
-    with (REPO / "fly.toml").open("rb") as handle:
-        app = tomllib.load(handle)["app"]
-    return f"https://{app}.fly.dev"
+    """The deployed Space URL; a test pins the README's Live link to this."""
+    return DEPLOY_URL
 
 
 def expected_rulebook_version() -> str:
@@ -205,7 +205,7 @@ def main() -> int:
         problems.append(
             f"could not reach {base_url}: {exc!r}. A dropped TCP connection or TLS "
             "handshake usually means the machine is stopped or the app suspended — "
-            "check `flyctl status`, then re-run the deploy workflow "
+            "check the Space build logs, then re-run the deploy workflow "
             "(.github/workflows/fly-deploy.yml supports workflow_dispatch)."
         )
 

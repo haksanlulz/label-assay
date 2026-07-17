@@ -1,0 +1,45 @@
+name: Deploy to Hugging Face Space
+
+# The deployed artifact is the same Docker image everywhere; hosting is a cost
+# decision. This syncs main to the Space, prepending the Space metadata header
+# (sdk/app_port) the Hub reads from README front matter — the repository README
+# stays clean on GitHub.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: hf-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepend Space metadata to README
+        run: |
+          cat > /tmp/space_header.md << 'EOF'
+          ---
+          title: LabelAssay
+          emoji: 🏷️
+          colorFrom: blue
+          colorTo: indigo
+          sdk: docker
+          app_port: 8000
+          pinned: false
+          ---
+          EOF
+          cat /tmp/space_header.md README.md > /tmp/README.md && mv /tmp/README.md README.md
+
+      - name: Push to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "deploy: prepend Space metadata header"
+          git push --force "https://haksanlulz:${HF_TOKEN}@huggingface.co/spaces/haksanlulz/label-assay" HEAD:main
