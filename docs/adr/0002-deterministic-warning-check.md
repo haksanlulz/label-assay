@@ -14,14 +14,14 @@ That is the single most dangerous thing this system could do. The mandated warni
 
 ## Decision
 
-The model transcribes the warning as printed. The comparison happens in code: canonicalize, then compare exactly.
+The model transcribes the warning as printed. The comparison happens in code: canonicalize, then compare deterministically.
 
 Canonicalization is admissible only if it is a provable no-op on the reference text — a rule enforced by test. Whitespace collapse, line-break de-hyphenation, and quote folding pass. `casefold` does not, because it would rewrite the mandated capitals and destroy the capitalization check.
 
-Two views run over the same canonical string: exact, and casefolded. Both pass means compliant. Substance passing while exact fails is precisely a capitalization violation. Substance failing means a word changed, was dropped, or was added.
+The comparison splits where the regulation splits. 16.22(a)(2) mandates capital letters only for the two heading words; the case of the remainder is unregulated, and approved labels routinely set the whole statement in capitals. So the heading is located space-insensitively (OCR drops the space between the rendered heading words) and compared case-sensitively, while the remainder is compared casefolded. Correct heading plus matching words is compliant. Matching words under a wrong-case heading is a capitalization violation. A changed, dropped, or added word is an alteration, which outranks capitalization.
 
 ## Consequences
 
-The check is exact, fast, and explainable — and the 2×2 above falls out as the finding taxonomy for free.
+The check is exact, fast, and explainable — the finding taxonomy (match / capitalization / altered / absent) falls out of the split for free.
 
 Diffs are for explaining a finding to a reviewer, never for deciding it. Homoglyphs are diagnosed rather than repaired: folding them would silently mask a real substitution.

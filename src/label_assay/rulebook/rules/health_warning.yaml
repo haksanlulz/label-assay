@@ -16,9 +16,11 @@ rules:
     beverage_classes: [all]
     severity: fail
     description: >-
-      The Government Warning must appear verbatim. Compared by
-      canonicalize-then-exact (all whitespace collapsed to single spaces first);
-      a changed, omitted, or added word fails.
+      The Government Warning must appear word-for-word (27 CFR 16.21), with the
+      two heading words in capital letters (16.22(a)(2)). Whitespace is
+      collapsed, the heading is compared case-sensitively, and the remainder
+      case-insensitively — the regulation fixes the body's wording but not its
+      case. A changed, omitted, or added word fails.
     match:
       strategy: verbatim
       field: government_warning

@@ -29,7 +29,7 @@ from label_assay.web.budget import DailyBudget
 from label_assay.web.service import ExtractionUnavailable, check_label, default_extractor
 
 _BG_TASKS: set = set()  # keep references so fire-and-forget batch jobs aren't GC'd
-# Bounds what this public demo can spend in a day. The provider-side workspace
+# Bounds what this public instance can spend in a day. The provider-side workspace
 # spend cap is the hard ceiling; this makes the app degrade politely first.
 _BUDGET = DailyBudget(limit_usd=get_settings().daily_budget_usd)
 

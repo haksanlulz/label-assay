@@ -1,9 +1,10 @@
-"""Fixture extractor — replays a stored Extraction keyed by image hash.
+"""Fixture extractor — a hash-keyed replay adapter for tests.
 
-Two jobs: deterministic tests (no network, no model variance) and an offline
-demo path if the AI endpoint is unreachable, which is the failure mode the
-client named. An unknown image raises, so a test cannot silently pass on a
-missing fixture.
+Replays a stored Extraction keyed by the sha256 of the image bytes, so tests
+run deterministically with no network and no model variance. An unknown image
+raises, so a test cannot silently pass on a missing fixture. Nothing wires
+this in at runtime: when no extractor is configured, the service reports the
+reader unavailable rather than falling back.
 """
 
 from __future__ import annotations
