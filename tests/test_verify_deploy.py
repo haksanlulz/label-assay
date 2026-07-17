@@ -86,22 +86,29 @@ def test_result_page_parser_anchor_exists_in_the_template() -> None:
 
 
 def test_pass_page_is_clean() -> None:
-    page = '<div class="alert alert--pass"><p>Compliant</p></div>'
+    page = '<div class="alert alert--pass"></div><li class="finding finding--pass"><div class="finding__head"><span class="badge badge--pass">x</span><span class="finding__cite">27 CFR 16.21</span></div><p class="finding__detail">d</p></li><li class="finding finding--pass"><div class="finding__head"><span class="badge badge--pass">x</span><span class="finding__cite">27 CFR 16.22(a)(2)</span></div><p class="finding__detail">d</p></li><li class="finding finding--pass"><div class="finding__head"><span class="badge badge--pass">x</span><span class="finding__cite">27 CFR 5.64</span></div><p class="finding__detail">d</p></li><li class="finding finding--pass"><div class="finding__head"><span class="badge badge--pass">x</span><span class="finding__cite">27 CFR 5.65</span></div><p class="finding__detail">d</p></li>'
     assert verify_deploy.check_problems(200, page) == []
 
 
-def test_fail_page_reports_comparator_drift() -> None:
-    page = '<div class="alert alert--fail"><p>Needs correction</p></div>'
-    problems = verify_deploy.check_problems(200, page)
-    assert len(problems) == 1
-    assert "known-compliant" in problems[0]
+def test_bold_abstention_on_own_line_layout_is_accepted() -> None:
+    # The bold check may legitimately route heading-own-line renders to a
+    # person; that is designed abstention, not deploy drift.
+    page = '<div class="alert alert--needs_review"></div><li class="finding finding--pass"><div class="finding__head"><span class="badge badge--pass">x</span><span class="finding__cite">27 CFR 16.21</span></div><p class="finding__detail">d</p></li><li class="finding finding--needs_review"><div class="finding__head"><span class="badge badge--needs_review">x</span><span class="finding__cite">27 CFR 16.22(a)(2)</span></div><p class="finding__detail">d</p></li><li class="finding finding--pass"><div class="finding__head"><span class="badge badge--pass">x</span><span class="finding__cite">27 CFR 5.64</span></div><p class="finding__detail">d</p></li><li class="finding finding--pass"><div class="finding__head"><span class="badge badge--pass">x</span><span class="finding__cite">27 CFR 5.65</span></div><p class="finding__detail">d</p></li>'
+    assert verify_deploy.check_problems(200, page) == []
 
 
-def test_review_page_is_not_claimed_live() -> None:
-    page = '<div class="alert alert--needs_review"><p>Needs your review</p></div>'
+def test_warning_text_fail_reports_comparator_drift() -> None:
+    page = '<div class="alert alert--fail"></div><li class="finding finding--fail"><div class="finding__head"><span class="badge badge--fail">x</span><span class="finding__cite">27 CFR 16.21</span></div><p class="finding__detail">d</p></li><li class="finding finding--pass"><div class="finding__head"><span class="badge badge--pass">x</span><span class="finding__cite">27 CFR 16.22(a)(2)</span></div><p class="finding__detail">d</p></li>'
+    problems = verify_deploy.check_problems(200, page)
+    assert any("known-compliant" in p for p in problems)
+    assert any("16.21" in p for p in problems)
+
+
+def test_warning_text_abstention_is_not_claimed_live() -> None:
+    page = '<div class="alert alert--needs_review"></div><li class="finding finding--needs_review"><div class="finding__head"><span class="badge badge--needs_review">x</span><span class="finding__cite">27 CFR 16.21</span></div><p class="finding__detail">d</p></li><li class="finding finding--pass"><div class="finding__head"><span class="badge badge--pass">x</span><span class="finding__cite">27 CFR 16.22(a)(2)</span></div><p class="finding__detail">d</p></li>'
     problems = verify_deploy.check_problems(200, page)
     assert len(problems) == 1
-    assert "needs_review" in problems[0]
+    assert "16.21" in problems[0]
 
 
 def test_non_result_page_is_reported() -> None:
