@@ -35,7 +35,7 @@ Stress cases and known deviations this corpus includes (verified by inspecting t
 
 Source record for any row: `https://ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=<TTB ID>`. Images were fetched at human-browsing pace through the registry's own public pages.
 
-## Measured outcomes (deployed instance, 2026-07-18)
+## Measured outcomes (deployed instance, 2026-07-17)
 
 Three full runs against the deployed instance, ~50 seconds per 11-label batch. Nothing false-passed in any run. Hard fails went from six to one as the matchers were corrected against this corpus: space-joined OCR reads of tiny print stopped failing the wording check, contained brand names (MORTALIS on the label, Mortalis Brewing Company as filed) moved to review, and reads matching the filed fanciful name (Yellow Card Pils) stopped failing the brand check.
 
