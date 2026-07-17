@@ -111,12 +111,16 @@ def test_not_bold_labels_fail_the_bold_check_on_their_rendered_pixels(corpus_dir
     specs = [s for s in fixture_corpus.corpus_specs() if s.defect == "warning_not_bold"]
     assert specs  # a vacuous loop would silently assert nothing
     rulebook = load_rulebook()
-    # OCR line geometry differs slightly across platforms (onnxruntime), which
-    # can push a stroke-width ratio from the fail band into the borderline
-    # abstention band on these committed renders. The platform-independent
-    # safety contract asserted here: a not-bold heading may FAIL or be held
-    # for review, but must never PASS. The detector's fail band itself is
-    # proven in tests/test_bold.py on renders it generates in-test.
+    # This assertion is strict (FAIL, not fail-or-review) because the fixtures
+    # are rendered for a decisive measurement, not a borderline one: heading
+    # and body share the same regular face at the same size (no bold file
+    # involved), and the body words alone carry a 1px painted outline that
+    # widens every body stroke by exactly 2px of pixel geometry (see
+    # _wrap_warning and _NOT_BOLD_BODY_STROKE in tools/make_test_labels.py).
+    # The heading is structurally the thinnest text in its own statement, so
+    # the stroke ratio measures ~0.73-0.76 regardless of font file or OCR
+    # geometry — deep inside the detector's conclusive not-bold band, where
+    # platform jitter cannot move it across a band edge.
     for spec in specs:
         image = (corpus_dir / spec.filename).read_bytes()
         report = verify(
@@ -127,12 +131,12 @@ def test_not_bold_labels_fail_the_bold_check_on_their_rendered_pixels(corpus_dir
             ocr_lines=read_lines(image),
         )
         bold = next(f for f in report.findings if f.rule_id == "health_warning_bold")
-        assert bold.verdict in (Verdict.FAIL, Verdict.NEEDS_REVIEW), (
-            f"{spec.filename}: bold finding is {bold.verdict.value} — a not-bold "
-            "heading must never pass"
+        assert bold.verdict == Verdict.FAIL, (
+            f"{spec.filename}: bold finding is {bold.verdict.value} — the not-bold "
+            "fixtures must fail the bold check outright"
         )
-        assert report.verdict != Verdict.PASS, (
-            f"{spec.filename}: overall verdict is pass on a not-bold label"
+        assert report.verdict == Verdict.FAIL, (
+            f"{spec.filename}: overall verdict is {report.verdict.value} on a not-bold label"
         )
 
 
