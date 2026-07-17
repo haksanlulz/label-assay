@@ -39,7 +39,7 @@ jobs:
             'colorFrom: blue' \
             'colorTo: indigo' \
             'sdk: docker' \
-            'app_port: 8000' \
+            'app_port: 8080' \
             'pinned: false' \
             '---' > /tmp/header.md
           cat /tmp/header.md README.md > /tmp/README.md && mv /tmp/README.md README.md
