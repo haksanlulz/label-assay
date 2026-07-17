@@ -1,6 +1,6 @@
 """Verify that the deployed instance is live and serving this working tree.
 
-The deploy pipeline is push-triggered (.github/workflows/fly-deploy.yml), so a
+The deploy pipeline is push-triggered (.github/workflows/hf-deploy.yml), so a
 green local suite proves nothing about the public URL: unpushed work leaves it
 serving older code, and a stopped machine leaves it serving nothing, both
 without any local signal. This script is the ritual after every push — the
@@ -23,7 +23,7 @@ Three probes, weakest to strongest:
 
 httpx is a dev-group dependency, so run under the dev environment:
 
-    uv run python tools/verify_deploy.py                 # base URL from fly.toml
+    uv run python tools/verify_deploy.py                 # against the deployed Space URL
     uv run python tools/verify_deploy.py --health-only   # no model spend
 """
 
@@ -168,7 +168,7 @@ def _load_rows(path: Path) -> list[dict[str, str]]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--base-url", default=None, help="deployed instance (default: derived from fly.toml)"
+        "--base-url", default=None, help="deployed instance (default: the deployed Space URL)"
     )
     parser.add_argument(
         "--health-only", action="store_true", help="skip the live check; no model spend"
@@ -233,7 +233,7 @@ def main() -> int:
             f"could not reach {base_url}: {exc!r}. A dropped TCP connection or TLS "
             "handshake usually means the machine is stopped or the app suspended — "
             "check the Space build logs, then re-run the deploy workflow "
-            "(.github/workflows/fly-deploy.yml supports workflow_dispatch)."
+            "(.github/workflows/hf-deploy.yml supports workflow_dispatch)."
         )
 
     if problems:
