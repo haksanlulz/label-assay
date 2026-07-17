@@ -57,14 +57,6 @@ app = FastAPI(title="LabelAssay", version=__version__)
 app.mount("/static", StaticFiles(directory=str(_WEB / "static")), name="static")
 
 
-def _find_sample() -> Path | None:
-    for base in (Path.cwd(), _WEB.parents[2]):
-        candidate = base / "samples" / "bourbon_compliant.png"
-        if candidate.exists():
-            return candidate
-    return None
-
-
 def _ctx(extra: dict) -> dict:
     return {"version": __version__, **extra}
 
@@ -142,21 +134,6 @@ async def check(
     application = Application(brand_name=brand_name.strip(), class_type=class_type.strip())
     try:
         report = check_label(data, application, extractor=default_extractor(get_settings()), budget=_BUDGET)
-    except ExtractionUnavailable as exc:
-        return _error_page(request, str(exc))
-    return _report_page(request, report)
-
-
-@app.get("/sample", response_class=HTMLResponse)
-def sample(request: Request) -> HTMLResponse:
-    path = _find_sample()
-    if path is None:
-        return _error_page(request, "The sample label isn't available on this server.")
-    application = Application(brand_name="Old Tom Distillery", class_type="Kentucky Straight Bourbon Whiskey")
-    try:
-        report = check_label(
-            path.read_bytes(), application, extractor=default_extractor(get_settings()), budget=_BUDGET
-        )
     except ExtractionUnavailable as exc:
         return _error_page(request, str(exc))
     return _report_page(request, report)

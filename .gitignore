@@ -9,7 +9,8 @@ dist/
 build/
 .DS_Store
 
-# The scraped COLA evaluation corpus is not committed (public-registry artwork
-# may carry the applicant's own copyright, and it is large). The scraper + a
-# handful of synthetic sample labels are committed instead. See docs/DESIGN.md.
-fixtures/
+# A scraped COLA evaluation corpus is not committed (public-registry artwork
+# may carry the applicant's own copyright, and it is large). The synthetic test
+# corpus under tests/fixtures/labels/ IS committed — root-anchored so that path
+# is not swallowed by this entry. Regenerate: uv run python tools/make_test_labels.py
+/fixtures/

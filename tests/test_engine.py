@@ -6,10 +6,9 @@ live test runs the whole pipeline (image -> vision extraction -> verdict).
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
+import fixture_corpus
 from label_assay.config import get_settings
 from label_assay.domain.models import Application, Verdict
 from label_assay.extract.base import ExtractedField, Extraction
@@ -18,7 +17,8 @@ from label_assay.rulebook.loader import load_rulebook
 from label_assay.verify.confidence import unconfirmed_fields
 from label_assay.verify.engine import infer_beverage_class, verify
 
-SAMPLE = Path(__file__).resolve().parents[1] / "samples" / "bourbon_compliant.png"
+SPEC = fixture_corpus.known_good_compliant()
+FIXTURE = fixture_corpus.fixture_path(SPEC)
 
 
 def _warning_reference() -> str:
@@ -93,8 +93,8 @@ def test_beverage_class_inference() -> None:
 
 
 @pytest.mark.skipif(
-    not SAMPLE.exists() or not get_settings().anthropic_api_key,
-    reason="needs the sample image and ANTHROPIC_API_KEY",
+    not FIXTURE.exists() or not get_settings().anthropic_api_key,
+    reason="needs the fixture image and ANTHROPIC_API_KEY",
 )
 def test_full_pipeline_image_to_verdict() -> None:
     import anthropic
@@ -105,11 +105,11 @@ def test_full_pipeline_image_to_verdict() -> None:
     assert settings.anthropic_api_key is not None
     try:
         extraction = HaikuExtractor(api_key=settings.anthropic_api_key, model=settings.haiku_model).extract(
-            SAMPLE.read_bytes()
+            FIXTURE.read_bytes()
         )
     except anthropic.AuthenticationError:
         pytest.skip("ANTHROPIC_API_KEY is invalid or expired")
-    report = verify(extraction, _application(), load_rulebook())
+    report = verify(extraction, fixture_corpus.application_for(SPEC), load_rulebook())
     # A compliant label must never FAIL; PASS expected, REVIEW tolerated.
     assert report.verdict in (Verdict.PASS, Verdict.NEEDS_REVIEW)
     assert report.verdict != Verdict.FAIL
@@ -158,16 +158,16 @@ def test_dead_ocr_does_not_single_out_any_field() -> None:
     assert unconfirmed_fields(_compliant_extraction(), [OcrLine("", 0.0)]) == set()
 
 
-@pytest.mark.skipif(not SAMPLE.exists(), reason="run samples/make_samples.py first")
+@pytest.mark.skipif(not FIXTURE.exists(), reason="run tools/make_test_labels.py first")
 def test_bold_finding_runs_when_image_and_ocr_supplied() -> None:
-    # Offline (no key): fixture extraction + real image + real OCR exercise the
-    # bold check through the engine. A compliant label must not FAIL.
+    # Offline (no key): a perfect-reader extraction + real image + real OCR
+    # exercise the bold check through the engine. A compliant label must not FAIL.
     from label_assay.extract.ocr import read_lines
 
-    image = SAMPLE.read_bytes()
+    image = FIXTURE.read_bytes()
     report = verify(
-        _compliant_extraction(),
-        _application(),
+        fixture_corpus.perfect_extraction(SPEC),
+        fixture_corpus.application_for(SPEC),
         load_rulebook(),
         image=image,
         ocr_lines=read_lines(image),

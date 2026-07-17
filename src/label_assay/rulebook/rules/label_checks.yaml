@@ -2,7 +2,9 @@
 #
 # Citations here are the distilled-spirits sections (Part 5); the wine (Part 4)
 # and malt (Part 7) equivalents are added with their own per-class rules when
-# those classes are wired. The sample corpus is spirits.
+# those classes are wired. The test corpus spans spirits, wine, and malt, so
+# findings on non-spirits labels currently carry the Part 5 citation (a known
+# limitation, see docs/DESIGN.md "Per-class citations").
 
 rules:
   - id: brand_name_matches_application

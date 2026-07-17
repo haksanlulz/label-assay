@@ -44,7 +44,7 @@ class DailyBudget:
             self._day, self._spent_usd = today, 0.0
         if self._spent_usd + EST_COST_PER_LABEL_USD > self.limit_usd:
             raise BudgetExhausted(
-                "This demo has reached its daily limit for automated label reading. "
+                "This server has reached its daily limit for automated label reading. "
                 "Please try again tomorrow."
             )
         self._spent_usd += EST_COST_PER_LABEL_USD
