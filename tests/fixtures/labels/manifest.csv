@@ -6,7 +6,7 @@ label_003.png,brand_mismatch,needs_review,Red Table Wine; layout=rules; palette=
 label_004.png,warning_missing,needs_review,"London Dry Gin; layout=banner; palette=black; size=600x1000; warning=none; no warning block painted; absence routes to review, never auto-fail"
 label_005.png,compliant,pass,Straight Rye Whiskey; layout=banner; palette=white; size=1000x1400; warning=column; all four checks pass
 label_006.png,compliant,pass,Kentucky Straight Bourbon Whiskey; layout=banner; palette=kraft; size=700x900; warning=bottom; all four checks pass
-label_007.png,warning_not_bold,fail,Lager Beer; layout=banner; palette=cream; size=900x700; warning=bottom; heading in regular weight -> bold check fail
+label_007.png,warning_not_bold,fail,"Lager Beer; layout=banner; palette=white; size=900x700; warning=bottom; heading in regular weight, thinner than its body -> bold check fail"
 label_008.png,warning_title_case,fail,"Chardonnay; layout=classic; palette=navy; size=600x1000; warning=bottom; heading painted ""Government Warning:"" — 16.22(a)(2) capitalization -> fail"
 label_009.png,compliant,pass,Cabernet Sauvignon; layout=classic; palette=burgundy; size=1000x1400; warning=bottom; all four checks pass
 label_010.png,compliant,pass,Stout; layout=classic; palette=black; size=700x900; warning=column; all four checks pass
@@ -20,6 +20,6 @@ label_017.png,compliant,pass,Straight Rye Whiskey; layout=rules; palette=white; 
 label_018.png,warning_altered_text,fail,"Kentucky Straight Bourbon Whiskey; layout=rules; palette=kraft; size=700x900; warning=bottom; statutory text altered (""impairs"" -> ""reduces"") -> fail"
 label_019.png,brand_mismatch,fail,Lager Beer; layout=rules; palette=cream; size=900x700; warning=column; filed brand 'Quill & Ember Brewing Co.' is a different brand -> fail
 label_020.png,warning_body_caps,pass,Chardonnay; layout=banner; palette=navy; size=600x1000; warning=bottom; statement body painted in capitals; 16.22(a)(2) fixes only the heading case -> pass
-label_021.png,warning_not_bold,fail,Cabernet Sauvignon; layout=banner; palette=burgundy; size=1000x1400; warning=bottom; heading in regular weight -> bold check fail
+label_021.png,warning_not_bold,fail,"Cabernet Sauvignon; layout=banner; palette=white; size=1000x1400; warning=bottom; heading in regular weight, thinner than its body -> bold check fail"
 label_022.png,warning_title_case,fail,"Stout; layout=banner; palette=black; size=700x900; warning=column; heading painted ""Government Warning:"" — 16.22(a)(2) capitalization -> fail"
 label_023.png,compliant,pass,India Pale Ale; layout=banner; palette=white; size=900x700; warning=column; all four checks pass

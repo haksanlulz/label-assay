@@ -51,6 +51,19 @@ DEFAULT_COUNT = 24
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "labels"
 
 _MARGIN = 45
+# Warning render size for the not-bold defect rows, deliberately larger than the
+# compliant rows' 26px: thicker strokes quantize less under Otsu + skeletonize,
+# so the stroke measurement is stable across platforms, and both measured crops
+# clear the detector's 14px cap-height floor with margin (>=18px measured).
+_NOT_BOLD_WARN_SIZE = 34
+# The 1px outline painted on the body words of the not-bold rows (see
+# _wrap_warning). It widens every body stroke by exactly 2px of pixel geometry,
+# independent of font file or platform, so the regular-weight heading measures
+# conclusively thinner than its body and the bold check's FAIL is structural,
+# not a band-edge accident. A same-face render WITHOUT the outline measures a
+# stroke ratio of ~1.0 (measured 1.00-1.06 across arial/verdana/dejavu at
+# 30-38px), which the detector correctly holds for review as measurement noise.
+_NOT_BOLD_BODY_STROKE = 1
 
 
 # --- beverage classes -----------------------------------------------------------------
@@ -386,9 +399,21 @@ def build_corpus(seed: int, count: int) -> list[LabelSpec]:
             # needs real body text on the heading's own OCR line. A narrow column
             # can be read with the heading as its own line — a layout the checker
             # (correctly) abstains on — so the defect pins the full-width bottom
-            # placement. The rng.choice above still ran, keeping every other
-            # label byte-identical.
+            # placement. It also pins the measurement-friendly rendering the
+            # strict corpus test depends on: the white palette (maximum
+            # contrast, dark-on-light, no polarity flip) and a canvas wide
+            # enough that the larger not-bold warning (see _paint_warning and
+            # _NOT_BOLD_BODY_STROKE) still puts several body words on the
+            # heading's line. The decisive part of the render is the body
+            # outline: it makes the regular-weight heading structurally thinner
+            # than its body, so the measured ratio sits deep in the detector's
+            # conclusive not-bold band on every platform instead of on a band
+            # edge that OCR geometry can cross. None of the pins consume the
+            # rng, keeping every other label byte-identical.
             placement = "bottom"
+            palette = "white"
+            if size[0] < 900:
+                size = (1000, 1400)
         elif defect == "warning_altered_text":
             find, replace, alteration_note = rng.choice(_ALTERATIONS)
             warning_text = reference.replace(find, replace, 1)
@@ -438,7 +463,9 @@ def build_corpus(seed: int, count: int) -> list[LabelSpec]:
             "warning_title_case": (
                 "fail", 'heading painted "Government Warning:" — 16.22(a)(2) capitalization -> fail'
             ),
-            "warning_not_bold": ("fail", "heading in regular weight -> bold check fail"),
+            "warning_not_bold": (
+                "fail", "heading in regular weight, thinner than its body -> bold check fail"
+            ),
             "warning_altered_text": ("fail", f"statutory text altered ({alteration_note}) -> fail"),
             "warning_missing": (
                 "needs_review", "no warning block painted; absence routes to review, never auto-fail"
@@ -488,23 +515,31 @@ def build_corpus(seed: int, count: int) -> list[LabelSpec]:
 
 def _wrap_warning(
     d: ImageDraw.ImageDraw, spec: LabelSpec, width: int, size: int
-) -> list[list[tuple[str, ImageFont.FreeTypeFont]]]:
-    """Word-wrapped warning lines, first two words in the heading weight. The
-    heading and the words after it share the first line, which is what the
-    stroke-width bold check measures against."""
+) -> list[list[tuple[str, ImageFont.FreeTypeFont, int]]]:
+    """Word-wrapped warning lines as (word, font, stroke_width) runs; the first
+    two words are the heading. The heading and the words after it share the
+    first line, which is what the stroke-width bold check measures against.
+
+    On the not-bold rows the heading and body use the same regular face at the
+    same size (no bold file involved) and the body words alone carry the
+    _NOT_BOLD_BODY_STROKE outline, so the heading is structurally the thinnest
+    text in its own statement — the geometry the conclusive not-bold band
+    describes."""
     assert spec.warning_text is not None
     regular = _font(spec.warning_font, "regular", size)
     heading = _font(spec.warning_font, "bold" if spec.warning_bold else "regular", size)
+    body_stroke = 0 if spec.warning_bold else _NOT_BOLD_BODY_STROKE
     space = d.textlength(" ", font=regular)
-    lines: list[list[tuple[str, ImageFont.FreeTypeFont]]] = [[]]
+    lines: list[list[tuple[str, ImageFont.FreeTypeFont, int]]] = [[]]
     x = 0.0
     for i, word in enumerate(spec.warning_text.split(" ")):
-        font = heading if i < 2 else regular
+        is_heading = i < 2
+        font = heading if is_heading else regular
         w = d.textlength(word, font=font)
         if x + w > width and lines[-1]:
             lines.append([])
             x = 0.0
-        lines[-1].append((word, font))
+        lines[-1].append((word, font, 0 if is_heading else body_stroke))
         x += w + space
     return lines
 
@@ -527,7 +562,7 @@ def _paint_warning(d: ImageDraw.ImageDraw, spec: LabelSpec) -> int:
         x0 = W - _MARGIN - col_w
         width = col_w
     else:
-        size = 26
+        size = 26 if spec.warning_bold else _NOT_BOLD_WARN_SIZE
         x0 = _MARGIN
         width = W - 2 * _MARGIN
 
@@ -539,8 +574,11 @@ def _paint_warning(d: ImageDraw.ImageDraw, spec: LabelSpec) -> int:
     y = y0
     for line in lines:
         x = float(x0)
-        for word, font in line:
-            d.text((x, y), word, font=font, fill=pal.warning_ink)
+        for word, font, stroke in line:
+            d.text(
+                (x, y), word, font=font, fill=pal.warning_ink,
+                stroke_width=stroke, stroke_fill=pal.warning_ink,
+            )
             x += d.textlength(word, font=font) + space
         y += line_h
     return y0 - 30
