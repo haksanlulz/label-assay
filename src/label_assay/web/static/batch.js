@@ -27,6 +27,9 @@
     var s = data.summary;
     var parts = [s.pass + " compliant", s.needs_review + " need review", s.fail + " need correction"];
     if (s.error) { parts.push(s.error + " could not be read"); }
+    if (data.csv_rows !== null && data.csv_rows !== undefined && data.csv_unmatched > 0) {
+      parts.push(data.csv_unmatched + " had no matching application row");
+    }
     summaryEl.textContent = parts.join(" · ");
 
     rows.innerHTML = "";
@@ -46,13 +49,19 @@
 
   function poll() {
     fetch("/batch/" + jobId + "/data").then(function (r) {
-      if (!r.ok) { progressEl.textContent = "Batch not found."; return null; }
+      // Only a real 404 means the job is gone; a transient 500/502 from a proxy
+      // must not end polling with a false "not found".
+      if (r.status === 404) { progressEl.textContent = "Batch not found."; return null; }
+      if (!r.ok) { throw new Error("HTTP " + r.status); }
       return r.json();
     }).then(function (data) {
       if (!data) { return; }
       render(data);
       if (data.done < data.total) { setTimeout(poll, 1500); }
-    }).catch(function () { setTimeout(poll, 3000); });
+    }).catch(function () {
+      progressEl.textContent = "Connection lost — retrying…";
+      setTimeout(poll, 3000);
+    });
   }
 
   Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (btn) {
@@ -60,6 +69,7 @@
       filter = btn.dataset.filter;
       Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (c) {
         c.classList.toggle("chip--on", c === btn);
+        c.setAttribute("aria-pressed", c === btn ? "true" : "false");
       });
       Array.prototype.forEach.call(document.querySelectorAll("#rows tr"), function (tr) {
         tr.hidden = !matches(tr.dataset.status);

@@ -20,7 +20,10 @@ deciding it.
 
 A VLM must never adjudicate this: vision models recite this famous paragraph
 from memory and will "read" the mandated text off a label that does not carry
-it. The comparison is deterministic on OCR output for that reason.
+it. The comparison here therefore runs deterministically on the model's quoted
+transcription, and the engine refuses to PASS a match unless the independent
+OCR read of the image also contains the mandated text (verify/confidence.py) —
+a recitation over an altered label lands in review, not in a pass.
 """
 
 from __future__ import annotations

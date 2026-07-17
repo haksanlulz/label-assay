@@ -5,14 +5,16 @@
 <h1>Batch results</h1>
 
 <p id="progress" class="lead" aria-live="polite">Starting&hellip;</p>
+<noscript><p>This page needs JavaScript to show live progress and results. The batch still
+runs on the server; once it finishes, the Export CSV link below works without scripting.</p></noscript>
 <p id="summary" class="summary" aria-live="polite"></p>
 
 <div class="batch-controls">
   <div class="filters" role="group" aria-label="Filter results">
-    <button type="button" class="chip chip--on" data-filter="all">All</button>
-    <button type="button" class="chip" data-filter="fail">Needs correction</button>
-    <button type="button" class="chip" data-filter="needs_review">Needs review</button>
-    <button type="button" class="chip" data-filter="pass">Compliant</button>
+    <button type="button" class="chip chip--on" data-filter="all" aria-pressed="true">All</button>
+    <button type="button" class="chip" data-filter="fail" aria-pressed="false">Needs correction</button>
+    <button type="button" class="chip" data-filter="needs_review" aria-pressed="false">Needs review</button>
+    <button type="button" class="chip" data-filter="pass" aria-pressed="false">Compliant</button>
   </div>
   <a class="csv-link" href="/batch/{{ job_id }}/export.csv">Export CSV</a>
 </div>

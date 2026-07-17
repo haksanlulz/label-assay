@@ -127,6 +127,20 @@ def test_not_bold_labels_fail_the_bold_check_on_their_rendered_pixels(corpus_dir
         assert report.verdict.value == spec.expected_verdict
 
 
+def test_committed_corpus_matches_the_generator(corpus_dir: Path) -> None:
+    # Ties the committed tests/fixtures/labels to the current generator code, so
+    # a generator change that drifts the corpus cannot leave stale fixtures in
+    # the repo (PNG bytes are font/machine-dependent and are deliberately not
+    # compared; the CSVs and the filename set are machine-independent).
+    assert (corpus_dir / "manifest.csv").read_bytes() == fixture_corpus.MANIFEST.read_bytes()
+    assert (corpus_dir / "applications.csv").read_bytes() == (
+        fixture_corpus.LABELS_DIR / "applications.csv"
+    ).read_bytes()
+    generated = sorted(p.name for p in corpus_dir.glob("*.png"))
+    committed = sorted(p.name for p in fixture_corpus.LABELS_DIR.glob("*.png"))
+    assert generated == committed
+
+
 def test_applications_csv_parses_with_the_apps_own_parser(corpus_dir: Path) -> None:
     raw = (corpus_dir / "applications.csv").read_bytes()
     applications = parse_application_csv(raw)

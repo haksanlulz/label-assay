@@ -4,8 +4,9 @@
 <a class="back" href="/">&larr; Check another label</a>
 
 <div class="alert alert--{{ report.verdict.value }}">
-  <p class="alert__heading">{{ heading }}</p>
+  <h1 class="alert__heading">{{ heading }}</h1>
   <p>{{ summary }}</p>
+  {% if elapsed is not none %}<p class="alert__meta">Checked in {{ "%.1f"|format(elapsed) }}&nbsp;s.</p>{% endif %}
 </div>
 
 <h2>Findings</h2>
@@ -13,7 +14,7 @@
   {% for f in report.findings %}
   <li class="finding finding--{{ f.verdict.value }}">
     <div class="finding__head">
-      <span class="badge badge--{{ f.verdict.value }}">{{ f.verdict.value|replace('_', ' ') }}</span>
+      <span class="badge badge--{{ f.verdict.value }}">{{ verdict_label[f.verdict] }}</span>
       <span class="finding__cite">{{ f.citation }}</span>
     </div>
     <p class="finding__detail">{{ f.detail }}</p>

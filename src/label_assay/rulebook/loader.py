@@ -17,10 +17,10 @@ from pydantic import BaseModel, Field
 
 # The closed vocabulary of match strategies the engine knows how to dispatch.
 # A rule naming anything outside this set fails to load. New strategies are
-# added deliberately, in code and here — never invented in a rule file.
-KNOWN_STRATEGIES = frozenset(
-    {"verbatim", "brand_match", "abv_consistency", "warning_bold", "presence"}
-)
+# added deliberately, in code and here — never invented in a rule file. A test
+# pins this set equal to the engine's matcher registry, so a strategy that
+# loads but silently never runs cannot exist.
+KNOWN_STRATEGIES = frozenset({"verbatim", "brand_match", "abv_consistency", "warning_bold"})
 
 
 class Match(BaseModel):

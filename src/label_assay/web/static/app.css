@@ -17,7 +17,9 @@
   --bg-subtle: #f0f0f0;
   --border: #dfe1e2;
   --ok-bg: #ecf3ec; --ok-line: #00a91c; --ok-ink: #446017;
-  --warn-bg: #faf3d1; --warn-line: #ffbe2e; --warn-ink: #8a7500;
+  /* warn-ink is the USWDS gold darkened one step: the stock #8a7500 measures
+     4.07:1 on the warn background, under the 4.5:1 AA bar at badge size. */
+  --warn-bg: #faf3d1; --warn-line: #ffbe2e; --warn-ink: #6b5a00;
   --err-bg: #f4e3db; --err-line: #d54309; --err-ink: #8c2a08;
   --info-bg: #e7f6f8; --info-line: #009ec1; --info-ink: #07648d;
 }
@@ -50,7 +52,7 @@ a { color: var(--primary); }
 label { display: block; font-weight: 600; margin: 1rem 0 0.25rem; }
 label:first-child { margin-top: 0; }
 input[type=text], input[type=file] {
-  width: 100%; font-size: 1rem; padding: 0.6rem; border: 1px solid #565c65;
+  width: 100%; min-height: 44px; font-size: 1rem; padding: 0.6rem; border: 1px solid #565c65;
   border-radius: 0.25rem; background: #fff;
 }
 input:focus, button:focus, a:focus { outline: 0.25rem solid #2491ff; outline-offset: 2px; }
@@ -107,7 +109,7 @@ button:hover { background: var(--primary-dark); }
 .batch-controls { display: flex; justify-content: space-between; align-items: center;
   gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
 .filters { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-.chip { min-height: 40px; padding: 0.35rem 0.85rem; font-size: 0.9rem; background: #fff;
+.chip { min-height: 44px; padding: 0.35rem 0.85rem; font-size: 0.9rem; background: #fff;
   color: var(--primary); border: 1px solid var(--primary); border-radius: 999px; cursor: pointer; }
 .chip--on { background: var(--primary); color: #fff; }
 .csv-link { font-weight: 600; white-space: nowrap; }

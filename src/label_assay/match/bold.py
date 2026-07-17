@@ -10,22 +10,39 @@ thicker than the body's, right next to it."
 Method: mean stroke width from the distance transform over the skeleton of the
 tall connected components (which drops small punctuation). Because the heading
 and the body share a line and a type size, their raw stroke widths compare
-directly — a ratio at/above 1.30 is bold, at/below 1.12 is not, in between is a
-human call. Cap height is used only to abstain when the text is under ~14px (too
-small to judge from pixels). Tuned so a false "bold" (approving a non-compliant
-label) is near-zero; residual errors fall to review.
+directly — a ratio at/above 1.30 is bold; a NOT_BOLD verdict requires the ratio
+to be conclusively low (at/below 0.90) AND the same-size premise to actually
+hold (cap heights within 1.4x of each other); everything between is a human
+call. The conclusive floor is empirical: on real registry composites, strokes
+render 2–4 px wide and a genuinely bold-vs-regular pair still measures within a
+few percent of 1.0 — noise, not evidence — while a truly regular-weight heading
+measures well under 0.9 against its own body text. Cap height is also used to
+abstain when the text is under ~14px (too small to judge from pixels). Tuned so
+a false verdict in either direction is near-zero; residual errors fall to
+review.
+
+The measurement is only meaningful when the heading and real body text share the
+located line. When OCR returns the heading as its own line (a common narrow-label
+layout), there is nothing beside it to compare, so the check abstains to review
+rather than measuring a sliver of the heading against itself.
 """
 
 from __future__ import annotations
 
 import enum
-import io
 import re
 from dataclasses import dataclass
 
 _MIN_CAP_PX = 14.0
 _BOLD_RATIO = 1.30
 _NOT_BOLD_RATIO = 1.12
+# A ratio near 1.0 is what measurement noise looks like at registry print
+# resolutions (anti-aliased strokes a few pixels wide); only a heading that
+# measures conclusively thinner-or-equal is called not bold.
+_NOT_BOLD_CONCLUSIVE = 0.90
+# Beyond this cap-height ratio the heading and body are not "same line, same
+# size", and their raw stroke widths stop being directly comparable.
+_SAME_SIZE_MAX = 1.40
 
 
 class BoldVerdict(enum.StrEnum):
@@ -94,6 +111,25 @@ def bold_ratio_verdict(head_gray, body_gray) -> BoldFinding:
     if ratio >= _BOLD_RATIO:
         return BoldFinding(BoldVerdict.BOLD_OK, f"The heading is bolder than the body text (ratio {ratio:.2f}).", ratio)
     if ratio <= _NOT_BOLD_RATIO:
+        # A failing verdict is only issued when the measurement is trustworthy:
+        # the premise (same size) must hold, and the ratio must sit clearly
+        # below the noise around 1.0. Anything less goes to a person.
+        size_ratio = max(head.cap_px, body.cap_px) / min(head.cap_px, body.cap_px)
+        if size_ratio > _SAME_SIZE_MAX:
+            return BoldFinding(
+                BoldVerdict.REVIEW,
+                "The heading and body text print at different sizes here, so their "
+                "stroke widths do not compare directly; a person should check the weight.",
+                ratio,
+            )
+        if ratio > _NOT_BOLD_CONCLUSIVE:
+            return BoldFinding(
+                BoldVerdict.REVIEW,
+                f"The heading does not measure distinctly bolder than the body "
+                f"(ratio {ratio:.2f}), but the margin is within measurement noise "
+                f"at this print resolution; a person should check.",
+                ratio,
+            )
         return BoldFinding(
             BoldVerdict.NOT_BOLD,
             f"The heading is not distinctly bolder than the rest of the statement (ratio {ratio:.2f}).",
@@ -106,9 +142,10 @@ def check_warning_bold(image: bytes, ocr_lines) -> BoldFinding:
     """Locate the warning heading via OCR, split it into the heading words and the
     body text on the same line, and compare their stroke widths."""
     import numpy as np
-    from PIL import Image
 
-    gray = np.asarray(Image.open(io.BytesIO(image)).convert("L"))
+    from label_assay.extract.images import open_bounded
+
+    gray = np.asarray(open_bounded(image).convert("L"))
     # OCR often drops the space between rendered words ("GOVERNMENTWARNING"), so
     # locate the heading on the space-insensitive form.
     line = next(
@@ -125,6 +162,16 @@ def check_warning_bold(image: bytes, ocr_lines) -> BoldFinding:
     match = re.search(r"warning", line.text, re.IGNORECASE)
     if not match:
         return BoldFinding(BoldVerdict.REVIEW, "Could not delimit the warning heading.", None)
+    # Gate on content, not pixels: with no real text after the heading on this
+    # line, the proportional split below would carve a sliver of the heading
+    # itself and compare the heading against its own tail.
+    remainder = re.sub(r"[^a-z0-9]", "", line.text[match.end():].casefold())
+    if len(remainder) < 8:
+        return BoldFinding(
+            BoldVerdict.REVIEW,
+            "The warning heading sits on its own line; boldness needs a person to check.",
+            None,
+        )
     split = x0 + int((x1 - x0) * (match.end() / len(line.text)))
 
     head, body = gray[y0:y1, x0:split], gray[y0:y1, split:x1]
