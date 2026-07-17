@@ -164,15 +164,39 @@ def batch_new(request: Request) -> HTMLResponse:
 
 
 @app.post("/batch")
-async def batch_create(request: Request, images: list[UploadFile]):
+async def batch_create(
+    request: Request,
+    images: list[UploadFile],
+    applications: UploadFile | None = None,
+):
     files: list[tuple[str, bytes]] = []
+    total = 0
     for upload in images:
         data = await upload.read()
-        if data and data.startswith(_MAGIC):
-            files.append((upload.filename or "label", data))
+        if not data or not data.startswith(_MAGIC):
+            continue  # silently skip non-images; the batch is about the labels
+        total += len(data)
+        if total > batchmod.MAX_TOTAL_BYTES:
+            return _error_page(
+                request,
+                "That batch is too large to process in one go. Please split it into "
+                "smaller batches.",
+                413,
+            )
+        files.append((upload.filename or "label", data))
+
     if not files:
         return _error_page(request, "No PNG or JPEG images were uploaded.")
-    files = files[: batchmod.MAX_FILES]
+    if len(files) > batchmod.MAX_FILES:
+        return _error_page(
+            request, f"A batch is limited to {batchmod.MAX_FILES} labels. Please split it up.", 413
+        )
+
+    application_map: dict[str, Application] = {}
+    if applications is not None:
+        raw = await applications.read()
+        if raw:
+            application_map = batchmod.parse_application_csv(raw)
 
     try:
         extractor = default_extractor(get_settings())
@@ -180,7 +204,7 @@ async def batch_create(request: Request, images: list[UploadFile]):
         return _error_page(request, str(exc))
 
     job = batchmod.create_job([name for name, _ in files])
-    task = asyncio.create_task(batchmod.run_job(job, files, extractor, _BUDGET))
+    task = asyncio.create_task(batchmod.run_job(job, files, extractor, _BUDGET, application_map))
     _BG_TASKS.add(task)
     task.add_done_callback(_BG_TASKS.discard)
     return RedirectResponse(f"/batch/{job.id}", status_code=303)

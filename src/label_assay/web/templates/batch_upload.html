@@ -2,14 +2,20 @@
 {% block main %}
 <a class="back" href="/">&larr; Back</a>
 <h1>Check many labels</h1>
-<p class="lead">Upload up to {{ max_files }} label images at once. Each is checked for the
-label-internal requirements &mdash; the government warning, its bold heading, and
-alcohol-content consistency. (Brand matching needs the paired application, so it stays part
-of the single-label check.)</p>
+<p class="lead">For a batch of applications &mdash; up to {{ max_files }} at a time. Add the
+application data as a CSV and each label is checked against its own filed brand and class,
+exactly as it would be one at a time. Results appear as they finish.</p>
 
 <form class="card" method="post" action="/batch" enctype="multipart/form-data">
   <label for="images">Label images (PNG or JPEG)</label>
   <input type="file" id="images" name="images" accept="image/png,image/jpeg" multiple required>
+
+  <label for="applications">Application data (CSV, optional)</label>
+  <input type="file" id="applications" name="applications" accept=".csv,text/csv">
+  <p class="hint">Columns: <code>filename</code>, <code>brand_name</code>, <code>class_type</code>.
+     Without it, every label-internal check still runs &mdash; only the brand comparison is
+     skipped, since there is nothing filed to compare against.</p>
+
   <button type="submit">Check the batch</button>
 </form>
 {% endblock %}
