@@ -118,5 +118,12 @@ table.results th, table.results td { text-align: left; padding: 0.5rem 0.6rem;
   border-bottom: 1px solid var(--border); vertical-align: top; }
 table.results th { font-size: 0.85rem; color: var(--muted); }
 
+/* collapsed preview of the uploaded label (single-label result) */
+.label-preview { margin-top: 1.5rem; }
+.label-preview summary { cursor: pointer; font-weight: 600; color: var(--primary);
+  padding: 0.6rem 0; }
+.label-preview__img { max-width: 100%; height: auto; margin-top: 0.5rem;
+  border: 1px solid var(--border); border-radius: 0.25rem; }
+
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }

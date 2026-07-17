@@ -62,4 +62,12 @@
 </table>
 <p class="hint">Fields that no check above covers are shown for your reference; they were read from the label, not judged.</p>
 {% endif %}
+
+{% if preview %}
+{# The image round-trips inside this response as a data: URI; the server keeps no copy. #}
+<details class="label-preview">
+  <summary>Show the label image you uploaded</summary>
+  <img class="label-preview__img" src="{{ preview }}" alt="The label image you uploaded for this check">
+</details>
+{% endif %}
 {% endblock %}
