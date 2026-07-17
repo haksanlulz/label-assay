@@ -1,5 +1,5 @@
 """Extraction layer: the deterministic fixture path, the blind contract, and a
-live vision + OCR pass over a synthetic label.
+live vision + OCR pass over a fixture label.
 
 The live tests skip cleanly when no ANTHROPIC_API_KEY is configured, so the suite
 stays green in CI without a key while still exercising the real path locally.
@@ -9,18 +9,21 @@ from __future__ import annotations
 
 import hashlib
 import inspect
-from pathlib import Path
+import re
 
 import pytest
 
+import fixture_corpus
 from label_assay.config import get_settings
 from label_assay.extract.base import ExtractedField, Extraction
+from label_assay.text.numbers import parse_alcohol_content
 
-SAMPLE = Path(__file__).resolve().parents[1] / "samples" / "bourbon_compliant.png"
+SPEC = fixture_corpus.known_good_compliant()
+FIXTURE = fixture_corpus.fixture_path(SPEC)
 
 
-def _sample_bytes() -> bytes:
-    return SAMPLE.read_bytes()
+def _fixture_bytes() -> bytes:
+    return FIXTURE.read_bytes()
 
 
 def _field(text: str) -> ExtractedField:
@@ -61,19 +64,20 @@ def test_haiku_extract_takes_only_an_image_and_uses_a_constant_prompt() -> None:
     assert params == ["self", "image"]
 
 
-@pytest.mark.skipif(not SAMPLE.exists(), reason="run samples/make_samples.py first")
-def test_ocr_reads_the_sample_label() -> None:
+@pytest.mark.skipif(not FIXTURE.exists(), reason="run tools/make_test_labels.py first")
+def test_ocr_reads_a_fixture_label() -> None:
     from label_assay.extract.ocr import read_lines
 
-    joined = " ".join(line.text for line in read_lines(_sample_bytes())).lower()
-    assert "bourbon" in joined or "distillery" in joined
+    joined = " ".join(line.text for line in read_lines(_fixture_bytes()))
+    squashed = re.sub(r"[^a-z0-9]", "", joined.casefold())
+    assert "governmentwarning" in squashed  # the statutory heading is legible
 
 
 @pytest.mark.skipif(
-    not SAMPLE.exists() or not get_settings().anthropic_api_key,
-    reason="needs the sample image and ANTHROPIC_API_KEY",
+    not FIXTURE.exists() or not get_settings().anthropic_api_key,
+    reason="needs the fixture image and ANTHROPIC_API_KEY",
 )
-def test_haiku_extracts_expected_fields_from_sample_label() -> None:
+def test_haiku_extracts_expected_fields_from_fixture_label() -> None:
     import anthropic
 
     from label_assay.extract.haiku import HaikuExtractor
@@ -82,11 +86,12 @@ def test_haiku_extracts_expected_fields_from_sample_label() -> None:
     assert settings.anthropic_api_key is not None
     extractor = HaikuExtractor(api_key=settings.anthropic_api_key, model=settings.haiku_model)
     try:
-        result = extractor.extract(_sample_bytes())
+        result = extractor.extract(_fixture_bytes())
     except anthropic.AuthenticationError:
         pytest.skip("ANTHROPIC_API_KEY is invalid or expired")
 
     assert result.brand_name.found
     assert result.government_warning.found
-    assert "bourbon" in (result.class_type.value or "").lower()
-    assert "45" in (result.alcohol_content.verbatim or "")
+    painted_abv = parse_alcohol_content(SPEC.alcohol_text)
+    assert painted_abv is not None
+    assert str(painted_abv.abv) in (result.alcohol_content.verbatim or "")

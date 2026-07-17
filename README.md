@@ -2,7 +2,7 @@
 
 Checks alcohol beverage labels against TTB labeling requirements (27 CFR parts 4, 5, 7, and 16). Upload a label image and the details filed on the application; get **compliant / needs review / needs correction**, with the specific rule and CFR citation behind each finding.
 
-**Live demo:** https://label-assay.fly.dev — `/sample` runs a bundled label end to end.
+**Live:** https://label-assay.fly.dev
 
 ## Why it works this way
 
@@ -40,7 +40,7 @@ cp .env.example .env          # then add an ANTHROPIC_API_KEY
 uv run uvicorn label_assay.web.app:app --reload
 ```
 
-Open <http://127.0.0.1:8000>. Health at `/health`, the bundled sample at `/sample`, batch at `/batch`.
+Open <http://127.0.0.1:8000>. Health at `/health`, batch at `/batch`.
 
 With Docker:
 
@@ -54,7 +54,18 @@ Tests:
 uv run pytest                 # live-API tests skip cleanly without a key
 ```
 
-Regenerate the sample labels: `uv run python samples/make_samples.py`.
+## Test labels
+
+`tools/make_test_labels.py` generates the corpus in `tests/fixtures/labels/`: 24 synthetic labels spanning distilled spirits, wine, and malt classes, four layouts, six palettes, several font families, and four canvas sizes, with invented brands in varied casings. About half are compliant; the rest each carry one specific defect mapped to a check the engine actually performs — warning heading in title case, heading not bold, altered statutory text, missing warning, proof ≠ 2 × ABV, and a label brand differing from the filed brand (both a typo-level variant and a different brand).
+
+Two CSVs ride along:
+
+- `applications.csv` (`filename,brand_name,class_type`) — the data *filed* for each label. On the brand-mismatch labels the filed brand deliberately differs from what is painted.
+- `manifest.csv` (`filename,defect,expected_verdict,notes`) — ground truth for tests and evaluation. The app never reads it.
+
+Regenerate with `uv run python tools/make_test_labels.py`. Output is deterministic for a given `--seed` on one machine; fonts differ across machines, so committed bytes are machine-specific.
+
+To try the app with them: upload any fixture PNG on the single-label page together with its `brand_name` and `class_type` row from `applications.csv` — or upload several PNGs plus `applications.csv` itself on `/batch`. `manifest.csv` says what each label should produce.
 
 ## Layout
 
@@ -69,7 +80,7 @@ Regenerate the sample labels: `uv run python samples/make_samples.py`.
 
 Rules regulated in millimetres (type size, characters per inch, contrasting background) are **not** checked: a flat image carries no physical scale, so they are unverifiable from the artifact and are reported as not evaluable rather than guessed.
 
-**Batch throughput is bound by the host, and this demo's host is a shared-CPU tier.** Every label runs local OCR — a detection and recognition pass, i.e. sustained CPU work. A shared-CPU machine grants burst credits and then throttles hard, which is measurable: **~2.3s per label while burst lasts, then 20–30s per label once it is spent** — a 40× cliff on identical work, after roughly 20 labels. A ~25-label batch completes in ~164s. A 300-label batch does not complete on this tier. The pipeline is not the constraint; the machine is. On dedicated CPU the same code holds the burst rate, which puts 300 labels in the ten-minute range.
+**Batch throughput is bound by the host, and the deployed host is a shared-CPU tier.** Every label runs local OCR — a detection and recognition pass, i.e. sustained CPU work. A shared-CPU machine grants burst credits and then throttles hard, which is measurable: **~2.3s per label while burst lasts, then 20–30s per label once it is spent** — a 40× cliff on identical work, after roughly 20 labels. A ~25-label batch completes in ~164s. A 300-label batch does not complete on this tier. The pipeline is not the constraint; the machine is. On dedicated CPU the same code holds the burst rate, which puts 300 labels in the ten-minute range.
 
 Full list, with reasoning: [docs/DESIGN.md](docs/DESIGN.md).
 

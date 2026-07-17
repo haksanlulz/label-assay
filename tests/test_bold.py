@@ -1,17 +1,17 @@
 """Bold detection: the stroke-width algorithm on controlled crops, and the
-warning-region locator on the sample label."""
+warning-region locator on a compliant fixture label."""
 
 from __future__ import annotations
-
-from pathlib import Path
 
 import numpy as np
 import pytest
 from PIL import Image, ImageDraw, ImageFont
 
+import fixture_corpus
 from label_assay.match.bold import BoldVerdict, bold_ratio_verdict, check_warning_bold
 
-SAMPLE = Path(__file__).resolve().parents[1] / "samples" / "bourbon_compliant.png"
+SPEC = fixture_corpus.known_good_compliant()
+FIXTURE = fixture_corpus.fixture_path(SPEC)
 
 
 def _crop(text: str, *, bold: bool, size: int = 40) -> np.ndarray:
@@ -47,11 +47,11 @@ def test_tiny_text_abstains_to_review() -> None:
     assert bold_ratio_verdict(head, body).verdict == BoldVerdict.REVIEW
 
 
-@pytest.mark.skipif(not SAMPLE.exists(), reason="run samples/make_samples.py first")
-def test_sample_bold_heading_is_not_falsely_failed() -> None:
+@pytest.mark.skipif(not FIXTURE.exists(), reason="run tools/make_test_labels.py first")
+def test_compliant_fixture_bold_heading_is_not_falsely_failed() -> None:
     from label_assay.extract.ocr import read_lines
 
-    image = SAMPLE.read_bytes()
+    image = FIXTURE.read_bytes()
     result = check_warning_bold(image, read_lines(image))
-    # The sample's heading is genuinely bold; the check must never FAIL it.
+    # The fixture's heading is genuinely bold; the check must never FAIL it.
     assert result.verdict != BoldVerdict.NOT_BOLD
