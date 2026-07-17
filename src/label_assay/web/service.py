@@ -49,7 +49,10 @@ def check_label(
     *,
     extractor: ExtractorPort,
     budget: DailyBudget | None = None,
+    background: bool = False,
 ) -> LabelReport:
+    # ``background=True`` marks a batch item: its OCR read yields to any pending
+    # interactive check at the engine's priority gate (see extract/ocr.py).
     # Reject undecodable or bomb-sized images before any money or CPU is spent.
     # The header alone carries the dimensions, so this costs microseconds. The
     # vision call then gets a bounded copy: the hosted API rejects images over
@@ -87,7 +90,7 @@ def check_label(
     try:
         vision = pool.submit(extractor.extract, vision_bytes)
         try:
-            ocr_lines = read_lines(image)
+            ocr_lines = read_lines(image, background=background)
         except Exception as exc:  # OCR engine failure is infrastructure, not a verdict
             logger.exception("OCR read failed")
             raise ExtractionUnavailable(

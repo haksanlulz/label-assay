@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import csv
 import hashlib
 import io
+import tempfile
 import time
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 import fixture_corpus
+from label_assay.domain.models import Application
 from label_assay.extract.fixture import FixtureExtractor
 from label_assay.match.brand import BrandVerdict, match_brand
 from label_assay.web import app as webapp
@@ -24,24 +28,39 @@ FIXTURE = fixture_corpus.fixture_path(SPEC)
 client = TestClient(webapp.app)
 
 
+def _spooled(tmp_path: Path, name: str, data: bytes) -> tuple[str, Path]:
+    """Mirror what batch_create hands run_job: a name and a spooled temp file."""
+    path = tmp_path / f"spool-{name}"
+    path.write_bytes(data)
+    return name, path
+
+
+def _spool_leftovers() -> set[Path]:
+    """Temp files the app's spooling prefix left behind."""
+    return set(Path(tempfile.gettempdir()).glob("label-assay-*"))
+
+
 def test_batch_upload_form_renders() -> None:
     resp = client.get("/batch")
     assert resp.status_code == 200
     assert "many labels" in resp.text.lower()
 
 
-def test_run_job_processes_every_item_offline() -> None:
+def test_run_job_processes_every_item_offline(tmp_path: Path) -> None:
     image = FIXTURE.read_bytes()
     fixture = FixtureExtractor(
         {hashlib.sha256(image).hexdigest(): fixture_corpus.perfect_extraction(SPEC)}
     )
     job = create_job(["a.png", "b.png"])
-    asyncio.run(run_job(job, [("a.png", image), ("b.png", image)], fixture))
+    files = [_spooled(tmp_path, "a.png", image), _spooled(tmp_path, "b.png", image)]
+    asyncio.run(run_job(job, files, fixture))
 
     assert job.done == 2
     assert all(item.status == "done" for item in job.items)
     counts = job.summary()
     assert counts["pass"] + counts["needs_review"] == 2  # a compliant label never fails
+    # Each worker deletes its item's temp file once the item is processed.
+    assert not any(path.exists() for _name, path in files)
 
 
 def test_batch_post_with_no_valid_images_errors() -> None:
@@ -127,7 +146,8 @@ def test_batch_with_a_binary_applications_file_gets_a_clean_message() -> None:
 
 
 def test_batch_over_the_total_size_cap_is_asked_to_split(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(batchmod, "MAX_TOTAL_BYTES", 10_000)
+    monkeypatch.setattr(batchmod, "MAX_TOTAL_DISK_BYTES", 10_000)
+    before = _spool_leftovers()
     png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8_000
     resp = client.post(
         "/batch",
@@ -135,24 +155,28 @@ def test_batch_over_the_total_size_cap_is_asked_to_split(monkeypatch: pytest.Mon
     )
     assert resp.status_code == 413
     assert "split it into" in resp.text
+    # The rejected upload's already-spooled temp files must not be stranded.
+    assert _spool_leftovers() <= before
 
 
 def test_batch_upload_page_states_the_size_cap() -> None:
     resp = client.get("/batch")
-    cap_mb = batchmod.MAX_TOTAL_BYTES // (1024 * 1024)
+    cap_mb = batchmod.MAX_TOTAL_DISK_BYTES // (1024 * 1024)
     assert f"{cap_mb}" in resp.text and "MB" in resp.text
 
 
-def test_oversized_image_in_a_batch_becomes_an_item_error() -> None:
+def test_oversized_image_in_a_batch_becomes_an_item_error(tmp_path: Path) -> None:
     # One decompression bomb must degrade to a per-item error, never sink the
     # batch or the process.
     job = create_job(["bomb.png"])
-    asyncio.run(run_job(job, [("bomb.png", bomb_png(8000, 6000))], FixtureExtractor({})))
+    files = [_spooled(tmp_path, "bomb.png", bomb_png(8000, 6000))]
+    asyncio.run(run_job(job, files, FixtureExtractor({})))
     assert job.items[0].status == "error"
     assert "too large" in (job.items[0].detail or "")
+    assert not files[0][1].exists()  # an error row still cleans up its temp file
 
 
-def test_batch_checks_each_label_against_its_own_application() -> None:
+def test_batch_checks_each_label_against_its_own_application(tmp_path: Path) -> None:
     # The paired CSV is what makes brand-vs-application work in a batch: the same
     # image passes against its own filed brand and fails against someone else's.
     image = FIXTURE.read_bytes()
@@ -171,9 +195,8 @@ def test_batch_checks_each_label_against_its_own_application() -> None:
     writer.writerow(["wrong.png", other_brand, SPEC.class_type])
     applications = parse_application_csv(buf.getvalue().encode("utf-8"))
     job = create_job(["right.png", "wrong.png"])
-    asyncio.run(
-        run_job(job, [("right.png", image), ("wrong.png", image)], fixture, None, applications)
-    )
+    files = [_spooled(tmp_path, "right.png", image), _spooled(tmp_path, "wrong.png", image)]
+    asyncio.run(run_job(job, files, fixture, None, applications))
 
     by_name = {item.filename: item for item in job.items}
     assert by_name["right.png"].verdict == "pass"
@@ -185,7 +208,9 @@ def _tiny_png() -> bytes:
 
 
 async def _noop_run_job(job, files, extractor, budget=None, applications=None) -> None:
-    return None
+    # Stubbing run_job means taking over its ownership contract: once batch_create
+    # hands the spooled files off, the runner is what deletes them.
+    batchmod.discard_spooled(path for _name, path in files)
 
 
 def test_batch_route_happy_path_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -364,6 +389,109 @@ def test_headline_does_not_claim_all_checks_passed_over_an_abstention() -> None:
     assert headline != "All automated checks passed."
     assert "could run passed" in headline
     assert "No application brand name" in headline
+
+
+def test_batch_uploads_spool_to_disk_and_are_gone_after_the_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The upload's temp files exist when the job starts (the job carries paths,
+    # not bytes) and are gone once every item is processed.
+    image = FIXTURE.read_bytes()
+    fixture = FixtureExtractor(
+        {hashlib.sha256(image).hexdigest(): fixture_corpus.perfect_extraction(SPEC)}
+    )
+    monkeypatch.setattr(webapp, "default_extractor", lambda _settings: fixture)
+    seen: dict[str, list] = {}
+    real_run_job = batchmod.run_job
+
+    async def capturing_run_job(job, files, extractor, budget=None, applications=None) -> None:
+        seen["paths"] = [path for _name, path in files]
+        seen["existed_at_start"] = [path.exists() for _name, path in files]
+        await real_run_job(job, files, extractor, budget, applications)
+
+    monkeypatch.setattr(batchmod, "run_job", capturing_run_job)
+    with TestClient(webapp.app) as c:
+        resp = c.post(
+            "/batch",
+            files=[
+                ("images", ("a.png", image, "image/png")),
+                ("images", ("b.png", image, "image/png")),
+            ],
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        job_id = resp.headers["location"].rsplit("/", 1)[-1]
+        deadline = time.time() + 60
+        while True:
+            data = c.get(f"/batch/{job_id}/data").json()
+            if data["done"] == data["total"]:
+                break
+            assert time.time() < deadline, "batch never finished"
+            time.sleep(0.1)
+
+    assert seen["existed_at_start"] == [True, True]
+    assert all(path.name.startswith("label-assay-") for path in seen["paths"])
+    assert not any(path.exists() for path in seen["paths"])  # cleaned as items finished
+
+
+def test_per_file_cap_is_enforced_during_the_copy_when_no_size_is_reported() -> None:
+    # A multipart part with no reported size cannot dodge the 5 MB cap: the
+    # copy itself enforces it, rejects with the standard clean message, and
+    # leaves nothing on disk.
+    from fastapi import UploadFile
+
+    before = _spool_leftovers()
+    big = b"\x89PNG\r\n\x1a\n" + b"\x00" * (5 * 1024 * 1024)
+    upload = UploadFile(file=io.BytesIO(big), filename="big.png")
+    assert upload.size is None  # the mid-copy check is the only guard in play
+    result = asyncio.run(webapp._spool_upload(upload))
+    assert isinstance(result, str)
+    assert "larger than 5 MB" in result
+    assert _spool_leftovers() <= before
+
+
+def test_run_job_sweeps_temp_files_when_the_job_is_cancelled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # A shutdown mid-batch cancels the job task; the job-level sweep must not
+    # strand the remaining spooled files.
+    def slow_check(path, application, extractor, budget):
+        time.sleep(0.4)
+        raise AssertionError("cancelled before any item could finish")
+
+    monkeypatch.setattr(batchmod, "_check_spooled", slow_check)
+    files = [_spooled(tmp_path, f"l{i}.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 8) for i in range(3)]
+    job = create_job([name for name, _ in files])
+
+    async def scenario() -> None:
+        task = asyncio.create_task(run_job(job, files, FixtureExtractor({})))
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    asyncio.run(scenario())
+    assert not any(path.exists() for _name, path in files)
+
+
+def test_batch_items_read_from_disk_at_processing_time_as_background_priority(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # The worker reads the file's bytes only when its item runs, and marks the
+    # check background so an interactive check can jump the OCR queue.
+    captured: dict = {}
+
+    def capture(data, application, *, extractor, budget=None, background=False):
+        captured["data"] = data
+        captured["background"] = background
+        return None
+
+    monkeypatch.setattr(batchmod, "check_label", capture)
+    path = tmp_path / "x.png"
+    path.write_bytes(b"label bytes")
+    batchmod._check_spooled(path, Application(), FixtureExtractor({}), None)
+    assert captured["data"] == b"label bytes"
+    assert captured["background"] is True
 
 
 def test_csv_export() -> None:

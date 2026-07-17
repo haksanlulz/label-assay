@@ -13,6 +13,7 @@ import csv
 import io
 import logging
 import os
+import tempfile
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -69,6 +70,39 @@ _VERDICT_LABEL = {
 _TEMPLATES.env.globals["verdict_label"] = _VERDICT_LABEL
 
 
+_WARM_ON_STARTUP = True  # tests flip this off; a deployed process warms the reader
+
+
+def _warm_reader() -> None:
+    """One tiny generated image through the real extraction path, so the first
+    user's check never pays the provider's connection + model cold start. Costs
+    one budget reservation (~$0.005, EST_COST_PER_LABEL_USD) per process restart
+    — accepted, because the first click after a deploy is the first impression.
+    """
+    settings = get_settings()
+    if not settings.anthropic_api_key:
+        return  # nothing to warm and no paid call to make
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (64, 64), "white").save(buffer, format="PNG")
+    try:
+        check_label(
+            buffer.getvalue(),
+            Application(),
+            extractor=default_extractor(settings),
+            budget=_BUDGET,
+            background=True,  # a user's first click still outranks the warm-up
+        )
+        logger.info("Reader warm-up complete")
+    except ExtractionUnavailable as exc:
+        # Budget exhausted or reader unavailable: the warm-up is an optimization,
+        # so skip quietly rather than mark the boot degraded.
+        logger.info("Reader warm-up skipped: %s", exc)
+    except Exception:
+        logger.warning("Reader warm-up failed; first request pays the cold start", exc_info=True)
+
+
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
     # Boot-time validation and warmup: a corrupt rulebook should fail the deploy
@@ -77,6 +111,12 @@ async def _lifespan(_app: FastAPI):
     logging.basicConfig(level=logging.INFO)
     load_rulebook()
     await asyncio.to_thread(_ocr_status)
+    if _WARM_ON_STARTUP and get_settings().anthropic_api_key:
+        # Fire-and-forget: startup never blocks on (or crashes from) a network
+        # call — _warm_reader catches everything and only logs.
+        task = asyncio.create_task(asyncio.to_thread(_warm_reader))
+        _BG_TASKS.add(task)
+        task.add_done_callback(_BG_TASKS.discard)
     yield
 
 
@@ -200,7 +240,12 @@ def batch_new(request: Request) -> HTMLResponse:
     return _TEMPLATES.TemplateResponse(
         request,
         "batch_upload.html",
-        _ctx({"max_files": batchmod.MAX_FILES, "max_mb": batchmod.MAX_TOTAL_BYTES // (1024 * 1024)}),
+        _ctx(
+            {
+                "max_files": batchmod.MAX_FILES,
+                "max_mb": batchmod.MAX_TOTAL_DISK_BYTES // (1024 * 1024),
+            }
+        ),
     )
 
 
@@ -209,6 +254,43 @@ _CSV_TOO_LARGE = (
     "That applications file is larger than 5 MB. A batch of a few hundred "
     "applications is far smaller; please check the file."
 )
+
+_SPOOL_CHUNK = 1024 * 1024
+
+
+async def _spool_upload(upload: UploadFile) -> tuple[Path, int] | str:
+    """Stream one batch upload to a named temp file, enforcing the 5 MB cap and
+    the magic-byte check during the copy — the file is judged as it streams, so
+    an oversized or non-image upload never lands whole anywhere. Returns the
+    temp path and byte count, or the user-facing reason the file was rejected
+    (with nothing left on disk)."""
+    # Fast path: when the multipart parser reports a size, an oversized file is
+    # refused before a single byte is copied.
+    if (upload.size or 0) > _MAX_BYTES:
+        return _TOO_LARGE_DETAIL
+    first = await upload.read(_SPOOL_CHUNK)
+    if not first:
+        return "This file is empty, so it was not checked."
+    if not first.startswith(_MAGIC):
+        return "Not a PNG or JPEG image, so this file was not checked."
+    handle = tempfile.NamedTemporaryFile(delete=False, prefix="label-assay-", suffix=".upload")
+    path = Path(handle.name)
+    copied = 0
+    spooled = False
+    try:
+        with handle:
+            chunk = first
+            while chunk:
+                copied += len(chunk)
+                if copied > _MAX_BYTES:
+                    return _TOO_LARGE_DETAIL
+                handle.write(chunk)
+                chunk = await upload.read(_SPOOL_CHUNK)
+        spooled = True
+        return path, copied
+    finally:
+        if not spooled:  # rejected mid-copy, or the read/write itself failed
+            path.unlink(missing_ok=True)
 
 
 def _batch_task_done(task: asyncio.Task) -> None:
@@ -228,76 +310,80 @@ async def batch_create(
     images: list[UploadFile],
     applications: UploadFile | None = None,
 ):
-    files: list[tuple[str, bytes]] = []
+    files: list[tuple[str, Path]] = []  # (filename, spooled temp path)
     rejected: list[tuple[str, str]] = []  # (filename, why the file was not checked)
-    total = 0
-    for upload in images:
-        name = upload.filename or "label"
-        # Same pre-read size check as the single path, so one huge file cannot
-        # spike memory before it is even inspected. The 5 MB cap also sits
-        # safely under the vision API's per-image limit (~7.5 MB raw), so the
-        # extractor is never handed a payload the API rejects for size.
-        if (upload.size or 0) > _MAX_BYTES:
-            rejected.append((name, _TOO_LARGE_DETAIL))
-            continue
-        data = await upload.read()
-        if not data:
-            rejected.append((name, "This file is empty, so it was not checked."))
-            continue
-        if not data.startswith(_MAGIC):
-            rejected.append((name, "Not a PNG or JPEG image, so this file was not checked."))
-            continue
-        if len(data) > _MAX_BYTES:
-            rejected.append((name, _TOO_LARGE_DETAIL))
-            continue
-        total += len(data)
-        if total > batchmod.MAX_TOTAL_BYTES:
-            return _error_page(
-                request,
-                "That batch is too large to process in one go. Please split it into "
-                "smaller batches.",
-                413,
-            )
-        files.append((name, data))
 
-    if not files:
-        return _error_page(request, "No PNG or JPEG images were uploaded.", 400)
-    if len(files) > batchmod.MAX_FILES:
-        return _error_page(
-            request, f"A batch is limited to {batchmod.MAX_FILES} labels. Please split it up.", 413
-        )
-
-    application_map: dict[str, Application] = {}
-    csv_rows: int | None = None
-    if applications is not None:
-        if (applications.size or 0) > batchmod.MAX_CSV_BYTES:
-            return _error_page(request, _CSV_TOO_LARGE, 413)
-        raw = await applications.read()
-        if len(raw) > batchmod.MAX_CSV_BYTES:
-            return _error_page(request, _CSV_TOO_LARGE, 413)
-        if raw:
-            try:
-                application_map = batchmod.parse_application_csv(raw)
-            except batchmod.ApplicationCSVError as exc:
-                return _error_page(request, str(exc), 415)
-            csv_rows = len(application_map)
-
-    uploaded_keys = {batchmod.pairing_key(name) for name, _ in files}
-    if application_map and not uploaded_keys & set(application_map):
-        # A CSV that matches nothing is a mistake (wrong column, wrong export),
-        # not a smaller batch; running anyway would abstain on every brand check
-        # with no hint why.
-        return _error_page(
-            request,
-            "The applications CSV did not match any uploaded file name. The "
-            "filename column must match the uploaded image names.",
-            400,
-        )
+    def reject(message: str, status: int) -> HTMLResponse:
+        # Every early exit owns the spooled files it strands.
+        batchmod.discard_spooled(path for _name, path in files)
+        return _error_page(request, message, status)
 
     try:
-        extractor = default_extractor(get_settings())
-    except ExtractionUnavailable as exc:
-        return _error_page(request, str(exc), 503)
+        total = 0
+        for upload in images:
+            name = upload.filename or "label"
+            # Each file streams to its own temp file with the 5 MB cap and the
+            # magic-byte check applied during the copy, so a batch is never
+            # materialized in memory — a worker later reads one file at a time.
+            # The 5 MB cap also sits safely under the vision API's per-image
+            # limit (~7.5 MB raw), so the extractor is never handed a payload
+            # the API rejects for size.
+            spooled = await _spool_upload(upload)
+            if isinstance(spooled, str):
+                rejected.append((name, spooled))
+                continue
+            path, size = spooled
+            files.append((name, path))
+            total += size
+            if total > batchmod.MAX_TOTAL_DISK_BYTES:
+                return reject(
+                    "That batch is too large to process in one go. Please split it into "
+                    "smaller batches.",
+                    413,
+                )
+
+        if not files:
+            return reject("No PNG or JPEG images were uploaded.", 400)
+        if len(files) > batchmod.MAX_FILES:
+            return reject(
+                f"A batch is limited to {batchmod.MAX_FILES} labels. Please split it up.", 413
+            )
+
+        application_map: dict[str, Application] = {}
+        csv_rows: int | None = None
+        if applications is not None:
+            if (applications.size or 0) > batchmod.MAX_CSV_BYTES:
+                return reject(_CSV_TOO_LARGE, 413)
+            raw = await applications.read()
+            if len(raw) > batchmod.MAX_CSV_BYTES:
+                return reject(_CSV_TOO_LARGE, 413)
+            if raw:
+                try:
+                    application_map = batchmod.parse_application_csv(raw)
+                except batchmod.ApplicationCSVError as exc:
+                    return reject(str(exc), 415)
+                csv_rows = len(application_map)
+
+        uploaded_keys = {batchmod.pairing_key(name) for name, _ in files}
+        if application_map and not uploaded_keys & set(application_map):
+            # A CSV that matches nothing is a mistake (wrong column, wrong export),
+            # not a smaller batch; running anyway would abstain on every brand check
+            # with no hint why.
+            return reject(
+                "The applications CSV did not match any uploaded file name. The "
+                "filename column must match the uploaded image names.",
+                400,
+            )
+
+        try:
+            extractor = default_extractor(get_settings())
+        except ExtractionUnavailable as exc:
+            return reject(str(exc), 503)
+    except BaseException:
+        # An unexpected failure anywhere above must not strand spooled files;
+        # past this point run_job owns them and deletes as it goes.
+        batchmod.discard_spooled(path for _name, path in files)
+        raise
 
     job = batchmod.create_job([name for name, _ in files] + [name for name, _ in rejected])
     # Rejected files ride along as pre-completed error rows, so the results

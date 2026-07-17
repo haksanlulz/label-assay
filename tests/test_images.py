@@ -50,7 +50,7 @@ class _SpyExtractor:
 def test_check_label_downscales_only_the_vision_copy(monkeypatch: pytest.MonkeyPatch) -> None:
     seen_by_ocr: list[bytes] = []
 
-    def spy_read_lines(image: bytes):
+    def spy_read_lines(image: bytes, *, background: bool = False):
         seen_by_ocr.append(image)
         return []
 

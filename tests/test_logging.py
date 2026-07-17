@@ -52,7 +52,7 @@ def test_vision_failure_is_logged_and_the_page_stays_clean(
 
 
 def test_batch_item_pipeline_bug_is_logged_with_traceback(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, tmp_path
 ) -> None:
     # A genuine code bug used to be reported identically to a bad file, forever,
     # invisibly; the log record is what tells them apart.
@@ -61,8 +61,10 @@ def test_batch_item_pipeline_bug_is_logged_with_traceback(
 
     monkeypatch.setattr(batchmod, "check_label", broken_check_label)
     job = create_job(["a.png"])
+    path = tmp_path / "a.png"
+    path.write_bytes(_png())
     with caplog.at_level(logging.ERROR, logger="label_assay.web.batch"):
-        asyncio.run(run_job(job, [("a.png", _png())], FixtureExtractor({})))
+        asyncio.run(run_job(job, [("a.png", path)], FixtureExtractor({})))
     assert job.items[0].status == "error"
     assert job.items[0].detail == "Could not process this file."
     record = next(r for r in caplog.records if "unhandled error" in r.getMessage())
@@ -70,13 +72,15 @@ def test_batch_item_pipeline_bug_is_logged_with_traceback(
 
 
 def test_batch_item_reader_failure_records_the_cause(
-    caplog: pytest.LogCaptureFixture,
+    caplog: pytest.LogCaptureFixture, tmp_path
 ) -> None:
     # FixtureExtractor({}) raises inside the reader; the row shows the clean
     # message while the log carries the chained cause.
     job = create_job(["a.png"])
+    path = tmp_path / "a.png"
+    path.write_bytes(_png())
     with caplog.at_level(logging.WARNING, logger="label_assay.web.batch"):
-        asyncio.run(run_job(job, [("a.png", _png())], FixtureExtractor({})))
+        asyncio.run(run_job(job, [("a.png", path)], FixtureExtractor({})))
     assert job.items[0].status == "error"
     record = next(r for r in caplog.records if "a.png" in r.getMessage())
     assert record.exc_info is not None
