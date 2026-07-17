@@ -19,6 +19,14 @@ own application row, exactly as it would be one at a time. Results appear as the
      Without the CSV, every label-internal check still runs &mdash; only the brand comparison is
      skipped, since there is nothing filed to compare against.</p>
 
+  <label class="checkbox" for="recover_rotation">
+    <input type="checkbox" id="recover_rotation" name="recover_rotation" checked>
+    Retry sideways reads when the required warning is not found
+  </label>
+  <p class="hint">Some labels print the government warning sideways along an edge. When the
+     warning is not found upright, the label is re-read rotated &mdash; up to three extra read
+     passes for that label only. Uncheck for maximum throughput.</p>
+
   <button type="submit">Check the batch</button>
 </form>
 {% endblock %}

@@ -15,9 +15,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 import fixture_corpus
-from label_assay.domain.models import Application, LabelReport, Verdict
+from label_assay.domain.models import Application, Finding, LabelReport, Verdict
 from label_assay.extract.fixture import FixtureExtractor
 from label_assay.match.brand import BrandVerdict, match_brand
+from label_assay.rulebook.loader import load_rulebook
 from label_assay.web import app as webapp
 from label_assay.web import batch as batchmod
 from label_assay.web.batch import ApplicationCSVError, create_job, parse_application_csv, run_job
@@ -45,6 +46,10 @@ def test_batch_upload_form_renders() -> None:
     resp = client.get("/batch")
     assert resp.status_code == 200
     assert "many labels" in resp.text.lower()
+    # The retry-sideways checkbox ships checked; unchecking is the opt-out.
+    assert 'name="recover_rotation"' in resp.text
+    assert "checked" in resp.text
+    assert "Retry sideways reads" in resp.text
 
 
 def test_run_job_processes_every_item_offline(tmp_path: Path) -> None:
@@ -208,7 +213,9 @@ def _tiny_png() -> bytes:
     return b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 
 
-async def _noop_run_job(job, files, extractor, budget=None, applications=None) -> None:
+async def _noop_run_job(
+    job, files, extractor, budget=None, applications=None, recover_rotation=True
+) -> None:
     # Stubbing run_job means taking over its ownership contract: once batch_create
     # hands the spooled files off, the runner is what deletes them.
     batchmod.discard_spooled(path for _name, path in files)
@@ -405,10 +412,12 @@ def test_batch_uploads_spool_to_disk_and_are_gone_after_the_job(
     seen: dict[str, list] = {}
     real_run_job = batchmod.run_job
 
-    async def capturing_run_job(job, files, extractor, budget=None, applications=None) -> None:
+    async def capturing_run_job(
+        job, files, extractor, budget=None, applications=None, recover_rotation=True
+    ) -> None:
         seen["paths"] = [path for _name, path in files]
         seen["existed_at_start"] = [path.exists() for _name, path in files]
-        await real_run_job(job, files, extractor, budget, applications)
+        await real_run_job(job, files, extractor, budget, applications, recover_rotation)
 
     monkeypatch.setattr(batchmod, "run_job", capturing_run_job)
     with TestClient(webapp.app) as c:
@@ -456,7 +465,7 @@ def test_run_job_sweeps_temp_files_when_the_job_is_cancelled(
 ) -> None:
     # A shutdown mid-batch cancels the job task; the job-level sweep must not
     # strand the remaining spooled files.
-    def slow_check(path, application, extractor, budget):
+    def slow_check(path, application, extractor, budget, recover_rotation):
         time.sleep(0.4)
         raise AssertionError("cancelled before any item could finish")
 
@@ -478,24 +487,28 @@ def test_run_job_sweeps_temp_files_when_the_job_is_cancelled(
 def test_batch_items_read_from_disk_at_processing_time_as_background_priority(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    # The worker reads the file's bytes only when its item runs, and marks the
-    # check background so an interactive check can jump the OCR queue.
+    # The worker reads the file's bytes only when its item runs, marks the
+    # check background so an interactive check can jump the OCR queue, and
+    # hands the job's retry-sideways choice through unchanged.
     captured: dict = {}
 
-    def capture(data, application, *, extractor, budget=None, background=False):
+    def capture(data, application, *, extractor, budget=None, background=False, recover_rotation=False):
         captured["data"] = data
         captured["background"] = background
+        captured["recover_rotation"] = recover_rotation
         return CheckResult(
             report=LabelReport(verdict=Verdict.PASS, findings=[], rulebook_version="test"),
             extraction=fixture_corpus.perfect_extraction(SPEC),
+            image=data,
         )
 
     monkeypatch.setattr(batchmod, "check_label", capture)
     path = tmp_path / "x.png"
     path.write_bytes(b"label bytes")
-    batchmod._check_spooled(path, Application(), FixtureExtractor({}), None)
+    batchmod._check_spooled(path, Application(), FixtureExtractor({}), None, True)
     assert captured["data"] == b"label bytes"
     assert captured["background"] is True
+    assert captured["recover_rotation"] is True
 
 
 def test_csv_export() -> None:
@@ -503,7 +516,82 @@ def test_csv_export() -> None:
     job.items[0].status = "done"
     job.items[0].verdict = "fail"
     job.items[0].detail = "Missing warning"
+    job.items[0].rule_verdicts = {"health_warning_verbatim": "fail"}
     resp = client.get(f"/batch/{job.id}/export.csv")
     assert resp.status_code == 200
     assert "text/csv" in resp.headers["content-type"]
-    assert "x.png" in resp.text and "fail" in resp.text
+    header, row = list(csv.reader(io.StringIO(resp.text)))
+    # The summary columns first, then one column per rulebook rule, in the
+    # loader's stable order.
+    assert header == ["filename", "status", "verdict", "detail"] + [
+        rule.id for rule in load_rulebook().rules
+    ]
+    cells = dict(zip(header, row))
+    assert cells["filename"] == "x.png"
+    assert cells["verdict"] == "fail"
+    assert cells["health_warning_verbatim"] == "fail"
+
+
+def _report_with(verdicts: dict[str, Verdict]) -> LabelReport:
+    """One finding per rulebook rule, PASS unless overridden by rule id."""
+    findings = [
+        Finding(
+            rule_id=rule.id,
+            citation=rule.citation,
+            verdict=verdicts.get(rule.id, Verdict.PASS),
+            detail="fixture finding",
+        )
+        for rule in load_rulebook().rules
+    ]
+    overall = Verdict.FAIL if Verdict.FAIL in {f.verdict for f in findings} else Verdict.PASS
+    return LabelReport(verdict=overall, findings=findings, rulebook_version="test")
+
+
+def test_csv_export_carries_the_per_rule_grid_for_a_mixed_batch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # The summary columns say a label failed; the grid says which rule. A row
+    # the pipeline could not process has no findings, so its rule cells stay
+    # empty rather than carrying a guessed verdict.
+    reports = {
+        b"compliant-label": _report_with({}),
+        b"warning-defect-label": _report_with({"health_warning_verbatim": Verdict.FAIL}),
+    }
+
+    def fake_check_label(
+        data, application, *, extractor, budget=None, background=False, recover_rotation=False
+    ):
+        if data == b"unreadable-label":
+            raise RuntimeError("simulated pipeline crash")
+        return CheckResult(
+            report=reports[data], extraction=fixture_corpus.perfect_extraction(SPEC), image=data
+        )
+
+    monkeypatch.setattr(batchmod, "check_label", fake_check_label)
+    files = [
+        _spooled(tmp_path, "good.png", b"compliant-label"),
+        _spooled(tmp_path, "bad-warning.png", b"warning-defect-label"),
+        _spooled(tmp_path, "broken.png", b"unreadable-label"),
+    ]
+    job = create_job([name for name, _ in files])
+    asyncio.run(run_job(job, files, FixtureExtractor({})))
+
+    resp = client.get(f"/batch/{job.id}/export.csv")
+    header, *rows = list(csv.reader(io.StringIO(resp.text)))
+    rule_ids = [rule.id for rule in load_rulebook().rules]
+    assert header[4:] == rule_ids  # after detail: one column per rule, loader order
+    by_name = {row[0]: dict(zip(header, row)) for row in rows}
+
+    good = by_name["good.png"]
+    assert good["verdict"] == "pass"
+    assert [good[rule_id] for rule_id in rule_ids] == ["pass"] * len(rule_ids)
+
+    bad = by_name["bad-warning.png"]
+    assert bad["verdict"] == "fail"
+    assert bad["health_warning_verbatim"] == "fail"
+    others = [bad[rule_id] for rule_id in rule_ids if rule_id != "health_warning_verbatim"]
+    assert others == ["pass"] * len(others)
+
+    broken = by_name["broken.png"]
+    assert broken["status"] == "error"
+    assert [broken[rule_id] for rule_id in rule_ids] == [""] * len(rule_ids)

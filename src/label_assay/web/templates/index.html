@@ -9,6 +9,17 @@ and citation behind each finding.</p>
   <label for="image">Label image (PNG or JPEG, up to 5&nbsp;MB)</label>
   <input type="file" id="image" name="image" accept="image/png,image/jpeg" required>
 
+  <label for="rotation">Label image is rotated:</label>
+  <select id="rotation" name="rotation">
+    <option value="0" selected>No</option>
+    <option value="90">90&deg; clockwise</option>
+    <option value="180">180&deg; (upside down)</option>
+    <option value="270">90&deg; counter-clockwise</option>
+  </select>
+  <p class="hint">If the label looks sideways or upside down in the image, say which way it is
+     turned. The image is straightened before it is read, and the result page shows the
+     straightened image that was checked.</p>
+
   <label for="brand_name">Brand name on the application</label>
   <input type="text" id="brand_name" name="brand_name" required autocomplete="off">
 

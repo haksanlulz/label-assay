@@ -37,6 +37,13 @@ def test_index_renders_the_form() -> None:
     assert "Check a label" in resp.text
     assert 'action="/check"' in resp.text
     assert 'name="fanciful_name"' in resp.text  # the optional fanciful-name input
+    # The rotation control is a plain select — the zero-JS invariant holds on
+    # the single-label path, so the index page carries no script at all.
+    assert '<select id="rotation" name="rotation">' in resp.text
+    assert "Label image is rotated" in resp.text
+    for value in ("0", "90", "180", "270"):
+        assert f'value="{value}"' in resp.text
+    assert "<script" not in resp.text.lower()
 
 
 def test_check_passes_the_fanciful_name_through_and_defaults_it_empty(
@@ -46,7 +53,7 @@ def test_check_passes_the_fanciful_name_through_and_defaults_it_empty(
     # place of check_label captures exactly what it was given.
     captured: list = []
 
-    def capture_check_label(data, application, *, extractor=None, budget=None):
+    def capture_check_label(data, application, *, extractor=None, budget=None, rotation=0):
         captured.append(application)
         raise ExtractionUnavailable("captured")
 
@@ -147,7 +154,8 @@ def test_fail_page_renders_plain_language_badges_and_the_diff(
     painted = (spec.painted_brand, spec.class_type, spec.alcohol_text, spec.net_contents, spec.warning_text)
     lines = [OcrLine(text, 0.95) for text in painted if text]
     monkeypatch.setattr(
-        "label_assay.web.service.read_lines", lambda _image, background=False: lines
+        "label_assay.web.service.read_lines",
+        lambda _image, background=False, rotation=0: lines,
     )
 
     resp = client.post(
@@ -199,7 +207,9 @@ def _post_check_with(
     """One /check round-trip with a stubbed reader and a silent OCR pass, so
     the page under test renders exactly the given extraction."""
     monkeypatch.setattr(webapp, "default_extractor", lambda _settings: _FixedExtractor(extraction))
-    monkeypatch.setattr("label_assay.web.service.read_lines", lambda _image, background=False: [])
+    monkeypatch.setattr(
+        "label_assay.web.service.read_lines", lambda _image, background=False, rotation=0: []
+    )
     if image is None:
         buffer = io.BytesIO()
         Image.new("RGB", (64, 64), "white").save(buffer, format="PNG")
