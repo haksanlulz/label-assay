@@ -1,9 +1,11 @@
 name: Deploy to Hugging Face Space
 
 # The deployed artifact is the same Docker image everywhere; hosting is a cost
-# decision. This syncs main to the Space, prepending the Space metadata header
-# (sdk/app_port) the Hub reads from README front matter — the repository README
-# stays clean on GitHub.
+# decision. The Space is a deploy target, not a mirror: each deploy pushes a
+# fresh one-commit snapshot of exactly what the Docker build consumes, with the
+# Space metadata header prepended to the README copy. Test corpora stay on
+# GitHub (the Space's git rejects plain-git binaries, and the image never
+# reads them). GitHub remains the source of truth and full history.
 
 on:
   push:
@@ -19,8 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # the Space's git server rejects shallow pushes
 
       - name: Push a build snapshot to the Space
         env:
@@ -31,23 +31,18 @@ jobs:
             exit 1
           fi
           SHA=$(git rev-parse --short HEAD)
-          # The Space is a deploy target, not a mirror: it gets a one-commit
-          # snapshot of exactly what the Docker build consumes. Test corpora
-          # stay on GitHub (the Space's git rejects plain-git binaries).
           rm -rf .git tests tools .github .coverage
-          cat > /tmp/space_header.md << 'EOF'
-          ---
-          title: LabelAssay
-          emoji: 🏷️
-          colorFrom: blue
-          colorTo: indigo
-          sdk: docker
-          app_port: 8000
-          pinned: false
-          ---
-          EOF
-          sed 's/^          //' /tmp/space_header.md > /tmp/header.clean
-          cat /tmp/header.clean README.md > /tmp/README.md && mv /tmp/README.md README.md
+          printf '%s\n' \
+            '---' \
+            'title: LabelAssay' \
+            'emoji: 🏷️' \
+            'colorFrom: blue' \
+            'colorTo: indigo' \
+            'sdk: docker' \
+            'app_port: 8000' \
+            'pinned: false' \
+            '---' > /tmp/header.md
+          cat /tmp/header.md README.md > /tmp/README.md && mv /tmp/README.md README.md
           git init -b main
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -58,8 +53,7 @@ jobs:
           code=$?
           set -e
           if [ $code -ne 0 ]; then
-            safe=$(printf '%s' "$out" | sed "s/${HF_TOKEN}/***/g" | tr '
-' ' ')
+            safe=$(printf '%s' "$out" | sed "s/${HF_TOKEN}/***/g" | tr -s '[:space:]' ' ')
             echo "::error::Space push failed (exit $code): ${safe}"
             exit $code
           fi
