@@ -22,10 +22,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+      - name: System libraries the vision stack imports at runtime
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libgl1 libglib2.0-0 libgomp1 libxcb1 libsm6 libxext6 libxrender1
       - name: Install dependencies
         run: uv sync
       - name: Run the test suite
-        run: uv run pytest -q
+        run: |
+          set +e
+          out=$(uv run pytest -q 2>&1)
+          code=$?
+          set -e
+          echo "$out"
+          if [ $code -ne 0 ]; then
+            tail=$(printf '%s' "$out" | tail -n 15 | tr '\n' ' ')
+            echo "::error::pytest failed (exit $code): ${tail}"
+            exit $code
+          fi
       - name: Lint
         run: uv run ruff check .
 
