@@ -9,6 +9,7 @@ stack trace.
 from __future__ import annotations
 
 import asyncio
+import base64
 import csv
 import io
 import logging
@@ -27,6 +28,7 @@ from label_assay import __version__
 from label_assay.config import get_settings
 from label_assay.domain.models import Application, LabelReport, Verdict
 from label_assay.extract.base import Extraction
+from label_assay.extract.images import preview_jpeg
 from label_assay.rulebook.loader import load_rulebook
 from label_assay.web import batch as batchmod
 from label_assay.web.budget import DailyBudget
@@ -139,8 +141,27 @@ def _ctx(extra: dict) -> dict:
     return {"version": __version__, **extra}
 
 
+def _preview_data_uri(image: bytes) -> str | None:
+    """Nothing is stored: the app keeps no copy of the upload, so the preview
+    the reviewer can expand rides back inside this response as a data: URI —
+    downscaled and re-encoded, never the original bytes (a 5 MB scan would make
+    a ~7 MB page). Returns None on any encoding failure: a rendered verdict
+    must never be lost over a convenience image."""
+    try:
+        return "data:image/jpeg;base64," + base64.b64encode(preview_jpeg(image)).decode("ascii")
+    except Exception:
+        # Deliberately broad: whatever the re-encode throws, the answer is the
+        # same — render the page without the preview section.
+        logger.warning("Preview encoding failed; result page renders without it", exc_info=True)
+        return None
+
+
 def _report_page(
-    request: Request, report: LabelReport, extraction: Extraction, elapsed: float | None = None
+    request: Request,
+    report: LabelReport,
+    extraction: Extraction,
+    elapsed: float | None = None,
+    preview: str | None = None,
 ) -> HTMLResponse:
     heading, summary = _VERDICT_COPY.get(report.verdict, ("Result", ""))
     return _TEMPLATES.TemplateResponse(
@@ -154,6 +175,7 @@ def _report_page(
                 "elapsed": elapsed,
                 "extraction": extraction,
                 "read_fields": [(label, getattr(extraction, name)) for name, label in _READ_FIELDS],
+                "preview": preview,
             }
         ),
     )
@@ -254,9 +276,9 @@ async def check(
         # 503 so a monitor or scripted client can tell this failure from a
         # rendered verdict; the page itself is the same clean message either way.
         return _error_page(request, str(exc), 503)
-    return _report_page(
-        request, result.report, result.extraction, elapsed=time.perf_counter() - started
-    )
+    elapsed = time.perf_counter() - started  # the check's time; page assembly is not billed to it
+    preview = await asyncio.to_thread(_preview_data_uri, data)
+    return _report_page(request, result.report, result.extraction, elapsed=elapsed, preview=preview)
 
 
 @app.get("/batch", response_class=HTMLResponse)

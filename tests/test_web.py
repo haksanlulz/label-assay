@@ -7,6 +7,7 @@ API key; OCR and the bold check still run on the real fixture image (offline).
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import io
 import re
@@ -192,16 +193,20 @@ class _FixedExtractor:
         return self.extraction
 
 
-def _post_check_with(monkeypatch: pytest.MonkeyPatch, extraction: Extraction):
+def _post_check_with(
+    monkeypatch: pytest.MonkeyPatch, extraction: Extraction, image: bytes | None = None
+):
     """One /check round-trip with a stubbed reader and a silent OCR pass, so
     the page under test renders exactly the given extraction."""
     monkeypatch.setattr(webapp, "default_extractor", lambda _settings: _FixedExtractor(extraction))
     monkeypatch.setattr("label_assay.web.service.read_lines", lambda _image, background=False: [])
-    buffer = io.BytesIO()
-    Image.new("RGB", (64, 64), "white").save(buffer, format="PNG")
+    if image is None:
+        buffer = io.BytesIO()
+        Image.new("RGB", (64, 64), "white").save(buffer, format="PNG")
+        image = buffer.getvalue()
     return client.post(
         "/check",
-        files={"image": ("label.png", buffer.getvalue(), "image/png")},
+        files={"image": ("label.png", image, "image/png")},
         data={"brand_name": "Old Tom Gin", "class_type": "Gin"},
     )
 
@@ -241,6 +246,67 @@ def test_result_page_escapes_hostile_verbatim_text(monkeypatch: pytest.MonkeyPat
     assert resp.status_code == 200
     assert "&lt;script&gt;" in resp.text
     assert "<script>" not in resp.text
+
+
+def _preview_image_from(html: str) -> Image.Image:
+    """Decode the page's embedded preview back into pixels, so the assertions
+    run against what the browser would actually render."""
+    match = re.search(r'src="data:image/jpeg;base64,([^"]+)"', html)
+    assert match, "no JPEG data URI found on the page"
+    return Image.open(io.BytesIO(base64.b64decode(match.group(1))))
+
+
+def test_result_page_offers_the_upload_back_as_a_collapsed_preview(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Native <details>/<summary>: collapsed by default, keyboard-accessible,
+    # zero script. The image itself is a data: URI — nothing was stored.
+    resp = _post_check_with(monkeypatch, _read_extraction())
+    assert resp.status_code == 200
+    assert "<details" in resp.text
+    assert "Show the label image you uploaded" in resp.text
+    assert "data:image/jpeg;base64," in resp.text
+    img = _preview_image_from(resp.text)
+    assert img.format == "JPEG"
+
+
+def test_preview_is_genuinely_downscaled_not_the_original_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # An oversized upload must come back as a bounded preview: decode the data
+    # URI and measure it, rather than trusting the encoder's word.
+    buffer = io.BytesIO()
+    Image.new("RGB", (3000, 2000), "white").save(buffer, format="PNG")
+    resp = _post_check_with(monkeypatch, _read_extraction(), image=buffer.getvalue())
+    assert resp.status_code == 200
+    img = _preview_image_from(resp.text)
+    assert max(img.size) <= 1200
+    assert img.size[0] > img.size[1]  # aspect kept: wide in, wide out
+
+
+def test_preview_encode_failure_never_costs_the_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The preview is a convenience; if its encoder breaks, the page must render
+    # complete without the section, not 500 over an image the check already read.
+    def boom(_image: bytes, max_edge: int = 1200) -> bytes:
+        raise ValueError("re-encode failed")
+
+    monkeypatch.setattr(webapp, "preview_jpeg", boom)
+    resp = _post_check_with(monkeypatch, _read_extraction())
+    assert resp.status_code == 200
+    assert "What was read from the label" in resp.text  # the verdict page rendered
+    assert "<details" not in resp.text
+    assert "Show the label image you uploaded" not in resp.text
+    assert "data:image/jpeg" not in resp.text
+
+
+def test_result_page_carries_no_client_script(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The single-label flow works with scripting disabled; the preview must not
+    # change that (batch.js stays quarantined to the batch pages).
+    resp = _post_check_with(monkeypatch, _read_extraction())
+    assert resp.status_code == 200
+    assert "<script" not in resp.text.lower()
 
 
 def test_batch_js_verdict_labels_match_the_server_map() -> None:

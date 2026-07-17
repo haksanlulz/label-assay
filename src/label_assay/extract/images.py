@@ -50,6 +50,29 @@ def downscale_for_vision(image: bytes, max_edge: int = _VISION_MAX_EDGE) -> byte
     return buffer.getvalue()
 
 
+# The result page's collapsible preview: large enough to eyeball a label,
+# small enough that a 5 MB scan never rides back into the page at full weight.
+_PREVIEW_MAX_EDGE = 1200
+_PREVIEW_QUALITY = 85
+
+
+def preview_jpeg(image: bytes, max_edge: int = _PREVIEW_MAX_EDGE) -> bytes:
+    """Bytes for the result page's inline preview: decoded through the same
+    ``open_bounded`` guard as every other decode site, downscaled to
+    ``max_edge`` on the long side, and re-encoded as JPEG. Unlike the vision
+    copy, stroke fidelity is not the point — a person is glancing at the image,
+    not reading it — so JPEG's smaller payload wins. Re-encoding into a fresh
+    buffer also drops any metadata the upload carried, so EXIF (GPS and the
+    like) never reaches the rendered page."""
+    img = open_bounded(image)
+    img.thumbnail((max_edge, max_edge))
+    if img.mode not in ("L", "RGB"):
+        img = img.convert("RGB")  # JPEG carries no alpha, palette, or 1-bit modes
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG", quality=_PREVIEW_QUALITY)
+    return buffer.getvalue()
+
+
 def open_bounded(image: bytes) -> Image.Image:
     """Open image bytes lazily and reject before decode if the header declares
     more than ``_MAX_PIXELS`` pixels. Raises ``ImageTooLarge`` (or PIL's own
