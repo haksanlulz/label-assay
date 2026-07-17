@@ -162,6 +162,7 @@ async def check(
     image: UploadFile,
     brand_name: str = Form(...),
     class_type: str = Form(...),
+    fanciful_name: str = Form(""),
 ) -> HTMLResponse:
     # The multipart parser reports the spooled size; checking it before .read()
     # keeps an oversized upload from being materialized in memory first. The
@@ -174,7 +175,11 @@ async def check(
     if not data.startswith(_MAGIC):
         return _error_page(request, "That file doesn't look like a PNG or JPEG image.", 415)
 
-    application = Application(brand_name=brand_name.strip(), class_type=class_type.strip())
+    application = Application(
+        brand_name=brand_name.strip(),
+        class_type=class_type.strip(),
+        fanciful_name=fanciful_name.strip(),
+    )
     started = time.perf_counter()
     try:
         # Off the event loop, exactly as the batch path runs it: check_label is

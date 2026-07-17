@@ -31,6 +31,43 @@ def test_index_renders_the_form() -> None:
     assert resp.status_code == 200
     assert "Check a label" in resp.text
     assert 'action="/check"' in resp.text
+    assert 'name="fanciful_name"' in resp.text  # the optional fanciful-name input
+
+
+def test_check_passes_the_fanciful_name_through_and_defaults_it_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The route must hand the form field to the engine's Application; a stub in
+    # place of check_label captures exactly what it was given.
+    captured: list = []
+
+    def capture_check_label(data, application, *, extractor=None, budget=None):
+        captured.append(application)
+        raise ExtractionUnavailable("captured")
+
+    monkeypatch.setattr(webapp, "check_label", capture_check_label)
+    monkeypatch.setattr(webapp, "default_extractor", lambda _settings: object())
+    png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+    resp = client.post(
+        "/check",
+        files={"image": ("l.png", png, "image/png")},
+        data={
+            "brand_name": "Earthbound Beer",
+            "class_type": "Beer",
+            "fanciful_name": " Yellow Card Pils ",
+        },
+    )
+    assert resp.status_code == 503
+    assert captured[0].brand_name == "Earthbound Beer"
+    assert captured[0].fanciful_name == "Yellow Card Pils"
+
+    resp = client.post(  # omitted entirely: an older form or script still works
+        "/check",
+        files={"image": ("l.png", png, "image/png")},
+        data={"brand_name": "X", "class_type": "Y"},
+    )
+    assert resp.status_code == 503
+    assert captured[1].fanciful_name == ""
 
 
 def test_sample_route_is_gone() -> None:

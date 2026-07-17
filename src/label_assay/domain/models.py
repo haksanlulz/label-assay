@@ -62,10 +62,13 @@ class Application(BaseModel):
     consistency, never against the application.
     """
 
-    # Both default to empty so a batch of loose label images (which carries no
+    # All default to empty so a batch of loose label images (which carries no
     # per-label application) can be verified for label-internal compliance; the
     # brand match is then reported not-evaluable rather than forced.
     brand_name: str = ""
     class_type: str = ""
-    fanciful_name: str | None = None
+    # Form 5100.31 files an optional fanciful name alongside the brand name;
+    # empty when none was filed. Labels often display it more prominently than
+    # the brand, so the brand check accepts either filed name.
+    fanciful_name: str = ""
     origin: str | None = None

@@ -60,6 +60,63 @@ def test_wrong_brand_fails() -> None:
     )
 
 
+# --- the either-name brand check (a filing carries a brand and, optionally, a fanciful name) ---
+
+
+def _brand_finding(report):
+    return next(f for f in report.findings if f.rule_id == "brand_name_matches_application")
+
+
+def test_label_showing_the_filed_fanciful_name_passes_naming_the_fanciful_match() -> None:
+    # The real registry pair (cola_24071001001099): the can leads with the filed
+    # fanciful name YELLOW CARD PILS; the filed brand is EARTHBOUND BEER. A
+    # consistent filing must not fail the brand check.
+    extraction = _compliant_extraction().model_copy(update={"brand_name": _f("yellow card pils")})
+    application = Application(
+        brand_name="Earthbound Beer", fanciful_name="YELLOW CARD PILS", class_type="BEER"
+    )
+    brand = _brand_finding(verify(extraction, application, load_rulebook()))
+    assert brand.verdict == Verdict.PASS
+    assert "fanciful name" in brand.detail
+
+
+def test_brand_name_match_still_passes_when_a_fanciful_name_is_filed() -> None:
+    application = Application(
+        brand_name="Old Tom Distillery",
+        fanciful_name="Frontier Reserve",
+        class_type="Kentucky Straight Bourbon Whiskey",
+    )
+    brand = _brand_finding(verify(_compliant_extraction(), application, load_rulebook()))
+    assert brand.verdict == Verdict.PASS
+    assert "brand name" in brand.detail
+
+
+def test_containment_of_the_fanciful_name_routes_to_review() -> None:
+    # The read strictly contains the filed fanciful name and is unrelated to the
+    # filed brand: close-but-related stays a person's call, on either name.
+    extraction = _compliant_extraction().model_copy(update={"brand_name": _f("MANGOLORIAN IPA")})
+    application = Application(
+        brand_name="Mortalis Brewing Company", fanciful_name="MANGOLORIAN", class_type="ALE"
+    )
+    brand = _brand_finding(verify(extraction, application, load_rulebook()))
+    assert brand.verdict == Verdict.NEEDS_REVIEW
+    assert "fanciful name" in brand.detail
+
+
+def test_matching_neither_filed_name_fails_naming_the_read_and_both_names() -> None:
+    extraction = _compliant_extraction().model_copy(
+        update={"brand_name": _f("Totally Different Bourbon")}
+    )
+    application = Application(
+        brand_name="Earthbound Beer", fanciful_name="Yellow Card Pils", class_type="BEER"
+    )
+    brand = _brand_finding(verify(extraction, application, load_rulebook()))
+    assert brand.verdict == Verdict.FAIL
+    assert "Totally Different Bourbon" in brand.detail
+    assert "Earthbound Beer" in brand.detail
+    assert "Yellow Card Pils" in brand.detail
+
+
 def test_altered_warning_fails() -> None:
     extraction = _compliant_extraction()
     altered = extraction.government_warning.verbatim.replace("birth defects", "defects")

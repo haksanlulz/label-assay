@@ -163,7 +163,9 @@ def parse_application_csv(data: bytes) -> dict[str, Application]:
             applications[pairing_key(filename)] = Application(
                 brand_name=(row.get("brand_name") or "").strip(),
                 class_type=(row.get("class_type") or "").strip(),
-                fanciful_name=(row.get("fanciful_name") or "").strip() or None,
+                # Optional column: an absent header and an empty cell both mean
+                # no fanciful name was filed.
+                fanciful_name=(row.get("fanciful_name") or "").strip(),
             )
     except csv.Error as exc:
         raise ApplicationCSVError(
