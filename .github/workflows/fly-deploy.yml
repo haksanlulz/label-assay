@@ -23,3 +23,10 @@ jobs:
       - run: flyctl deploy --remote-only --ha=false
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # --ha=false only applies when machines are created; an app that already has
+      # two keeps them. Enforce the invariant on every deploy so the deployment
+      # cannot drift back out of step with the code.
+      - run: flyctl scale count 1 --yes
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
