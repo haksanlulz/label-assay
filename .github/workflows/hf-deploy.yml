@@ -22,8 +22,19 @@ jobs:
         with:
           fetch-depth: 0  # the Space's git server rejects shallow pushes
 
-      - name: Prepend Space metadata to README
+      - name: Push a build snapshot to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::error::HF_TOKEN secret is missing or empty - add it under Settings > Secrets and variables > Actions"
+            exit 1
+          fi
+          SHA=$(git rev-parse --short HEAD)
+          # The Space is a deploy target, not a mirror: it gets a one-commit
+          # snapshot of exactly what the Docker build consumes. Test corpora
+          # stay on GitHub (the Space's git rejects plain-git binaries).
+          rm -rf .git tests tools .github .coverage
           cat > /tmp/space_header.md << 'EOF'
           ---
           title: LabelAssay
@@ -35,26 +46,21 @@ jobs:
           pinned: false
           ---
           EOF
-          cat /tmp/space_header.md README.md > /tmp/README.md && mv /tmp/README.md README.md
-
-      - name: Push to the Space
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          if [ -z "$HF_TOKEN" ]; then
-            echo "::error::HF_TOKEN secret is missing or empty — add it under Settings > Secrets and variables > Actions"
-            exit 1
-          fi
+          sed 's/^          //' /tmp/space_header.md > /tmp/header.clean
+          cat /tmp/header.clean README.md > /tmp/README.md && mv /tmp/README.md README.md
+          git init -b main
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -am "deploy: prepend Space metadata header"
+          git add -A
+          git commit -m "deploy: build snapshot of ${SHA}"
           set +e
-          out=$(git push --force "https://haksanlulz:${HF_TOKEN}@huggingface.co/spaces/haksanlulz/label-assay" HEAD:main 2>&1)
+          out=$(git push --force "https://haksanlulz:${HF_TOKEN}@huggingface.co/spaces/haksanlulz/label-assay" main 2>&1)
           code=$?
           set -e
           if [ $code -ne 0 ]; then
-            safe=$(printf '%s' "$out" | sed "s/${HF_TOKEN}/***/g" | tr '\n' ' ')
+            safe=$(printf '%s' "$out" | sed "s/${HF_TOKEN}/***/g" | tr '
+' ' ')
             echo "::error::Space push failed (exit $code): ${safe}"
             exit $code
           fi
-          echo "pushed to the Space"
+          echo "pushed snapshot of ${SHA} to the Space"
