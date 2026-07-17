@@ -44,7 +44,7 @@ cp .env.example .env          # then add an ANTHROPIC_API_KEY
 uv run uvicorn label_assay.web.app:app --reload
 ```
 
-Open <http://127.0.0.1:8000>. Health at `/health`, batch at `/batch`.
+Open <http://127.0.0.1:8000>. Health at `/health`, batch at `/batch`; batch results export as a CSV that carries, after the per-label summary columns, one verdict column per rulebook rule (headers are the rule ids), with an empty cell where a rule produced no finding for that label. The single-label form has a "Label image is rotated" select for sideways or upside-down scans: the image is straightened once before it is read, and the result page echoes the straightened image that was judged. The batch form has a "Retry sideways reads" checkbox, on by default: a label whose government warning is not found upright is re-read rotated, up to three extra read passes for that label, and unchecking it trades that recovery for maximum throughput.
 
 With Docker:
 

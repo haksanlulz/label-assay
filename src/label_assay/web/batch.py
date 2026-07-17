@@ -72,6 +72,12 @@ class BatchItem:
     status: str = "pending"  # pending | done | error
     verdict: str | None = None
     detail: str | None = None
+    # Rule id -> that finding's verdict string, for the CSV export's per-rule
+    # grid. Verdicts only — the finding detail prose stays out, and /batch/{id}/data
+    # does not serialize this map: the on-page table renders nothing per-rule, so
+    # carrying it would grow every poll for no reader. Empty on error rows and
+    # for rules that produced no finding.
+    rule_verdicts: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -205,12 +211,18 @@ def _check_spooled(
     application: Application,
     extractor: ExtractorPort,
     budget: DailyBudget | None,
+    recover_rotation: bool,
 ) -> LabelReport:
     # One file's bytes live in memory only for the duration of its own check;
     # background=True lets an interactive check jump the OCR queue. The batch
     # row shows a one-line headline, so the extraction rides no further here.
     return check_label(
-        path.read_bytes(), application, extractor=extractor, budget=budget, background=True
+        path.read_bytes(),
+        application,
+        extractor=extractor,
+        budget=budget,
+        background=True,
+        recover_rotation=recover_rotation,
     ).report
 
 
@@ -220,7 +232,11 @@ async def run_job(
     extractor: ExtractorPort,
     budget: DailyBudget | None = None,
     applications: dict[str, Application] | None = None,
+    recover_rotation: bool = True,
 ) -> None:
+    # ``recover_rotation`` mirrors the upload form's retry-sideways checkbox:
+    # on by default (a fire-and-forget batch can afford the bounded retry for
+    # a sideways-printed warning), off for maximum throughput.
     semaphore = asyncio.Semaphore(_CONCURRENCY)
     applications = applications or {}
 
@@ -232,10 +248,11 @@ async def run_job(
             application = applications.get(pairing_key(name), Application())
             try:
                 report = await asyncio.get_running_loop().run_in_executor(
-                    _WORKERS, _check_spooled, path, application, extractor, budget
+                    _WORKERS, _check_spooled, path, application, extractor, budget, recover_rotation
                 )
                 item.verdict = report.verdict.value
                 item.detail = _headline(report)
+                item.rule_verdicts = {f.rule_id: f.verdict.value for f in report.findings}
                 item.status = "done"
             except ExtractionUnavailable as exc:
                 # Expected degradation (no key, budget, reader down) — but the

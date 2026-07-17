@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Iterator
 
+from label_assay.extract.images import RIGHT_ANGLE_TRANSPOSES
+
 # One inference at a time. The engine is shared across threads (batch work runs in
 # a thread pool), its thread-safety is not guaranteed, and each concurrent
 # inference holds its own working set — running several at once on a small machine
@@ -90,6 +92,10 @@ class OcrLine:
     text: str
     confidence: float
     box: tuple[tuple[float, float], ...] | None = None  # 4 corner points, if known
+    # Degrees the raster was rotated before this pass (a rotation-retry read).
+    # Non-zero means ``box`` is in the rotated frame, not the upright image's —
+    # geometry consumers must not crop the upright image with it.
+    rotation: int = 0
 
 
 @lru_cache(maxsize=1)
@@ -99,23 +105,38 @@ def _engine():
     return RapidOCR()
 
 
-def read_lines(image: bytes, *, background: bool = False) -> list[OcrLine]:
+def read_lines(image: bytes, *, background: bool = False, rotation: int = 0) -> list[OcrLine]:
     """Detected text lines with per-line confidence, top-to-bottom as returned.
 
     ``background=True`` marks a batch-worker read: it parks at the priority
     gate while an interactive read is pending — before queueing for the engine
     lock, and again by returning the lock unused if an interactive read
     registered while this one waited in the lock's queue.
+
+    ``rotation`` (90, 180, or 270, degrees counter-clockwise — the shared
+    right-angle transpose map) rotates the decoded raster before inference
+    — one pass of the caller's retry for labels that print text sideways. Each
+    such call is an ordinary read: it queues for the engine lock and runs the
+    bounded decode exactly like an upright pass, and no lock is held between
+    passes (the caller loops, so acquisitions never nest). The returned lines
+    carry the rotation so geometry consumers know their boxes are not in the
+    upright frame.
     """
     import numpy as np
 
     from label_assay.extract.images import open_bounded
 
-    # The decode happens inside the lock too: a decoded raster is the largest
-    # allocation on this path, and bounding the process to one at a time is what
-    # keeps a batch of concurrent workers from stacking them.
+    if rotation and rotation not in RIGHT_ANGLE_TRANSPOSES:
+        raise ValueError(f"rotation must be 0, 90, 180, or 270, not {rotation}")
+
+    # The decode — and the rotation, which is raster work of the same size —
+    # happens inside the lock too: a decoded raster is the largest allocation on
+    # this path, and bounding the process to one at a time is what keeps a batch
+    # of concurrent workers from stacking them.
     with _engine_slot(background):
         rgb = open_bounded(image).convert("RGB")
+        if rotation:
+            rgb = rgb.transpose(RIGHT_ANGLE_TRANSPOSES[rotation])
         result, _elapsed = _engine()(np.asarray(rgb))
     if not result:
         return []
@@ -124,6 +145,7 @@ def read_lines(image: bytes, *, background: bool = False) -> list[OcrLine]:
             text=str(text),
             confidence=float(score),
             box=tuple((float(x), float(y)) for x, y in box),
+            rotation=rotation,
         )
         for box, text, score in result
     ]

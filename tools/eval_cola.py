@@ -59,7 +59,9 @@ def main() -> int:
     files.append(("applications", (applications.name, applications.read_bytes(), "text/csv")))
 
     with httpx.Client(base_url=args.base_url, timeout=60.0, follow_redirects=False) as client:
-        created = client.post("/batch", files=files)
+        # Match a default form submit: the retry-sideways checkbox ships checked,
+        # and the corpus contains sideways-warning labels on purpose.
+        created = client.post("/batch", files=files, data={"recover_rotation": "on"})
         if created.status_code != 303:
             # The app renders failures as an HTML error page; the message is in the body.
             print(f"batch create failed: HTTP {created.status_code}: {created.text[:300]}", file=sys.stderr)

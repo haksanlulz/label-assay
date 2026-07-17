@@ -80,6 +80,25 @@ def test_real_registry_labels_are_not_falsely_called_not_bold(name: str) -> None
     assert result.verdict != BoldVerdict.NOT_BOLD
 
 
+def test_heading_from_a_rotation_retry_pass_abstains() -> None:
+    # A rotation-retry line's box is in the rotated frame; cropping the upright
+    # image with it would measure whatever art happens to sit there. The
+    # heading is located, honestly not measurable — never a verdict.
+    from label_assay.extract.ocr import OcrLine
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (400, 200), "white").save(buffer, format="PNG")
+    line = OcrLine(
+        text="GOVERNMENT WARNING: and enough body text on the same line to split",
+        confidence=0.95,
+        box=((10.0, 10.0), (390.0, 10.0), (390.0, 40.0), (10.0, 40.0)),
+        rotation=90,
+    )
+    result = check_warning_bold(buffer.getvalue(), [line])
+    assert result.verdict == BoldVerdict.REVIEW
+    assert "rotat" in result.detail.lower()
+
+
 def test_heading_on_its_own_line_abstains_instead_of_failing() -> None:
     # Narrow-label layout: OCR returns the bold heading as its own line, so there
     # is no same-line body to compare against. Splitting anyway measures the

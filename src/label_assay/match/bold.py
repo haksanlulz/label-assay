@@ -24,7 +24,10 @@ review.
 The measurement is only meaningful when the heading and real body text share the
 located line. When OCR returns the heading as its own line (a common narrow-label
 layout), there is nothing beside it to compare, so the check abstains to review
-rather than measuring a sliver of the heading against itself.
+rather than measuring a sliver of the heading against itself. A heading found
+only by the service's rotation retry abstains the same way: its box is in the
+rotated frame, so cropping the upright image with it would measure the wrong
+pixels.
 """
 
 from __future__ import annotations
@@ -154,6 +157,16 @@ def check_warning_bold(image: bytes, ocr_lines) -> BoldFinding:
     )
     if line is None:
         return BoldFinding(BoldVerdict.REVIEW, "Could not locate the warning heading to check boldness.", None)
+    if line.rotation:
+        # A rotation-retry read: its box is in the rotated frame, so the crops
+        # below would slice the upright image at coordinates that mean nothing
+        # there. The heading is located, honestly not measurable.
+        return BoldFinding(
+            BoldVerdict.REVIEW,
+            "The warning was only readable after rotating the image, so its "
+            "boldness could not be measured; a person should check the weight.",
+            None,
+        )
 
     xs = [p[0] for p in line.box]
     ys = [p[1] for p in line.box]

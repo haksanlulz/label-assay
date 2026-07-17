@@ -47,6 +47,11 @@ _TEMPLATES = Jinja2Templates(directory=str(_WEB / "templates"))
 _MAX_BYTES = 5 * 1024 * 1024
 _MAGIC = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff")
 
+# The single-label form's rotation select: the value is the clockwise angle the
+# label *appears* rotated by, as the person sees it; the service undoes it with
+# the matching counter-clockwise transpose. Anything else is a hand-edited form.
+_ROTATION_CHOICES = {"0": 0, "90": 90, "180": 180, "270": 270}
+
 # First-person for the uncertain state (research: it reduces over-reliance), and
 # TTB's own "needs correction" vocabulary for a failure rather than a red "error".
 _VERDICT_COPY = {
@@ -247,6 +252,7 @@ async def check(
     brand_name: str = Form(...),
     class_type: str = Form(...),
     fanciful_name: str = Form(""),
+    rotation: str = Form("0"),
 ) -> HTMLResponse:
     # The multipart parser reports the spooled size; checking it before .read()
     # keeps an oversized upload from being materialized in memory first. The
@@ -258,6 +264,13 @@ async def check(
         return _error_page(request, "That image is larger than 5 MB. Please use a smaller file.", 413)
     if not data.startswith(_MAGIC):
         return _error_page(request, "That file doesn't look like a PNG or JPEG image.", 415)
+    turn = _ROTATION_CHOICES.get(rotation.strip())
+    if turn is None:
+        return _error_page(
+            request,
+            "That rotation choice wasn't recognized. Please pick one of the options on the form.",
+            422,
+        )
 
     application = Application(
         brand_name=brand_name.strip(),
@@ -270,14 +283,21 @@ async def check(
         # CPU-bound OCR plus a synchronous network call, and running it inline
         # would freeze every other request for its duration.
         result = await asyncio.to_thread(
-            check_label, data, application, extractor=default_extractor(get_settings()), budget=_BUDGET
+            check_label,
+            data,
+            application,
+            extractor=default_extractor(get_settings()),
+            budget=_BUDGET,
+            rotation=turn,
         )
     except ExtractionUnavailable as exc:
         # 503 so a monitor or scripted client can tell this failure from a
         # rendered verdict; the page itself is the same clean message either way.
         return _error_page(request, str(exc), 503)
     elapsed = time.perf_counter() - started  # the check's time; page assembly is not billed to it
-    preview = await asyncio.to_thread(_preview_data_uri, data)
+    # The preview echoes result.image, not the raw upload: when the operator
+    # stated a rotation, what renders back is exactly the raster that was judged.
+    preview = await asyncio.to_thread(_preview_data_uri, result.image)
     return _report_page(request, result.report, result.extraction, elapsed=elapsed, preview=preview)
 
 
@@ -355,7 +375,11 @@ async def batch_create(
     request: Request,
     images: list[UploadFile],
     applications: UploadFile | None = None,
+    recover_rotation: str | None = Form(None),
 ):
+    # The retry-sideways checkbox: checked by default on the form, and a
+    # checked box is the only thing a browser sends — absence means unchecked.
+    retry_sideways = recover_rotation is not None
     files: list[tuple[str, Path]] = []  # (filename, spooled temp path)
     rejected: list[tuple[str, str]] = []  # (filename, why the file was not checked)
 
@@ -441,7 +465,11 @@ async def batch_create(
     if csv_rows is not None:
         job.csv_rows = csv_rows
         job.csv_unmatched = sum(1 for key in uploaded_keys if key not in application_map)
-    task = asyncio.create_task(batchmod.run_job(job, files, extractor, _BUDGET, application_map))
+    task = asyncio.create_task(
+        batchmod.run_job(
+            job, files, extractor, _BUDGET, application_map, recover_rotation=retry_sideways
+        )
+    )
     _BG_TASKS.add(task)
     task.add_done_callback(_batch_task_done)
     return RedirectResponse(f"/batch/{job.id}", status_code=303)
@@ -481,11 +509,20 @@ def batch_csv(job_id: str) -> Response:
     job = batchmod.get_job(job_id)
     if job is None:
         return Response("batch not found", status_code=404, media_type="text/plain")
+    # After the summary columns, one column per rulebook rule (headers are the
+    # stable rule ids, in loader order): an importer reconciling hundreds of
+    # applications needs the per-check grid, not just the worst finding's
+    # headline. A cell is empty when that rule produced no finding for the row —
+    # an error row, or a rule that did not apply to the label's class.
+    rule_ids = [rule.id for rule in load_rulebook().rules]
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(["filename", "status", "verdict", "detail"])
+    writer.writerow(["filename", "status", "verdict", "detail", *rule_ids])
     for item in job.items:
-        writer.writerow([item.filename, item.status, item.verdict or "", item.detail or ""])
+        writer.writerow(
+            [item.filename, item.status, item.verdict or "", item.detail or ""]
+            + [item.rule_verdicts.get(rule_id, "") for rule_id in rule_ids]
+        )
     return Response(
         buffer.getvalue(),
         media_type="text/csv",

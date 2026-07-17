@@ -16,11 +16,19 @@ import time
 import pytest
 from PIL import Image
 
+import fixture_corpus
 from label_assay.domain.models import Application
 from label_assay.extract import ocr as ocrmod
 from label_assay.extract.base import ExtractedField, Extraction
 from label_assay.web.batch import _CONCURRENCY
 from label_assay.web.service import check_label
+
+# Stub engines return the mandated warning as their one detected line, so the
+# service's rotation retry (three extra passes per check when the warning is
+# missing) stays out of the schedules these tests pin.
+_WARNING_RESULT = [
+    [[[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]], fixture_corpus.mandated_warning(), 0.99]
+]
 
 
 def _png(side: int) -> bytes:
@@ -46,16 +54,16 @@ class _EmptyExtractor:
 
 class _SlowEngine:
     """Stands in for RapidOCR: records each inference's raster width, holds the
-    engine lock for a fixed slice, finds no text."""
+    engine lock for a fixed slice, finds the mandated warning."""
 
     def __init__(self, delay: float) -> None:
         self.delay = delay
         self.widths: list[int] = []
 
-    def __call__(self, array) -> tuple[None, float]:
+    def __call__(self, array) -> tuple[list, float]:
         self.widths.append(int(array.shape[1]))
         time.sleep(self.delay)
-        return None, 0.0
+        return _WARNING_RESULT, 0.0
 
 
 def test_interactive_check_does_not_wait_behind_the_batch_queue(
@@ -106,12 +114,12 @@ class _GatedEngine:
         self.first_started = threading.Event()
         self.release_first = threading.Event()
 
-    def __call__(self, array) -> tuple[None, float]:
+    def __call__(self, array) -> tuple[list, float]:
         self.widths.append(int(array.shape[1]))
         if len(self.widths) == 1:
             self.first_started.set()
             self.release_first.wait(timeout=10)
-        return None, 0.0
+        return _WARNING_RESULT, 0.0
 
 
 def test_interactive_check_overtakes_workers_already_queued_at_the_lock(

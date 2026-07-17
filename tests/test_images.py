@@ -9,10 +9,17 @@ import io
 import pytest
 from PIL import Image
 
+import fixture_corpus
 import label_assay.web.service as service
 from label_assay.domain.models import Application
 from label_assay.extract.base import ExtractedField, Extraction
-from label_assay.extract.images import ImageTooLarge, downscale_for_vision, preview_jpeg
+from label_assay.extract.images import (
+    ImageTooLarge,
+    downscale_for_vision,
+    open_bounded,
+    preview_jpeg,
+)
+from label_assay.extract.ocr import OcrLine
 from label_assay.web.service import check_label
 from synthetic_images import bomb_png
 
@@ -67,6 +74,44 @@ def test_preview_goes_through_the_bounded_decode_guard() -> None:
         preview_jpeg(bomb_png(9000, 9000))  # 81 MP, over the 40 MP bound
 
 
+def _exif_sideways_jpeg() -> bytes:
+    # A phone-style upload: an 80x120 portrait (top half dark, bottom half
+    # light) stored as its sideways raster with EXIF orientation 6, the tag a
+    # camera writes to mean "rotate this back upright to display it".
+    upright = Image.new("RGB", (80, 120), "white")
+    upright.paste((0, 0, 0), (0, 0, 80, 60))
+    stored = upright.transpose(Image.Transpose.ROTATE_90)
+    exif = Image.Exif()
+    exif[0x0112] = 6  # Orientation
+    buffer = io.BytesIO()
+    stored.save(buffer, format="JPEG", quality=95, exif=exif)
+    return buffer.getvalue()
+
+
+def test_exif_orientation_is_applied_at_the_bounded_decode() -> None:
+    # One place, every consumer: the decode path itself hands back upright
+    # pixels, so OCR, the vision copy, and the preview never see the raster
+    # sideways.
+    img = open_bounded(_exif_sideways_jpeg())
+    assert img.size == (80, 120)  # portrait again, not the stored landscape
+    assert img.getpixel((40, 10))[0] < 64  # the dark half is back on top
+    assert img.getpixel((40, 110))[0] > 192
+
+
+def test_small_sideways_upload_is_reencoded_upright_for_vision() -> None:
+    # The byte-identical shortcut must not ship sideways-stored pixels whose
+    # uprightness depends on the provider honoring EXIF.
+    data = _exif_sideways_jpeg()
+    out = downscale_for_vision(data)
+    assert out != data
+    assert Image.open(io.BytesIO(out)).size == (80, 120)
+
+
+def test_preview_of_a_sideways_upload_is_upright() -> None:
+    img = Image.open(io.BytesIO(preview_jpeg(_exif_sideways_jpeg())))
+    assert img.size == (80, 120)
+
+
 class _SpyExtractor:
     def __init__(self) -> None:
         self.received: bytes | None = None
@@ -82,9 +127,11 @@ class _SpyExtractor:
 def test_check_label_downscales_only_the_vision_copy(monkeypatch: pytest.MonkeyPatch) -> None:
     seen_by_ocr: list[bytes] = []
 
-    def spy_read_lines(image: bytes, *, background: bool = False):
+    def spy_read_lines(image: bytes, *, background: bool = False, rotation: int = 0):
         seen_by_ocr.append(image)
-        return []
+        # A read containing the warning, so the rotation retry stays out of a
+        # test that is about which bytes each reader receives.
+        return [OcrLine(text=fixture_corpus.mandated_warning(), confidence=0.99)]
 
     monkeypatch.setattr(service, "read_lines", spy_read_lines)
     data = _png(300, 8192)

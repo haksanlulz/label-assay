@@ -44,13 +44,17 @@ class _StubExtractor:
 def test_ocr_and_vision_reads_run_concurrently(monkeypatch: pytest.MonkeyPatch) -> None:
     # The two reads share no inputs; running them back to back doubles latency.
     # Sequential execution makes the recorded windows disjoint, which this fails.
+    # The stubbed read finds the warning, so the rotation retry (whose extra
+    # passes would smear the recorded window) stays out of the schedule.
+    from label_assay.extract.ocr import OcrLine
+
     ocr_window = {}
 
-    def slow_read_lines(image: bytes, *, background: bool = False) -> list:
+    def slow_read_lines(image: bytes, *, background: bool = False, rotation: int = 0) -> list:
         start = time.perf_counter()
         time.sleep(0.25)
         ocr_window["span"] = (start, time.perf_counter())
-        return []
+        return [OcrLine(text=fixture_corpus.mandated_warning(), confidence=0.99)]
 
     monkeypatch.setattr(service, "read_lines", slow_read_lines)
     extractor = _StubExtractor(delay=0.25)
@@ -62,7 +66,7 @@ def test_ocr_and_vision_reads_run_concurrently(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_ocr_failure_reports_the_scanner_message(monkeypatch: pytest.MonkeyPatch) -> None:
-    def broken_read_lines(image: bytes, *, background: bool = False) -> list:
+    def broken_read_lines(image: bytes, *, background: bool = False, rotation: int = 0) -> list:
         raise RuntimeError("engine exploded")
 
     monkeypatch.setattr(service, "read_lines", broken_read_lines)
@@ -71,7 +75,7 @@ def test_ocr_failure_reports_the_scanner_message(monkeypatch: pytest.MonkeyPatch
 
 
 def test_vision_failure_reports_the_reader_message(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(service, "read_lines", lambda image, background=False: [])
+    monkeypatch.setattr(service, "read_lines", lambda image, background=False, rotation=0: [])
     with pytest.raises(ExtractionUnavailable, match="AI label reader"):
         check_label(
             FIXTURE.read_bytes(), Application(), extractor=_StubExtractor(error=RuntimeError("api down"))
