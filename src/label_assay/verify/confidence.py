@@ -43,7 +43,25 @@ def field_support(verbatim: str, ocr_blob: str) -> float:
     quoted, blob = _squash(verbatim), ocr_blob
     if not quoted or not blob:
         return 0.0
+    if len(quoted) > len(blob):
+        # partial_ratio slides the shorter string over the longer, so with a
+        # quote longer than the whole OCR read it would measure the OCR being
+        # contained in the quote — containment backwards, and a perfect score
+        # for a model reciting a full text over a label that prints a fragment
+        # of it. Containment is impossible here; score the full comparison.
+        return fuzz.ratio(quoted, blob) / 100.0
     return fuzz.partial_ratio(quoted, blob) / 100.0
+
+
+def corroborates_exactly(reference: str, ocr_lines: list[OcrLine]) -> bool:
+    """Does the OCR read contain ``reference`` verbatim, on the squashed
+    alphanumerics? Space-, punctuation-, and case-insensitive, but character-
+    exact otherwise. The fuzzy floor above is the wrong tool for the mandated
+    warning: a one-word alteration on the label still scores ~0.98 against a
+    recited quote, so a PASS on that field requires the independent read to
+    contain the statute itself."""
+    target = _squash(reference)
+    return bool(target) and target in _squash(" ".join(line.text for line in ocr_lines))
 
 
 def unconfirmed_fields(extraction: Extraction, ocr_lines: list[OcrLine]) -> set[str]:
@@ -55,8 +73,13 @@ def unconfirmed_fields(extraction: Extraction, ocr_lines: list[OcrLine]) -> set[
     unconfirmed: set[str] = set()
     for name in _FIELDS:
         field = getattr(extraction, name)
-        if not field.verbatim:
-            continue  # nothing quoted to corroborate; absence is the engine's call
-        if field_support(field.verbatim, blob) < _SUPPORT_FLOOR:
+        # Corroborate what the matchers actually consume: the quote when the
+        # model gave one, else the value. A value asserted without a quote must
+        # not bypass the gate — that shape is the hallucination this module
+        # exists to catch, not an exemption from it.
+        asserted = field.verbatim or field.value
+        if not asserted:
+            continue  # nothing asserted to corroborate; absence is the engine's call
+        if field_support(asserted, blob) < _SUPPORT_FLOOR:
             unconfirmed.add(name)
     return unconfirmed

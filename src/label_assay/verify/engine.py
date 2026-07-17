@@ -16,6 +16,7 @@ Two safety layers wrap the matchers:
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -26,7 +27,7 @@ from label_assay.match.brand import BrandVerdict, match_brand
 from label_assay.match.warning import WarningVerdict, compare_warning
 from label_assay.rulebook.loader import Rule, Rulebook
 from label_assay.text.numbers import parse_alcohol_content
-from label_assay.verify.confidence import unconfirmed_fields
+from label_assay.verify.confidence import corroborates_exactly, unconfirmed_fields
 
 
 @dataclass(frozen=True)
@@ -52,7 +53,8 @@ def _finding(rule: Rule, verdict: Verdict, detail: str, diff: tuple = ()) -> Fin
 
 def _match_warning_verbatim(rule: Rule, ctx: VerifyContext) -> Finding:
     field = getattr(ctx.extraction, rule.match.field)
-    result = compare_warning(field.verbatim, rule.match.reference or "")
+    reference = rule.match.reference or ""
+    result = compare_warning(field.verbatim, reference)
     mapping = {
         WarningVerdict.MATCH: Verdict.PASS,
         WarningVerdict.CAPITALIZATION: Verdict.FAIL,
@@ -61,7 +63,21 @@ def _match_warning_verbatim(rule: Rule, ctx: VerifyContext) -> Finding:
         # routes to review rather than a silent auto-fail.
         WarningVerdict.ABSENT: Verdict.NEEDS_REVIEW,
     }
-    return _finding(rule, mapping[result.verdict], result.detail, result.diff)
+    verdict = mapping[result.verdict]
+    # Recitation defense (ADR-0002): a vision model can quote the mandated text
+    # over a label that prints something subtly different, and the generic fuzzy
+    # gate scores that near-perfect. A PASS on this field therefore also requires
+    # the independent OCR read to contain the reference itself; anything less is
+    # a human's call.
+    if verdict is Verdict.PASS and ctx.ocr_lines is not None and not corroborates_exactly(reference, ctx.ocr_lines):
+        return _finding(
+            rule,
+            Verdict.NEEDS_REVIEW,
+            "The reader's transcription matches the mandated warning, but an "
+            "independent scan of the image did not confirm the statement "
+            "word-for-word, so a person should verify it.",
+        )
+    return _finding(rule, verdict, result.detail, result.diff)
 
 
 def _match_brand(rule: Rule, ctx: VerifyContext) -> Finding:
@@ -101,7 +117,12 @@ def _match_warning_bold(rule: Rule, ctx: VerifyContext) -> Finding:
 
         result = check_warning_bold(ctx.image, ctx.ocr_lines)
     except Exception:
-        # A vision-library failure degrades this one check; it never sinks a verdict.
+        # A vision-library failure degrades this one check; it never sinks a
+        # verdict. Logged because a silent degrade would also hide a permanent
+        # regression — a dead regulatory check looks identical to a hard image.
+        logging.getLogger(__name__).exception(
+            "warning_bold check failed; degrading to NOT_EVALUABLE"
+        )
         return _finding(rule, Verdict.NOT_EVALUABLE, "Boldness could not be checked on this image.")
 
     mapping = {
@@ -113,7 +134,9 @@ def _match_warning_bold(rule: Rule, ctx: VerifyContext) -> Finding:
 
 
 # Strategy name -> matcher. The rulebook selects the strategy; the engine never
-# names an individual rule. A rule whose strategy has no matcher yet is skipped.
+# names an individual rule. The loader's KNOWN_STRATEGIES is pinned equal to
+# this registry by a test, so a rule that loads but silently never runs cannot
+# exist; the skip below is defensive only.
 _MATCHERS: dict[str, Callable[[Rule, VerifyContext], Finding]] = {
     "verbatim": _match_warning_verbatim,
     "brand_match": _match_brand,
@@ -152,6 +175,10 @@ def verify(
     if Verdict.FAIL in verdicts:
         overall = Verdict.FAIL
     elif Verdict.NEEDS_REVIEW in verdicts:
+        overall = Verdict.NEEDS_REVIEW
+    elif not findings:
+        # No applicable checks ran. That is a review, never a silent pass — a
+        # compliance tool must not render "Compliant" over zero evidence.
         overall = Verdict.NEEDS_REVIEW
     else:
         overall = Verdict.PASS

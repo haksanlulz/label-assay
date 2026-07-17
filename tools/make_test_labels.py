@@ -382,6 +382,13 @@ def build_corpus(seed: int, count: int) -> list[LabelSpec]:
             warning_text = reference.upper()  # heading already capital; body joins it
         elif defect == "warning_not_bold":
             warning_bold = False
+            # This defect exists to exercise the stroke-width measurement, which
+            # needs real body text on the heading's own OCR line. A narrow column
+            # can be read with the heading as its own line — a layout the checker
+            # (correctly) abstains on — so the defect pins the full-width bottom
+            # placement. The rng.choice above still ran, keeping every other
+            # label byte-identical.
+            placement = "bottom"
         elif defect == "warning_altered_text":
             find, replace, alteration_note = rng.choice(_ALTERATIONS)
             warning_text = reference.replace(find, replace, 1)

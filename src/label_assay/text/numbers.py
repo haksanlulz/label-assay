@@ -10,11 +10,13 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
-# "45% Alc./Vol.", "13.5% ALC BY VOL", "5.5% alc/vol"
-_ABV_PCT = re.compile(r"(?P<abv>\d{1,2}(?:\.\d+)?)\s*%")
+# "45% Alc./Vol.", "13.5% ALC BY VOL", "5.5% alc/vol". The lookbehind keeps a
+# longer digit run from matching by truncation: without it, the "00%" inside
+# "TEQUILA 100% AGAVE" parses as ABV 0 and the real "40%" is never reached.
+_ABV_PCT = re.compile(r"(?<![\d.])(?P<abv>\d{1,2}(?:\.\d+)?)\s*%")
 # "ALCOHOL 40 PERCENT BY VOLUME" (no percent sign)
 _ABV_WORD = re.compile(r"alc(?:ohol)?\.?\s*(?P<abv>\d{1,2}(?:\.\d+)?)\s*percent", re.IGNORECASE)
-_PROOF = re.compile(r"(?P<proof>\d{1,3}(?:\.\d+)?)\s*proof", re.IGNORECASE)
+_PROOF = re.compile(r"(?<![\d.])(?P<proof>\d{1,3}(?:\.\d+)?)\s*proof", re.IGNORECASE)
 
 
 @dataclass(frozen=True)

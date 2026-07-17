@@ -48,7 +48,16 @@ def known_good_compliant():
 
 
 def fixture_path(spec) -> Path:
-    return LABELS_DIR / spec.filename
+    """Path of a committed corpus PNG. Raises when the file is absent: the
+    corpus is committed and required, so a missing file is repo damage that must
+    fail the suite loudly — a skip here once let the whole image-touching layer
+    silently stop running."""
+    path = LABELS_DIR / spec.filename
+    if not path.exists():
+        raise RuntimeError(
+            f"committed fixture {path} is missing — run tools/make_test_labels.py"
+        )
+    return path
 
 
 def perfect_extraction(spec) -> Extraction:

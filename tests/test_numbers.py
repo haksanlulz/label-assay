@@ -38,6 +38,31 @@ def test_no_alcohol_content_returns_none() -> None:
     assert parse_alcohol_content(None) is None
 
 
+def test_marketing_percent_is_not_truncated_into_an_abv() -> None:
+    # "100%" must not parse as ABV 0 via its trailing "00%" — the real statement
+    # sits later in the string.
+    ac = parse_alcohol_content("TEQUILA 100% DE AGAVE 40% ALC./VOL. (80 PROOF)")
+    assert ac is not None
+    assert ac.abv == Decimal("40")
+    assert ac.proof == Decimal("80")
+    assert ac.proof_matches_abv is True
+
+    ac = parse_alcohol_content("TEQUILA 100% AGAVE 40% ALC./VOL.")
+    assert ac is not None
+    assert ac.abv == Decimal("40")
+
+
+def test_marketing_percent_with_only_a_proof_goes_unparsed() -> None:
+    # No readable ABV: the engine routes this to review instead of failing a
+    # compliant label on a fabricated ABV of 0.
+    assert parse_alcohol_content("100% DE AGAVE 80 PROOF") is None
+
+
+def test_leading_dot_decimal_is_not_misread_as_ten_times_itself() -> None:
+    # ".5%" used to parse as 5; refusing to guess routes it to review upstream.
+    assert parse_alcohol_content(".5% ALC/VOL") is None
+
+
 def test_impossible_abv_is_rejected_at_construction() -> None:
     with pytest.raises(ValueError):
         AlcoholContent(abv=Decimal("150"))

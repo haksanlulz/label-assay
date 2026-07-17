@@ -64,8 +64,9 @@ def _media_type(image: bytes) -> str:
 class HaikuExtractor:
     def __init__(self, api_key: str, model: str = "claude-haiku-4-5-20251001", timeout: float = 15.0) -> None:
         # A short timeout, because the SDK default is 10 minutes — fatal against a
-        # 5-second budget. Retries on 429/5xx stay on (SDK default).
-        self._client = anthropic.Anthropic(api_key=api_key, timeout=timeout)
+        # 5-second budget. One retry on 429/5xx: the SDK default of two can hold
+        # a single check for three consecutive timeouts.
+        self._client = anthropic.Anthropic(api_key=api_key, timeout=timeout, max_retries=1)
         self._model = model
 
     def extract(self, image: bytes) -> Extraction:

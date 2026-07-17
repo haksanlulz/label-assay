@@ -9,10 +9,10 @@ Target: WCAG 2.1 AA, to be Section 508-ready. This is a prototype and has not be
 - 18px base text and 44px targets, suiting the reviewer audience (about half the team is over 50).
 - Semantic HTML: labelled inputs, a real table with column headers, visible focus rings, keyboard-operable throughout.
 - Live regions announce batch progress and the summary.
-- Contrast meets AA against the USWDS design tokens used for colour.
+- Contrast meets AA against the USWDS-derived colour tokens (the needs-review ink is the USWDS gold darkened one step, because the stock value measures 4.07:1 at badge size). A test recomputes every badge pair's ratio from the stylesheet.
 
 **Known gaps**
 
 - No screen-reader or automated-audit pass has been run.
-- Batch filtering is script-only; with JavaScript off, the results page does not populate.
+- The batch results page (progress, result rows, filtering) is script-rendered; with JavaScript off it explains itself via a noscript notice, and the CSV export link is the working no-JS path once the batch finishes.
 - Error copy has not been reviewed for plain-language conformance.

@@ -1,4 +1,6 @@
-# Official uv + Python base — reproducible installs from the committed lockfile.
+# uv + Python base. The Python package layer is reproducible from the committed
+# lockfile (uv sync --frozen); the base tag itself tracks upstream uv/Python/
+# Debian patch releases.
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 WORKDIR /app

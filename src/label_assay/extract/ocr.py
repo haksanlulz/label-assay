@@ -9,7 +9,6 @@ dependency.
 
 from __future__ import annotations
 
-import io
 import threading
 from dataclasses import dataclass
 from functools import lru_cache
@@ -39,10 +38,14 @@ def _engine():
 def read_lines(image: bytes) -> list[OcrLine]:
     """Detected text lines with per-line confidence, top-to-bottom as returned."""
     import numpy as np
-    from PIL import Image
 
-    rgb = Image.open(io.BytesIO(image)).convert("RGB")
+    from label_assay.extract.images import open_bounded
+
+    # The decode happens inside the lock too: a decoded raster is the largest
+    # allocation on this path, and bounding the process to one at a time is what
+    # keeps a batch of concurrent workers from stacking them.
     with _ENGINE_LOCK:
+        rgb = open_bounded(image).convert("RGB")
         result, _elapsed = _engine()(np.asarray(rgb))
     if not result:
         return []

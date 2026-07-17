@@ -38,6 +38,27 @@ def test_zero_budget_refuses_immediately() -> None:
         DailyBudget(limit_usd=0.0).reserve()
 
 
+def test_concurrent_reserves_never_overshoot_the_limit() -> None:
+    # reserve() runs on batch worker threads; an unsynchronized check-then-act
+    # lets racing reserves push past the daily bound.
+    from concurrent.futures import ThreadPoolExecutor
+
+    allowed = 5
+    budget = DailyBudget(limit_usd=EST_COST_PER_LABEL_USD * allowed)
+
+    def attempt() -> bool:
+        try:
+            budget.reserve()
+            return True
+        except BudgetExhausted:
+            return False
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda _: attempt(), range(allowed * 4)))
+    assert sum(results) == allowed
+    assert budget.spent_usd == pytest.approx(EST_COST_PER_LABEL_USD * allowed)
+
+
 def test_exhausted_budget_stops_the_reader_before_it_is_called() -> None:
     # An exhausted budget must refuse before any paid call, and surface as a
     # clean user-facing message rather than an internal error. The extractor is

@@ -44,5 +44,24 @@ def test_every_rule_is_cited() -> None:
 
 
 def test_rulebook_version_is_stable_across_loads() -> None:
-    # Content-addressed version: same files -> same version hash.
-    assert load_rulebook().version == load_rulebook().version
+    # Content-addressed version: same files -> same version hash. The cache is
+    # cleared between loads — comparing the lru_cached object to itself would
+    # pass even if the version were random per construction.
+    first = load_rulebook()
+    version, rule_count = first.version, len(first.rules)
+    load_rulebook.cache_clear()
+    try:
+        second = load_rulebook()
+        assert second.version == version
+        assert len(second.rules) == rule_count
+    finally:
+        load_rulebook.cache_clear()  # leave no half-warm state for other tests
+
+
+def test_every_known_strategy_has_a_matcher() -> None:
+    # A strategy the loader accepts but the engine cannot dispatch would load
+    # validly and then silently never run — no finding, not even NOT_EVALUABLE.
+    from label_assay.rulebook.loader import KNOWN_STRATEGIES
+    from label_assay.verify import engine
+
+    assert set(KNOWN_STRATEGIES) == set(engine._MATCHERS)

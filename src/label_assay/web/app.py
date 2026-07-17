@@ -11,8 +11,10 @@ from __future__ import annotations
 import asyncio
 import csv
 import io
+import logging
 import os
-from functools import lru_cache
+import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request, UploadFile
@@ -27,6 +29,8 @@ from label_assay.rulebook.loader import load_rulebook
 from label_assay.web import batch as batchmod
 from label_assay.web.budget import DailyBudget
 from label_assay.web.service import ExtractionUnavailable, check_label, default_extractor
+
+logger = logging.getLogger(__name__)
 
 _BG_TASKS: set = set()  # keep references so fire-and-forget batch jobs aren't GC'd
 # Bounds what this public instance can spend in a day. The provider-side workspace
@@ -53,7 +57,30 @@ _VERDICT_COPY = {
     ),
 }
 
-app = FastAPI(title="LabelAssay", version=__version__)
+# One owner for the plain-language per-finding vocabulary. The batch table's JS
+# renders the same words from its own map (the two surfaces cannot share code
+# across the wire); a test pins them equal.
+_VERDICT_LABEL = {
+    Verdict.PASS: "Compliant",
+    Verdict.NEEDS_REVIEW: "Needs review",
+    Verdict.FAIL: "Needs correction",
+    Verdict.NOT_EVALUABLE: "Not checked",
+}
+_TEMPLATES.env.globals["verdict_label"] = _VERDICT_LABEL
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    # Boot-time validation and warmup: a corrupt rulebook should fail the deploy
+    # right here, not 500 on the first request, and the OCR engine's multi-second
+    # init should be paid before traffic, not inside the first user's check.
+    logging.basicConfig(level=logging.INFO)
+    load_rulebook()
+    await asyncio.to_thread(_ocr_status)
+    yield
+
+
+app = FastAPI(title="LabelAssay", version=__version__, lifespan=_lifespan)
 app.mount("/static", StaticFiles(directory=str(_WEB / "static")), name="static")
 
 
@@ -61,10 +88,12 @@ def _ctx(extra: dict) -> dict:
     return {"version": __version__, **extra}
 
 
-def _report_page(request: Request, report) -> HTMLResponse:
+def _report_page(request: Request, report, elapsed: float | None = None) -> HTMLResponse:
     heading, summary = _VERDICT_COPY.get(report.verdict, ("Result", ""))
     return _TEMPLATES.TemplateResponse(
-        request, "result.html", _ctx({"report": report, "heading": heading, "summary": summary})
+        request,
+        "result.html",
+        _ctx({"report": report, "heading": heading, "summary": summary, "elapsed": elapsed}),
     )
 
 
@@ -74,14 +103,19 @@ def _error_page(request: Request, message: str, status: int = 200) -> HTMLRespon
     )
 
 
-@lru_cache(maxsize=1)
-def _ocr_status() -> str:
-    """Prove the local OCR engine actually loads on this host. Cached: the cost is
-    paid once per process. The vision wheels install cleanly and only fail at
-    import, so 'it deployed' is not evidence that this works."""
-    try:
-        import io
+_OCR_READY: str | None = None
 
+
+def _ocr_status() -> str:
+    """Prove the local OCR engine actually loads on this host. Success is cached
+    (the cost is paid once per process); a failure is re-probed on the next call,
+    so one transient bad probe cannot report the engine dead for the life of the
+    process. The vision wheels install cleanly and only fail at import, so 'it
+    deployed' is not evidence that this works."""
+    global _OCR_READY
+    if _OCR_READY is not None:
+        return _OCR_READY
+    try:
         from PIL import Image
 
         from label_assay.extract.ocr import read_lines
@@ -89,8 +123,10 @@ def _ocr_status() -> str:
         buffer = io.BytesIO()
         Image.new("RGB", (32, 32), "white").save(buffer, format="PNG")
         read_lines(buffer.getvalue())  # a blank image finds no text; loading is the point
-        return "ready"
+        _OCR_READY = "ready"
+        return _OCR_READY
     except Exception as exc:
+        logger.warning("OCR readiness probe failed", exc_info=exc)
         return f"failed: {type(exc).__name__}: {exc}"[:160]
 
 
@@ -100,13 +136,15 @@ def health() -> dict[str, object]:
     degraded state rather than guessing from a generic error page."""
     rulebook = load_rulebook()
     settings = get_settings()
+    ocr = _ocr_status()
     return {
-        "status": "ok",
+        # The top-level status must not contradict the subsystem fields below.
+        "status": "ok" if ocr == "ready" else "degraded",
         "version": __version__,
         "rulebook_version": rulebook.version,
         "rulebook_rules": len(rulebook.rules),
         "ai_reader": "configured" if settings.anthropic_api_key else "not-configured",
-        "ocr": _ocr_status(),
+        "ocr": ocr,
         # Which instance answered. Batch job state lives in this process, so the
         # app must run as a single instance; seeing two ids here means it does not.
         "instance": os.environ.get("FLY_MACHINE_ID", "local"),
@@ -125,6 +163,11 @@ async def check(
     brand_name: str = Form(...),
     class_type: str = Form(...),
 ) -> HTMLResponse:
+    # The multipart parser reports the spooled size; checking it before .read()
+    # keeps an oversized upload from being materialized in memory first. The
+    # post-read check stays as the fallback when no size is reported.
+    if (image.size or 0) > _MAX_BYTES:
+        return _error_page(request, "That image is larger than 5 MB. Please use a smaller file.", 413)
     data = await image.read()
     if len(data) > _MAX_BYTES:
         return _error_page(request, "That image is larger than 5 MB. Please use a smaller file.", 413)
@@ -132,16 +175,46 @@ async def check(
         return _error_page(request, "That file doesn't look like a PNG or JPEG image.", 415)
 
     application = Application(brand_name=brand_name.strip(), class_type=class_type.strip())
+    started = time.perf_counter()
     try:
-        report = check_label(data, application, extractor=default_extractor(get_settings()), budget=_BUDGET)
+        # Off the event loop, exactly as the batch path runs it: check_label is
+        # CPU-bound OCR plus a synchronous network call, and running it inline
+        # would freeze every other request for its duration.
+        report = await asyncio.to_thread(
+            check_label, data, application, extractor=default_extractor(get_settings()), budget=_BUDGET
+        )
     except ExtractionUnavailable as exc:
-        return _error_page(request, str(exc))
-    return _report_page(request, report)
+        # 503 so a monitor or scripted client can tell this failure from a
+        # rendered verdict; the page itself is the same clean message either way.
+        return _error_page(request, str(exc), 503)
+    return _report_page(request, report, elapsed=time.perf_counter() - started)
 
 
 @app.get("/batch", response_class=HTMLResponse)
 def batch_new(request: Request) -> HTMLResponse:
-    return _TEMPLATES.TemplateResponse(request, "batch_upload.html", _ctx({"max_files": batchmod.MAX_FILES}))
+    return _TEMPLATES.TemplateResponse(
+        request,
+        "batch_upload.html",
+        _ctx({"max_files": batchmod.MAX_FILES, "max_mb": batchmod.MAX_TOTAL_BYTES // (1024 * 1024)}),
+    )
+
+
+_TOO_LARGE_DETAIL = "This file is larger than 5 MB, so it was not checked. Please use a smaller scan."
+_CSV_TOO_LARGE = (
+    "That applications file is larger than 5 MB. A batch of a few hundred "
+    "applications is far smaller; please check the file."
+)
+
+
+def _batch_task_done(task: asyncio.Task) -> None:
+    _BG_TASKS.discard(task)
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        # A job-level crash leaves every pending item stuck; without this record
+        # the traceback surfaces only as a GC-time warning, if at all.
+        logger.error("Batch job task crashed", exc_info=exc)
 
 
 @app.post("/batch")
@@ -151,11 +224,27 @@ async def batch_create(
     applications: UploadFile | None = None,
 ):
     files: list[tuple[str, bytes]] = []
+    rejected: list[tuple[str, str]] = []  # (filename, why the file was not checked)
     total = 0
     for upload in images:
+        name = upload.filename or "label"
+        # Same pre-read size check as the single path, so one huge file cannot
+        # spike memory before it is even inspected. The 5 MB cap also sits
+        # safely under the vision API's per-image limit (~7.5 MB raw), so the
+        # extractor is never handed a payload the API rejects for size.
+        if (upload.size or 0) > _MAX_BYTES:
+            rejected.append((name, _TOO_LARGE_DETAIL))
+            continue
         data = await upload.read()
-        if not data or not data.startswith(_MAGIC):
-            continue  # silently skip non-images; the batch is about the labels
+        if not data:
+            rejected.append((name, "This file is empty, so it was not checked."))
+            continue
+        if not data.startswith(_MAGIC):
+            rejected.append((name, "Not a PNG or JPEG image, so this file was not checked."))
+            continue
+        if len(data) > _MAX_BYTES:
+            rejected.append((name, _TOO_LARGE_DETAIL))
+            continue
         total += len(data)
         if total > batchmod.MAX_TOTAL_BYTES:
             return _error_page(
@@ -164,30 +253,60 @@ async def batch_create(
                 "smaller batches.",
                 413,
             )
-        files.append((upload.filename or "label", data))
+        files.append((name, data))
 
     if not files:
-        return _error_page(request, "No PNG or JPEG images were uploaded.")
+        return _error_page(request, "No PNG or JPEG images were uploaded.", 400)
     if len(files) > batchmod.MAX_FILES:
         return _error_page(
             request, f"A batch is limited to {batchmod.MAX_FILES} labels. Please split it up.", 413
         )
 
     application_map: dict[str, Application] = {}
+    csv_rows: int | None = None
     if applications is not None:
+        if (applications.size or 0) > batchmod.MAX_CSV_BYTES:
+            return _error_page(request, _CSV_TOO_LARGE, 413)
         raw = await applications.read()
+        if len(raw) > batchmod.MAX_CSV_BYTES:
+            return _error_page(request, _CSV_TOO_LARGE, 413)
         if raw:
-            application_map = batchmod.parse_application_csv(raw)
+            try:
+                application_map = batchmod.parse_application_csv(raw)
+            except batchmod.ApplicationCSVError as exc:
+                return _error_page(request, str(exc), 415)
+            csv_rows = len(application_map)
+
+    uploaded_keys = {batchmod.pairing_key(name) for name, _ in files}
+    if application_map and not uploaded_keys & set(application_map):
+        # A CSV that matches nothing is a mistake (wrong column, wrong export),
+        # not a smaller batch; running anyway would abstain on every brand check
+        # with no hint why.
+        return _error_page(
+            request,
+            "The applications CSV did not match any uploaded file name. The "
+            "filename column must match the uploaded image names.",
+            400,
+        )
 
     try:
         extractor = default_extractor(get_settings())
     except ExtractionUnavailable as exc:
-        return _error_page(request, str(exc))
+        return _error_page(request, str(exc), 503)
 
-    job = batchmod.create_job([name for name, _ in files])
+    job = batchmod.create_job([name for name, _ in files] + [name for name, _ in rejected])
+    # Rejected files ride along as pre-completed error rows, so the results
+    # table, the summary counts, and the CSV export account for every file the
+    # user selected. They sit after the checkable files: run_job addresses
+    # job.items positionally over `files`, so the leading indices must line up.
+    for item, (_name, why) in zip(job.items[len(files) :], rejected):
+        item.status, item.detail = "error", why
+    if csv_rows is not None:
+        job.csv_rows = csv_rows
+        job.csv_unmatched = sum(1 for key in uploaded_keys if key not in application_map)
     task = asyncio.create_task(batchmod.run_job(job, files, extractor, _BUDGET, application_map))
     _BG_TASKS.add(task)
-    task.add_done_callback(_BG_TASKS.discard)
+    task.add_done_callback(_batch_task_done)
     return RedirectResponse(f"/batch/{job.id}", status_code=303)
 
 
@@ -208,6 +327,10 @@ def batch_data(job_id: str) -> JSONResponse:
             "total": job.total,
             "done": job.done,
             "summary": job.summary(),
+            # null when no CSV was uploaded; counts when one was, so the page
+            # can say how much of it actually paired with the uploaded files.
+            "csv_rows": job.csv_rows,
+            "csv_unmatched": job.csv_unmatched,
             "items": [
                 {"filename": i.filename, "status": i.status, "verdict": i.verdict, "detail": i.detail}
                 for i in job.items

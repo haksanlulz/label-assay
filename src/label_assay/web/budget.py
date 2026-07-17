@@ -17,6 +17,7 @@ this runs on. It is a cost bound, not an authorization mechanism.
 from __future__ import annotations
 
 import datetime as dt
+import threading
 from dataclasses import dataclass, field
 
 # Conservative estimate for one label: a Haiku vision call with a terse schema.
@@ -32,6 +33,9 @@ class DailyBudget:
     limit_usd: float
     _day: dt.date | None = field(default=None, repr=False)
     _spent_usd: float = field(default=0.0, repr=False)
+    # reserve() is called from batch worker threads; the check-then-add must be
+    # atomic or concurrent reserves race past the daily bound.
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     @property
     def spent_usd(self) -> float:
@@ -40,11 +44,12 @@ class DailyBudget:
     def reserve(self, *, today: dt.date | None = None) -> None:
         """Account for one label, or raise if it would exceed today's limit."""
         today = today or dt.date.today()
-        if self._day != today:  # a new day resets the tally
-            self._day, self._spent_usd = today, 0.0
-        if self._spent_usd + EST_COST_PER_LABEL_USD > self.limit_usd:
-            raise BudgetExhausted(
-                "This server has reached its daily limit for automated label reading. "
-                "Please try again tomorrow."
-            )
-        self._spent_usd += EST_COST_PER_LABEL_USD
+        with self._lock:
+            if self._day != today:  # a new day resets the tally
+                self._day, self._spent_usd = today, 0.0
+            if self._spent_usd + EST_COST_PER_LABEL_USD > self.limit_usd:
+                raise BudgetExhausted(
+                    "This server has reached its daily limit for automated label reading. "
+                    "Please try again tomorrow."
+                )
+            self._spent_usd += EST_COST_PER_LABEL_USD

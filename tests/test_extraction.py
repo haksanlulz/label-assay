@@ -64,7 +64,6 @@ def test_haiku_extract_takes_only_an_image_and_uses_a_constant_prompt() -> None:
     assert params == ["self", "image"]
 
 
-@pytest.mark.skipif(not FIXTURE.exists(), reason="run tools/make_test_labels.py first")
 def test_ocr_reads_a_fixture_label() -> None:
     from label_assay.extract.ocr import read_lines
 
@@ -73,10 +72,7 @@ def test_ocr_reads_a_fixture_label() -> None:
     assert "governmentwarning" in squashed  # the statutory heading is legible
 
 
-@pytest.mark.skipif(
-    not FIXTURE.exists() or not get_settings().anthropic_api_key,
-    reason="needs the fixture image and ANTHROPIC_API_KEY",
-)
+@pytest.mark.skipif(not get_settings().anthropic_api_key, reason="needs ANTHROPIC_API_KEY")
 def test_haiku_extracts_expected_fields_from_fixture_label() -> None:
     import anthropic
 
