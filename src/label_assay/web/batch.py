@@ -262,6 +262,7 @@ def _check_spooled(
     extractor: ExtractorPort,
     budget: DailyBudget | None,
     recover_rotation: bool,
+    log_context: str,
 ) -> LabelReport:
     # One file's bytes live in memory only for the duration of its own check;
     # background=True lets an interactive check jump the OCR queue. The batch
@@ -273,6 +274,7 @@ def _check_spooled(
         budget=budget,
         background=True,
         recover_rotation=recover_rotation,
+        log_context=log_context,
     ).report
 
 
@@ -297,8 +299,17 @@ async def run_job(
             # brand comparison abstains.
             application = applications.get(pairing_key(name), Application())
             try:
+                # The timing line's context is the same job id + item index the
+                # error records use — never the uploaded filename.
                 report = await asyncio.get_running_loop().run_in_executor(
-                    _WORKERS, _check_spooled, path, application, extractor, budget, recover_rotation
+                    _WORKERS,
+                    _check_spooled,
+                    path,
+                    application,
+                    extractor,
+                    budget,
+                    recover_rotation,
+                    f"Batch job {job.id} item {index}",
                 )
                 item.verdict = report.verdict.value
                 item.detail = _headline(report)

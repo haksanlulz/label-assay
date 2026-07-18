@@ -32,6 +32,10 @@ class Match(BaseModel):
 
 class Rule(BaseModel):
     id: str
+    # Required, like the citation: the short plain-language name (AP headline
+    # case) a finding is displayed under. A rule a person cannot name at a
+    # glance cannot load.
+    title: str = Field(min_length=1)
     citation: str = Field(min_length=1)  # required: an uncited rule cannot load
     beverage_classes: list[str]
     severity: str = "fail"

@@ -33,10 +33,12 @@ class SurfaceType(enum.StrEnum):
 
 
 class Finding(BaseModel):
-    """One rule's outcome against one product. Carries its CFR citation so the
-    verdict is always traceable back to the regulation it rests on."""
+    """One rule's outcome against one product. Carries the rule's plain-language
+    title so a person can name the finding at a glance, and its CFR citation so
+    the verdict is always traceable back to the regulation it rests on."""
 
     rule_id: str
+    title: str
     citation: str
     verdict: Verdict
     detail: str

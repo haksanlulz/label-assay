@@ -109,6 +109,7 @@ form.is-busy .progress__fill { animation: progress-fill 4s ease-out forwards; }
 .badge--needs_review { color: var(--warn-ink); border-color: var(--warn-line); background: var(--warn-bg); }
 .badge--fail { color: var(--err-ink); border-color: var(--err-line); background: var(--err-bg); }
 .badge--not_evaluable { color: var(--muted); border-color: var(--muted); background: var(--bg-subtle); }
+.finding__title { font-weight: 600; }
 .finding__cite { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .finding__detail { margin: 0.5rem 0 0; }
 

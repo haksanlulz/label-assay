@@ -6,6 +6,7 @@ instead of a stack trace.
 from __future__ import annotations
 
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import NamedTuple
 
@@ -125,9 +126,13 @@ def check_label(
     background: bool = False,
     rotation: int = 0,
     recover_rotation: bool = False,
+    log_context: str = "check",
 ) -> CheckResult:
     # ``background=True`` marks a batch item: its OCR read yields to any pending
     # interactive check at the engine's priority gate (see extract/ocr.py).
+    # ``log_context`` prefixes the completion timing line; the batch path passes
+    # its job id + item index so the line is attributable without ever carrying
+    # a filename or any label content.
     # ``rotation`` is the operator's statement of how the upload looks: the
     # clockwise right angle the label appears rotated by (0, 90, 180, or 270).
     # The raster is transposed once, losslessly, before anything reads it — an
@@ -139,6 +144,8 @@ def check_label(
     # latency target is unconditional.
     if rotation and rotation not in RIGHT_ANGLE_TRANSPOSES:
         raise ValueError(f"rotation must be 0, 90, 180, or 270, not {rotation}")
+    started = time.perf_counter()
+    timings: dict[str, float] = {}
     # Reject undecodable or bomb-sized images before any money or CPU is spent.
     # The header alone carries the dimensions, so this costs microseconds. The
     # vision call then gets a bounded copy: the hosted API rejects images over
@@ -174,15 +181,24 @@ def check_label(
     # the worker. The readers fail for different reasons and are worth telling
     # apart, both for the person looking at the page and for whoever has to fix
     # the server.
+    def _timed_extract() -> Extraction:
+        t0 = time.perf_counter()
+        extracted = extractor.extract(vision_bytes)
+        timings["vision"] = time.perf_counter() - t0
+        return extracted
+
     pool = ThreadPoolExecutor(max_workers=1)
     try:
-        vision = pool.submit(extractor.extract, vision_bytes)
+        vision = pool.submit(_timed_extract)
         try:
+            t0 = time.perf_counter()
             ocr_lines = read_lines(image, background=background)
             if recover_rotation:
                 # At most three extra OCR passes, and only when the upright read
                 # did not contain the mandated warning (see _recover_rotated_warning).
                 ocr_lines = _recover_rotated_warning(image, ocr_lines, background=background)
+            # The rotation retries are OCR passes, so they bill to the OCR phase.
+            timings["ocr"] = time.perf_counter() - t0
         except Exception as exc:  # OCR engine failure is infrastructure, not a verdict
             logger.exception("OCR read failed")
             raise ExtractionUnavailable(
@@ -201,4 +217,15 @@ def check_label(
         pool.shutdown(wait=False)
 
     report = verify(extraction, application, load_rulebook(), image=image, ocr_lines=ocr_lines)
+    # One INFO line per completed check, so a slow check is attributable to its
+    # phase — the provider call's tail latency vs. the local CPU-bound OCR read.
+    # Phase times only, plus the caller's context: never a filename or any label
+    # content (log minimization).
+    logger.info(
+        "%s timed: vision=%.1fs ocr=%.1fs total=%.1fs",
+        log_context,
+        timings["vision"],
+        timings["ocr"],
+        time.perf_counter() - started,
+    )
     return CheckResult(report=report, extraction=extraction, image=image)

@@ -8,6 +8,7 @@
 
 rules:
   - id: brand_name_matches_application
+    title: "Brand Name Matches the Application"
     citation: 27 CFR 5.64
     beverage_classes: [all]
     severity: fail
@@ -22,6 +23,7 @@ rules:
       field: brand_name
 
   - id: alcohol_content_internally_consistent
+    title: "Alcohol Content Is Internally Consistent"
     citation: 27 CFR 5.65
     beverage_classes: [all]
     severity: fail

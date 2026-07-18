@@ -261,6 +261,62 @@ def _post_check_with(
     )
 
 
+class _ClassTextCollector(HTMLParser):
+    """Collects the text content of every element bearing a given class, so an
+    assertion about what an element says runs against parsed markup — prose
+    elsewhere on the page mentioning the same words cannot satisfy it."""
+
+    def __init__(self, class_name: str) -> None:
+        super().__init__()
+        self._class = class_name
+        self._depth = 0
+        self.texts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if self._depth:
+            if tag not in _VOID_TAGS:
+                self._depth += 1
+            return
+        if self._class in (dict(attrs).get("class") or "").split() and tag not in _VOID_TAGS:
+            self._depth = 1
+            self.texts.append("")
+
+    def handle_endtag(self, tag: str) -> None:
+        if self._depth:
+            self._depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._depth:
+            self.texts[-1] += data
+
+
+def _texts_of_class(html: str, class_name: str) -> list[str]:
+    collector = _ClassTextCollector(class_name)
+    collector.feed(html)
+    collector.close()
+    return [text.strip() for text in collector.texts]
+
+
+def test_result_page_names_every_finding_with_its_rule_title(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Each finding's head carries the rule's plain-language title as its name,
+    # with the citation still beside it. Parsed from the finding__title elements:
+    # all four shipped rules must appear, whatever their verdicts.
+    from label_assay.rulebook.loader import load_rulebook
+
+    resp = _post_check_with(monkeypatch, _read_extraction())
+    assert resp.status_code == 200
+    rendered = _texts_of_class(resp.text, "finding__title")
+    expected = [rule.title for rule in load_rulebook().rules]
+    assert len(expected) == 4  # warning wording, warning bold, brand, alcohol content
+    assert sorted(rendered) == sorted(expected)
+    # The citation still renders in every finding head, beside the title.
+    citations = _texts_of_class(resp.text, "finding__cite")
+    assert len(citations) == len(rendered)
+    assert all(cite.startswith("27 CFR") for cite in citations)
+
+
 def test_result_page_reads_back_what_the_reader_returned(monkeypatch: pytest.MonkeyPatch) -> None:
     # The read-back section shows the reviewer each field's verbatim text as the
     # reader returned it, and the warning as presence (its wording is judged in
