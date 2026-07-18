@@ -26,6 +26,14 @@ Results appear as they finish.</p>
   <p class="hint">Re-reads the label rotated, up to three extra passes for that label;
      uncheck for maximum throughput.</p>
 
-  <button type="submit">Check the batch</button>
+  <button type="submit" data-busy-label="Uploading&hellip;">Check the batch</button>
+
+  {# Revealed by submit-guard.js while the upload spools; role="status" announces
+     the note once. With scripting off it stays hidden and the form works as is. #}
+  <div class="progress" role="status">
+    <div class="progress__track"><div class="progress__fill"></div></div>
+    <p class="progress__note">Uploading the batch &mdash; large drops take a moment.</p>
+  </div>
 </form>
+<script src="/static/submit-guard.js" defer></script>
 {% endblock %}

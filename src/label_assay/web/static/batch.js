@@ -1,5 +1,6 @@
-// Batch results: poll for progress and render rows as labels finish. This is the
-// only client script in the app — the single-label flow needs none.
+// Batch results: poll for progress and render rows as labels finish. The one
+// other client script is the upload forms' submit guard (submit-guard.js);
+// the single-label flow works with scripting disabled.
 (function () {
   "use strict";
   var jobId = document.getElementById("job").dataset.job;
