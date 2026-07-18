@@ -1,9 +1,11 @@
 """FastAPI application — the imperative shell.
 
 A single-label flow: upload a label image plus the application details, get a
-verdict page. Server-rendered, no client JavaScript — the whole flow works with
-scripting disabled. Infrastructure failures render a clean message, never a
-stack trace.
+verdict page. Server-rendered; no JavaScript is required — the whole flow works
+with scripting disabled, and the one script on the upload forms is an
+enhancement (static/submit-guard.js) that keeps a re-click during the check
+from firing a duplicate paid call. Infrastructure failures render a clean
+message, never a stack trace.
 """
 
 from __future__ import annotations
@@ -197,12 +199,13 @@ class _RequestSizeCeiling:
 app.add_middleware(_RequestSizeCeiling, max_bytes=_MAX_REQUEST_BYTES)
 
 
-# Response hardening, applied to every route. The single-label flow ships zero
-# client JavaScript and every asset is same-origin, so the policy stays strict:
-# no inline script or style is required (the one inline style lives in app.css),
-# the batch page's own /static/batch.js and its /batch/{id}/data fetch are
-# same-origin, and the result page's collapsible preview rides back as a data:
-# image — the only non-'self' source the policy allows. nosniff is what keeps a
+# Response hardening, applied to every route. Every script is an external
+# same-origin static file — the upload forms' submit guard and the batch page's
+# poller — and every asset is same-origin, so the policy stays strict: no
+# inline script or style is required (the one inline style lives in app.css),
+# the batch page's /batch/{id}/data fetch is same-origin, and the result
+# page's collapsible preview rides back as a data: image — the only non-'self'
+# source the policy allows. nosniff is what keeps a
 # reflected filename in the /batch/{id}/data JSON from being sniffed as markup.
 # HSTS carries no `preload` deliberately: this runs on a shared *.hf.space host,
 # so preloading the registrable domain is not ours to claim; the host serves

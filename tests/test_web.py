@@ -11,6 +11,7 @@ import base64
 import io
 import re
 import time
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -29,6 +30,41 @@ SPEC = fixture_corpus.known_good_compliant()
 FIXTURE = fixture_corpus.fixture_path(SPEC)
 client = TestClient(webapp.app)
 
+# Elements HTML5 defines as void: they never take an end tag, so they must not
+# stay on the open-ancestor stack.
+_VOID_TAGS = frozenset(
+    "area base br col embed hr img input link meta source track wbr".split()
+)
+
+
+class _ElementCollector(HTMLParser):
+    """Collects every element as (tag, attributes, ancestor tags), so structural
+    assertions run against parsed markup — a page whose prose merely mentions a
+    tag cannot satisfy them."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.found: list[tuple[str, dict[str, str | None], tuple[str, ...]]] = []
+        self._open: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.found.append((tag, dict(attrs), tuple(self._open)))
+        if tag not in _VOID_TAGS:
+            self._open.append(tag)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag not in self._open:
+            return
+        while self._open and self._open.pop() != tag:
+            pass
+
+
+def _elements(html: str) -> list[tuple[str, dict[str, str | None], tuple[str, ...]]]:
+    parser = _ElementCollector()
+    parser.feed(html)
+    parser.close()
+    return parser.found
+
 
 def test_index_renders_the_form() -> None:
     resp = client.get("/")
@@ -36,13 +72,18 @@ def test_index_renders_the_form() -> None:
     assert "Check a Label" in resp.text
     assert 'action="/check"' in resp.text
     assert 'name="fanciful_name"' in resp.text  # the optional fanciful-name input
-    # The rotation control is a plain select — the zero-JS invariant holds on
-    # the single-label path, so the index page carries no script at all.
+    # The rotation control is a plain select; every control on the form works
+    # with scripting disabled.
     assert '<select id="rotation" name="rotation">' in resp.text
     assert "Label image is rotated" in resp.text
     for value in ("0", "90", "180", "270"):
         assert f'value="{value}"' in resp.text
-    assert "<script" not in resp.text.lower()
+    # Deliberately narrowed invariant (was: zero script on this page): the page
+    # carries exactly one script, the external submit guard — a progressive
+    # enhancement. No script is required: scripting off leaves the form fully
+    # functional, with the button staying enabled.
+    scripts = [attrs for tag, attrs, _ in _elements(resp.text) if tag == "script"]
+    assert [attrs.get("src") for attrs in scripts] == ["/static/submit-guard.js"]
 
 
 def test_check_passes_the_fanciful_name_through_and_defaults_it_empty(
@@ -311,11 +352,88 @@ def test_preview_encode_failure_never_costs_the_verdict(
 
 
 def test_result_page_carries_no_client_script(monkeypatch: pytest.MonkeyPatch) -> None:
-    # The single-label flow works with scripting disabled; the preview must not
-    # change that (batch.js stays quarantined to the batch pages).
+    # The result page stays script-free: the submit guard belongs to the upload
+    # forms and batch.js to the batch pages; rendering a verdict needs neither,
+    # and the preview must not change that.
     resp = _post_check_with(monkeypatch, _read_extraction())
     assert resp.status_code == 200
     assert "<script" not in resp.text.lower()
+
+
+@pytest.mark.parametrize(
+    ("path", "busy_label", "note"),
+    [
+        ("/", "Checking…", "usually a few seconds"),
+        ("/batch", "Uploading…", "large drops take a moment"),
+    ],
+)
+def test_upload_forms_carry_the_submit_guard_and_its_progress_strip(
+    path: str, busy_label: str, note: str
+) -> None:
+    # Both upload forms load the external submit guard (the CSP has no
+    # 'unsafe-inline', so an inline handler could not run) and ship the
+    # progress strip it reveals: a role="status" element inside the form,
+    # hidden until submit, whose one-line note a screen reader announces once
+    # when shown. The busy wording rides on the button itself so each form
+    # names its own slow part — checking the label, or spooling the upload.
+    page = client.get(path)
+    assert page.status_code == 200
+    elements = _elements(page.text)
+
+    scripts = [attrs for tag, attrs, _ in elements if tag == "script"]
+    assert [attrs.get("src") for attrs in scripts] == ["/static/submit-guard.js"]
+    assert "defer" in scripts[0]
+
+    buttons = [
+        (attrs, ancestors)
+        for tag, attrs, ancestors in elements
+        if tag == "button" and attrs.get("type") == "submit"
+    ]
+    assert len(buttons) == 1
+    button_attrs, button_ancestors = buttons[0]
+    assert button_attrs.get("data-busy-label") == busy_label
+    assert "form" in button_ancestors
+
+    statuses = [
+        (tag, attrs, ancestors)
+        for tag, attrs, ancestors in elements
+        if attrs.get("role") == "status"
+    ]
+    assert len(statuses) == 1
+    _tag, status_attrs, status_ancestors = statuses[0]
+    assert "progress" in (status_attrs.get("class") or "").split()
+    assert "form" in status_ancestors  # the form's busy class is what reveals it
+
+    fills = [
+        ancestors
+        for _tag, attrs, ancestors in elements
+        if "progress__fill" in (attrs.get("class") or "").split()
+    ]
+    assert len(fills) == 1
+    assert "form" in fills[0]
+    assert note in page.text
+
+
+def test_submit_guard_is_served_and_stays_within_the_csp() -> None:
+    # The guard must exist as a served static file (script-src 'self' is the
+    # only way any script runs), must never write element styles — style-src
+    # 'self' bans style= attributes, so presentation happens by toggling
+    # classes app.css owns — and must register pageshow, so a back/forward-
+    # cache restore re-enables the button instead of stranding a dead form.
+    assert client.get("/static/submit-guard.js").status_code == 200
+    js = (Path(webapp.__file__).parent / "static" / "submit-guard.js").read_text(encoding="utf-8")
+    assert "style." not in js
+    assert "pageshow" in js
+    # The guard's load-bearing semantics, pinned at source level (no JS runtime
+    # in this suite, so string pins on the exact statements are the falsifiable
+    # check available): the double-submit protection is the disable assignment,
+    # the busy affordance is the label swap + class toggle, and the reset path
+    # must flip the same switches back.
+    assert "button.disabled = true" in js
+    assert "button.disabled = false" in js
+    assert "button.dataset.busyLabel" in js
+    assert 'classList.add("is-busy")' in js
+    assert 'classList.remove("is-busy")' in js
 
 
 def test_batch_js_verdict_labels_match_the_server_map() -> None:

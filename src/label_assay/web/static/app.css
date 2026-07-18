@@ -66,6 +66,20 @@ button {
 }
 button:hover { background: var(--primary-dark); }
 
+/* submit-guard progress (upload forms). Hidden until the guard marks the form
+   busy. Keyframes rather than a transition: an element revealed from
+   display:none begins its animation on reveal, no reflow-ordering trick.
+   The fill is duration-honest — a deployed single check measures 3.4-4.6 s,
+   so it takes ~4 s to reach 90% and holds there until the response lands. */
+.progress { display: none; margin-top: 1rem; }
+form.is-busy .progress { display: block; }
+.progress__track { height: 0.5rem; background: var(--border); border-radius: 999px;
+  overflow: hidden; }
+.progress__fill { height: 100%; width: 0; background: var(--primary); }
+form.is-busy .progress__fill { animation: progress-fill 4s ease-out forwards; }
+@keyframes progress-fill { from { width: 0; } to { width: 90%; } }
+.progress__note { font-size: 0.85rem; color: var(--muted); margin: 0.4rem 0 0; }
+
 /* alert (verdict banner) */
 .alert { border-left: 0.5rem solid; padding: 1rem 1.25rem; margin: 0.5rem 0 1rem;
   border-radius: 0 0.25rem 0.25rem 0; }

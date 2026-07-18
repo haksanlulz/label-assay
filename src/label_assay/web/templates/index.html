@@ -33,8 +33,16 @@ finding carries its CFR citation.</p>
   <input type="text" id="class_type" name="class_type" required autocomplete="off"
          placeholder="e.g. Kentucky Straight Bourbon Whiskey">
 
-  <button type="submit">Check the label</button>
+  <button type="submit" data-busy-label="Checking&hellip;">Check the label</button>
+
+  {# Revealed by submit-guard.js while the check runs; role="status" announces
+     the note once. With scripting off it stays hidden and the form works as is. #}
+  <div class="progress" role="status">
+    <div class="progress__track"><div class="progress__fill"></div></div>
+    <p class="progress__note">Checking the label &mdash; usually a few seconds.</p>
+  </div>
 </form>
 
 <p class="batch-cta"><a href="/batch">Check many labels at once &rarr;</a></p>
+<script src="/static/submit-guard.js" defer></script>
 {% endblock %}
