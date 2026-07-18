@@ -197,8 +197,8 @@ def parse_application_csv(data: bytes) -> dict[str, Application]:
         # a CSV with the wrong columns — say so instead of "no filename column".
         if any("�" in name or any(ord(ch) < 32 for ch in name) for name in header):
             raise ApplicationCSVError(
-                "That applications file could not be read as a CSV. Please export "
-                "the spreadsheet as a .csv file and try again."
+                "That applications file could not be read as a CSV. Export the "
+                "spreadsheet as a .csv file and try again."
             )
         reader.fieldnames = header
         if "filename" not in header:
@@ -220,7 +220,7 @@ def parse_application_csv(data: bytes) -> dict[str, Application]:
             )
     except csv.Error as exc:
         raise ApplicationCSVError(
-            "That applications file could not be read as a CSV. Please export the "
+            "That applications file could not be read as a CSV. Export the "
             "spreadsheet as a .csv file and try again."
         ) from exc
     return applications

@@ -163,7 +163,7 @@ def test_batch_over_the_total_size_cap_is_asked_to_split(monkeypatch: pytest.Mon
         files=[("images", (f"l{i}.png", png, "image/png")) for i in range(2)],
     )
     assert resp.status_code == 413
-    assert "split it into" in resp.text
+    assert "Split it into" in resp.text
     # The rejected upload's already-spooled temp files must not be stranded.
     assert _spool_leftovers() <= before
 

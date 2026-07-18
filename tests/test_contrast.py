@@ -1,6 +1,6 @@
 """Colour contrast, recomputed from the stylesheet on every run.
 
-ACCESSIBILITY.md claims WCAG 2.1 AA; badge text is normal-size, so every ink/
+docs/ACCESSIBILITY.md claims WCAG 2.1 AA; badge text is normal-size, so every ink/
 background pair it uses must clear 4.5:1. Computing the ratios from app.css
 itself means a token edit that drops a pair under the bar fails the suite
 instead of silently falsifying the claim (the stock USWDS gold did exactly

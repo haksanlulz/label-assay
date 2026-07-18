@@ -153,7 +153,7 @@ def check_label(
         vision_bytes = downscale_for_vision(image)
     except ImageTooLarge as exc:
         raise ExtractionUnavailable(
-            "That image is too large to process. Please upload a smaller scan of the label."
+            "That image is too large to process. Upload a smaller scan of the label."
         ) from exc
     except Exception as exc:
         logger.exception("Image decode failed before extraction")
@@ -186,14 +186,14 @@ def check_label(
         except Exception as exc:  # OCR engine failure is infrastructure, not a verdict
             logger.exception("OCR read failed")
             raise ExtractionUnavailable(
-                "The label scanner could not run on this server. Please try again later."
+                "The label scanner could not run on this server. Try again later."
             ) from exc
         try:
             extraction = vision.result()
         except Exception as exc:  # network / API / decode — surface cleanly, never a 500
             logger.exception("Vision extraction failed")
             raise ExtractionUnavailable(
-                "The AI label reader was unavailable. Please try again."
+                "The AI label reader was unavailable. Try again."
             ) from exc
     finally:
         # wait=False so an OCR failure reports immediately instead of holding the

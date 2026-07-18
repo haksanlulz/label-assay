@@ -2,33 +2,28 @@
 {% block main %}
 <a class="back" href="/">&larr; Back</a>
 <h1>Check many labels</h1>
-<p class="lead">For a batch of applications &mdash; up to {{ max_files }} files or
-{{ max_mb }}&nbsp;MB per upload, each image 5&nbsp;MB or less; a full 300-application drop
-fits in one go. Add the application data as a CSV and each label is checked against its
-own application row, exactly as it would be one at a time. Results appear as they finish.</p>
+<p class="lead">Up to {{ max_files }} files or {{ max_mb }}&nbsp;MB per upload, each image
+5&nbsp;MB or less. Add a CSV of application data to check each label against its own row.
+Results appear as they finish.</p>
 
 <form class="card" method="post" action="/batch" enctype="multipart/form-data">
   <label for="images">Label images (PNG or JPEG)</label>
   <input type="file" id="images" name="images" accept="image/png,image/jpeg" multiple required>
-  <p class="hint">Label images are sent to Anthropic's Claude API to read the printed text.
-     Camera metadata (EXIF, including any location tags) is removed first, and images are
-     not stored after the batch is checked.</p>
+  <p class="hint">Label images are sent to Anthropic's Claude API to read the printed text,
+     with camera metadata (EXIF, including location) removed first; they are not stored after the check.</p>
 
   <label for="applications">Application data (CSV, optional)</label>
   <input type="file" id="applications" name="applications" accept=".csv,text/csv">
   <p class="hint">Columns: <code>filename</code>, <code>brand_name</code>, <code>class_type</code>,
-     and optionally <code>fanciful_name</code> &mdash; when a fanciful name was filed, the label
-     may display either name and the brand check accepts both.
-     Without the CSV, every label-internal check still runs &mdash; only the brand comparison is
-     skipped, since there is nothing filed to compare against.</p>
+     and optionally <code>fanciful_name</code>; when a fanciful name is filed, the brand check
+     accepts either name. Without the CSV, the brand check is skipped; all other checks still run.</p>
 
   <label class="checkbox" for="recover_rotation">
     <input type="checkbox" id="recover_rotation" name="recover_rotation" checked>
     Retry sideways reads when the required warning is not found
   </label>
-  <p class="hint">Some labels print the government warning sideways along an edge. When the
-     warning is not found upright, the label is re-read rotated &mdash; up to three extra read
-     passes for that label only. Uncheck for maximum throughput.</p>
+  <p class="hint">Re-reads the label rotated, up to three extra passes for that label;
+     uncheck for maximum throughput.</p>
 
   <button type="submit">Check the batch</button>
 </form>
