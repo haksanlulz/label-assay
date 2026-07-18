@@ -140,6 +140,53 @@ def test_not_bold_labels_fail_the_bold_check_on_their_rendered_pixels(corpus_dir
         )
 
 
+def test_compliant_own_line_headings_are_cleared_cross_line_never_failed() -> None:
+    from label_assay.extract.ocr import read_lines
+
+    # The committed compliant-side fixtures through the real local pipeline
+    # (real OCR + the engine with a perfect reader). Eight of the twelve print
+    # the warning heading as its own OCR line and used to abstain to review on
+    # every run; the size-normalized cross-line clearance now decides them.
+    # Measured on the committed PNGs: cross-line ratios 1.18-2.02 against the
+    # 1.15 floor.
+    own_line = {
+        "label_000.png", "label_005.png", "label_010.png", "label_011.png",
+        "label_012.png", "label_013.png", "label_020.png", "label_023.png",
+    }
+    rulebook = load_rulebook()
+    cleared: set[str] = set()
+    seen: set[str] = set()
+    for spec in fixture_corpus.corpus_specs():
+        if spec.defect not in ("compliant", "warning_body_caps"):
+            continue
+        seen.add(spec.filename)
+        image = fixture_corpus.fixture_path(spec).read_bytes()
+        report = verify(
+            fixture_corpus.perfect_extraction(spec),
+            fixture_corpus.application_for(spec),
+            rulebook,
+            image=image,
+            ocr_lines=read_lines(image),
+        )
+        bold = next(f for f in report.findings if f.rule_id == "health_warning_bold")
+        # The hard invariant, both measurement paths: a compliant label's bold
+        # heading is never failed. The cross-line path cannot emit a fail by
+        # construction; the same-line path must not reach one either.
+        assert bold.verdict != Verdict.FAIL, (
+            f"{spec.filename}: bold check failed a compliant label ({bold.detail})"
+        )
+        if spec.filename in own_line and bold.verdict == Verdict.PASS:
+            cleared.add(spec.filename)
+    assert own_line <= seen  # the named set tracks the corpus, not a stale list
+    # The pin is aggregate, not per-fixture: the normalized ratios transfer
+    # across platforms but OCR box geometry does not exactly, and two fixtures
+    # measure within a few hundredths of the floor (1.18 vs 1.15), so a
+    # per-fixture pin would flake on CI. Locally all eight clear.
+    assert len(cleared) >= 6, (
+        f"only {len(cleared)} own-line headings cleared cross-line: {sorted(cleared)}"
+    )
+
+
 def test_committed_corpus_matches_the_generator(corpus_dir: Path) -> None:
     # Ties the committed tests/fixtures/labels to the current generator code, so
     # a generator change that drifts the corpus cannot leave stale fixtures in
