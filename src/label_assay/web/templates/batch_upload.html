@@ -10,8 +10,9 @@ own application row, exactly as it would be one at a time. Results appear as the
 <form class="card" method="post" action="/batch" enctype="multipart/form-data">
   <label for="images">Label images (PNG or JPEG)</label>
   <input type="file" id="images" name="images" accept="image/png,image/jpeg" multiple required>
-  <p class="hint">Label images are sent to Anthropic's Claude API to read the printed text. Images
-     are not stored after the batch is checked.</p>
+  <p class="hint">Label images are sent to Anthropic's Claude API to read the printed text.
+     Camera metadata (EXIF, including any location tags) is removed first, and images are
+     not stored after the batch is checked.</p>
 
   <label for="applications">Application data (CSV, optional)</label>
   <input type="file" id="applications" name="applications" accept=".csv,text/csv">

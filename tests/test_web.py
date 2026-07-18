@@ -474,11 +474,54 @@ def test_index_carries_no_inline_style_so_the_csp_stays_strict() -> None:
 
 def test_upload_surfaces_disclose_the_third_party_data_flow() -> None:
     # The uploader is told the image is sent to a third-party API before they
-    # submit it — the disclosure the templates previously lacked.
+    # submit it — and that the upload's camera metadata is stripped first, a
+    # claim that is only allowed on the page because every egress path re-encodes
+    # (extract/images.downscale_for_vision never emits the original bytes).
     index = client.get("/")
     assert "Anthropic" in index.text and "sent to" in index.text
+    assert "metadata" in index.text and "removed" in index.text
     batch = client.get("/batch")
     assert "Anthropic" in batch.text and "sent to" in batch.text
+    assert "metadata" in batch.text and "removed" in batch.text
+
+
+def test_oversized_declared_body_is_refused_with_a_plain_413() -> None:
+    # The ceiling reads the declared Content-Length and answers before any of
+    # the body streams; the body is a clean plain-text sentence, not a trace,
+    # and the response still carries the hardening header set (the headers
+    # middleware wraps the ceiling).
+    resp = client.post(
+        "/batch", headers={"Content-Length": str(webapp._MAX_REQUEST_BYTES + 1)}
+    )
+    assert resp.status_code == 413
+    assert resp.headers["content-type"].startswith("text/plain")
+    assert "split the batch" in resp.text
+    assert resp.headers["x-content-type-options"] == "nosniff"
+    assert resp.headers["content-security-policy"] == _EXPECTED_CSP
+
+
+def test_declared_body_at_the_ceiling_passes_through_to_the_app() -> None:
+    # Exactly at the ceiling is not over it: the request reaches the route,
+    # whose own parsing answers (an empty body is a 422, not a 413).
+    resp = client.post(
+        "/batch", headers={"Content-Length": str(webapp._MAX_REQUEST_BYTES)}
+    )
+    assert resp.status_code != 413
+
+
+def test_requests_without_content_length_are_not_refused_by_the_ceiling() -> None:
+    # No declared length means the ceiling abstains; the multipart caps and the
+    # batch total-bytes guard still bound what the body can deliver.
+    resp = client.get("/health")
+    assert resp.status_code == 200
+
+
+def test_batch_404_copy_states_the_retention_policy() -> None:
+    # The store evicts finished jobs beyond the most recent 50, so the page
+    # says exactly that — the copy must stay literally true of the store.
+    resp = client.get("/batch/no-such-job")
+    assert resp.status_code == 404
+    assert "most recent" in resp.text
 
 
 def test_batch_js_clamps_the_badge_class_to_a_fixed_allowlist() -> None:

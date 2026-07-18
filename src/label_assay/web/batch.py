@@ -11,8 +11,11 @@ vision call, so a single file at the ``images._MAX_PIXELS`` ceiling (40 MP) hold
 ~160 MB of raster while it runs, and up to ``_CONCURRENCY`` of those overlap. Size
 ``_CONCURRENCY`` and ``images._MAX_PIXELS`` against the smallest target instance's
 memory, not against the 5 MB per-file upload cap. Job state is in-memory and
-single-instance — fine for a prototype on one always-on machine; a production
-deployment would use a shared job store.
+single-instance, and it is bounded: finished jobs are kept for the most recent
+``_MAX_FINISHED_JOBS`` only, evicted oldest-first as new jobs are created, so
+the store cannot grow for the life of the process (running jobs are never
+evicted). Fine for a prototype on one always-on machine; a production
+deployment would use a shared job store with a real expiry policy.
 
 A batch is labels *plus the data filed on their applications* — importers submit
 applications, not loose artwork. The application data arrives as a CSV keyed by
@@ -112,17 +115,39 @@ class BatchJob:
                 counts[item.verdict] += 1
         return counts
 
+    @property
+    def finished(self) -> bool:
+        """Every item has reached a terminal state (done or error). A job whose
+        task crashed leaves items pending and reads as still running; that is a
+        logged bug (see ``app._batch_task_done``), not a retention state."""
+        return self.done == self.total
+
 
 _JOBS: dict[str, BatchJob] = {}
+# Finished jobs kept, newest-first. Without a bound the store grows for the
+# life of the process — one result page per batch ever run. Eviction happens
+# at create time, in dict insertion order (creation order), and only ever
+# touches finished jobs: a running job's state is live and is never dropped.
+_MAX_FINISHED_JOBS = 50
 
 
 def get_job(job_id: str) -> BatchJob | None:
     return _JOBS.get(job_id)
 
 
+def _evict_finished_jobs() -> None:
+    finished = [job_id for job_id, job in _JOBS.items() if job.finished]
+    excess = len(finished) - _MAX_FINISHED_JOBS
+    for job_id in finished[: max(0, excess)]:
+        del _JOBS[job_id]
+
+
 def create_job(filenames: list[str]) -> BatchJob:
-    job = BatchJob(id=uuid.uuid4().hex[:12], items=[BatchItem(filename=n) for n in filenames])
+    # The full 128-bit uuid4 hex: the results URL is the only handle on a
+    # batch, so the id must not be guessable within the retention window.
+    job = BatchJob(id=uuid.uuid4().hex, items=[BatchItem(filename=n) for n in filenames])
     _JOBS[job.id] = job
+    _evict_finished_jobs()
     return job
 
 
@@ -207,7 +232,7 @@ def parse_application_csv(data: bytes) -> dict[str, Application]:
 # invoking a command (DDE). That is CSV injection (CWE-1236). csv.writer quotes
 # embedded delimiters, quotes and newlines, but a formula lead is orthogonal to
 # CSV structure and it does nothing about it.
-_CSV_FORMULA_LEADS = ("=", "+", "-", "@", "\t", "\r")
+_CSV_FORMULA_LEADS = ("=", "+", "-", "@", "\t", "\r", "\n")
 
 
 def neutralize_csv_cell(value: str) -> str:
@@ -282,12 +307,15 @@ async def run_job(
             except ExtractionUnavailable as exc:
                 # Expected degradation (no key, budget, reader down) — but the
                 # chained cause is the only server-side trace, so record it.
-                logger.warning("Batch item %r: %s", name, exc, exc_info=exc)
+                # Job id + item index, never the uploaded filename: filenames
+                # are user data and the no-label-content-in-logs posture covers
+                # them too; the index resolves to the row on the results page.
+                logger.warning("Batch job %s item %d: %s", job.id, index, exc, exc_info=exc)
                 item.status, item.detail = "error", str(exc)
             except Exception:  # never let one bad file sink the batch
                 # A genuine pipeline bug lands here looking identical to a bad
                 # file; the log record is what tells them apart.
-                logger.exception("Batch item %r: unhandled error", name)
+                logger.exception("Batch job %s item %d: unhandled error", job.id, index)
                 item.status, item.detail = "error", "Could not process this file."
             finally:
                 discard_spooled([path])

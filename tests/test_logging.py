@@ -69,21 +69,27 @@ def test_batch_item_pipeline_bug_is_logged_with_traceback(
     assert job.items[0].detail == "Could not process this file."
     record = next(r for r in caplog.records if "unhandled error" in r.getMessage())
     assert record.exc_info is not None and record.exc_info[0] is RuntimeError
+    # The record is addressed by job id + item index; the uploaded filename is
+    # user data and stays out of the server log.
+    assert job.id in record.getMessage()
+    assert all("a.png" not in r.getMessage() for r in caplog.records)
 
 
 def test_batch_item_reader_failure_records_the_cause(
     caplog: pytest.LogCaptureFixture, tmp_path
 ) -> None:
     # FixtureExtractor({}) raises inside the reader; the row shows the clean
-    # message while the log carries the chained cause.
+    # message while the log carries the chained cause — addressed by job id and
+    # item index, never the uploaded filename (user data stays out of the log).
     job = create_job(["a.png"])
     path = tmp_path / "a.png"
     path.write_bytes(_png())
     with caplog.at_level(logging.WARNING, logger="label_assay.web.batch"):
         asyncio.run(run_job(job, [("a.png", path)], FixtureExtractor({})))
     assert job.items[0].status == "error"
-    record = next(r for r in caplog.records if "a.png" in r.getMessage())
+    record = next(r for r in caplog.records if f"Batch job {job.id} item 0" in r.getMessage())
     assert record.exc_info is not None
+    assert all("a.png" not in r.getMessage() for r in caplog.records)
 
 
 def test_batch_task_crash_is_logged(caplog: pytest.LogCaptureFixture) -> None:

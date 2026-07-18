@@ -38,7 +38,7 @@ Every finding carries its citation. Verdicts are **advisory** — a compliance s
 
 ## Data flow and privacy
 
-The label image leaves the box. Each check base64-encodes the uploaded image and sends it to Anthropic's Claude API (the hosted vision model in `extract/haiku.py`) to transcribe the printed text. The vision adapter is blind by construction — the application data and the OCR read are never sent — and no other field, filename, or file is transmitted. The second read (local OCR) runs offline and sends nothing.
+The label image leaves the box. Each check re-encodes the uploaded image to a bounded copy — pixels only, so EXIF metadata such as GPS position is stripped — then base64-encodes that copy and sends it to Anthropic's Claude API (the hosted vision model in `extract/haiku.py`) to transcribe the printed text. The vision adapter is blind by construction — the application data and the OCR read are never sent — and no other field, filename, or file is transmitted. The second read (local OCR) runs offline and sends nothing.
 
 Nothing is retained. Single-label checks are processed in memory, and the result page returns the image to the browser as a downscaled `data:` URI rather than a stored copy. Batch uploads are spooled to temp files only for the life of the job and deleted as each label is processed. No image, extraction, or verdict is written to a database, and server logs record failures with field locations and error types but not the transcribed label text.
 

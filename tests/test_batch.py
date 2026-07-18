@@ -606,6 +606,7 @@ def test_csv_export_carries_the_per_rule_grid_for_a_mixed_batch(
         ("@SUM(A1)", "'@SUM(A1)"),
         ("\t=1+1", "'\t=1+1"),
         ("\r=1+1", "'\r=1+1"),
+        ("\n=1+1", "'\n=1+1"),
         ("x.png", "x.png"),  # ordinary name: leading char is safe
         ("label-2024.png", "label-2024.png"),  # a trigger char in the interior is fine
         ("brand=value", "brand=value"),
@@ -613,32 +614,32 @@ def test_csv_export_carries_the_per_rule_grid_for_a_mixed_batch(
     ],
 )
 def test_neutralize_csv_cell_prefixes_only_a_formula_lead(raw: str, expected: str) -> None:
-    # All of = + - @ tab CR are neutralized when they lead a cell; anything else
-    # is returned byte-for-byte, so a legitimate filename is never corrupted.
+    # All of = + - @ tab CR LF are neutralized when they lead a cell; anything
+    # else is returned byte-for-byte, so a legitimate filename is never corrupted.
     assert batchmod.neutralize_csv_cell(raw) == expected
 
 
 def test_csv_export_neutralizes_a_formula_injection_filename() -> None:
-    # A user names an upload with a DDE payload; opening the exported CSV in a
-    # spreadsheet must not run it. The filename rides create_job -> the export
+    # A user names an upload with a formula payload; opening the exported CSV in
+    # a spreadsheet must not run it. The filename rides create_job -> the export
     # exactly as the multipart upload set it (CWE-1236, CSV injection).
-    payload = "=cmd|' /C calc'!A1"
-    job = create_job([payload, "safe.png"])
+    hostile = ["=SUM(A1:A9).png", "-cmd.png", "=cmd|' /C calc'!A1"]
+    job = create_job([*hostile, "safe.png"])
     for item in job.items:
         item.status, item.verdict = "done", "pass"
 
     resp = client.get(f"/batch/{job.id}/export.csv")
     assert resp.status_code == 200
-    _header, hostile_row, safe_row = list(csv.reader(io.StringIO(resp.text)))
-    # The payload survives as data but is forced to text: the cell now leads with
-    # the apostrophe a spreadsheet consumes, so it is not evaluated on open.
-    assert hostile_row[0] == "'" + payload
+    _header, *rows = list(csv.reader(io.StringIO(resp.text)))
+    # Each payload survives as data but is forced to text: the cell now leads
+    # with the apostrophe a spreadsheet consumes, so it is not evaluated on open.
+    assert [row[0] for row in rows[:3]] == ["'" + name for name in hostile]
     # A legitimate filename is left unchanged — neutralization must not corrupt it.
-    assert safe_row[0] == "safe.png"
+    assert rows[3][0] == "safe.png"
     # No exported data cell, in any row, begins with a formula lead.
-    for row in (hostile_row, safe_row):
+    for row in rows:
         for cell in row:
-            assert cell[:1] not in ("=", "+", "-", "@", "\t", "\r")
+            assert cell[:1] not in ("=", "+", "-", "@", "\t", "\r", "\n")
 
 
 def test_csv_export_neutralizes_a_formula_in_the_detail_cell() -> None:
@@ -654,3 +655,35 @@ def test_csv_export_neutralizes_a_formula_in_the_detail_cell() -> None:
     cells = dict(zip(header, row))
     assert cells["filename"] == "safe.png"  # an ordinary name is still untouched
     assert cells["detail"].startswith("'=HYPERLINK")
+
+
+def test_job_ids_are_full_width_uuids_and_routes_still_resolve() -> None:
+    # The results URL is the only handle on a batch, so the id carries the full
+    # 128 bits of uuid4 — not a truncation guessable inside the retention window.
+    job = create_job(["a.png"])
+    assert len(job.id) == 32
+    int(job.id, 16)  # pure hex, no separators
+    assert client.get(f"/batch/{job.id}").status_code == 200
+    assert client.get(f"/batch/{job.id}/data").status_code == 200
+    assert client.get(f"/batch/{job.id}/export.csv").status_code == 200
+
+
+def test_finished_jobs_evict_beyond_the_most_recent_50(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The store is bounded: a new creation evicts finished jobs oldest-first
+    # beyond the most recent 50. A running job is never evicted, however old.
+    monkeypatch.setattr(batchmod, "_JOBS", {})
+    running = create_job(["running.png"])  # items stay pending: a live job
+    finished: list[str] = []
+    for _ in range(55):
+        job = create_job(["x.png"])
+        job.items[0].status = "done"
+        finished.append(job.id)
+    trigger = create_job(["trigger.png"])  # eviction runs at create time
+    trigger.items[0].status = "error"  # error is terminal too: a failed job is retained, then aged out
+
+    assert batchmod.get_job(running.id) is running  # survived 56 later creations
+    assert batchmod.get_job(trigger.id) is trigger
+    kept = [job_id for job_id in finished if batchmod.get_job(job_id) is not None]
+    # Exactly the most recent 50 finished jobs survive, in order; the oldest are gone.
+    assert kept == finished[-batchmod._MAX_FINISHED_JOBS :]
+    assert batchmod.get_job(finished[0]) is None
