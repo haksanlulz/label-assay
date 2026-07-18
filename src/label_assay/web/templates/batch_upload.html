@@ -9,8 +9,9 @@ Results appear as they finish.</p>
 <form class="card" method="post" action="/batch" enctype="multipart/form-data">
   <label for="images">Label images (PNG or JPEG)</label>
   <input type="file" id="images" name="images" accept="image/png,image/jpeg" multiple required>
-  <p class="hint">Label images are sent to Anthropic's Claude API to read the printed text,
-     with camera metadata (EXIF, including location) removed first; they are not stored after the check.</p>
+  <p class="hint">Label images are sent to the configured AI reader (currently Anthropic's Claude API)
+     to read the printed text, with camera metadata (EXIF, including location) removed first;
+     they are not stored after the check.</p>
 
   <label for="applications">Application data (CSV, optional)</label>
   <input type="file" id="applications" name="applications" accept=".csv,text/csv">
