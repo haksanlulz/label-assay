@@ -328,7 +328,7 @@ def health() -> dict[str, object]:
         "ocr": ocr,
         # Which instance answered. Batch job state lives in this process, so the
         # app must run as a single instance; seeing two ids here means it does not.
-        "instance": os.environ.get("FLY_MACHINE_ID", "local"),
+        "instance": os.environ.get("HOSTNAME", "local"),
     }
 
 

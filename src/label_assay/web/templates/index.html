@@ -8,8 +8,9 @@ finding carries its CFR citation.</p>
 <form class="card" method="post" action="/check" enctype="multipart/form-data">
   <label for="image">Label image (PNG or JPEG, up to 5&nbsp;MB)</label>
   <input type="file" id="image" name="image" accept="image/png,image/jpeg" required>
-  <p class="hint">The image is sent to Anthropic's Claude API to read the printed text, with
-     camera metadata (EXIF, including location) removed first; it is not stored after the check.</p>
+  <p class="hint">The image is sent to the configured AI reader (currently Anthropic's Claude API)
+     to read the printed text, with camera metadata (EXIF, including location) removed first;
+     it is not stored after the check.</p>
 
   <label for="rotation">Label image is rotated:</label>
   <select id="rotation" name="rotation">

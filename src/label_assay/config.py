@@ -2,7 +2,7 @@
 
 The API key is read here and passed explicitly to the extractor, never hardcoded
 and never sent to the browser. In the deployed container the key comes from a
-real environment variable (fly secrets); .env is a dev convenience.
+real environment variable (the host's secret store); .env is a dev convenience.
 """
 
 from __future__ import annotations
