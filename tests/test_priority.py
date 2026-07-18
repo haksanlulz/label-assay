@@ -9,19 +9,18 @@ gate, the lock, and the service path are the real code under test.
 from __future__ import annotations
 
 import asyncio
-import io
 import threading
 import time
 
 import pytest
-from PIL import Image
 
 import fixture_corpus
+from fixture_corpus import AbsentExtractor
 from label_assay.domain.models import Application
 from label_assay.extract import ocr as ocrmod
-from label_assay.extract.base import ExtractedField, Extraction
 from label_assay.web.batch import _CONCURRENCY
 from label_assay.web.service import check_label
+from synthetic_images import solid_png
 
 # Stub engines return the mandated warning as their one detected line, so the
 # service's rotation retry (three extra passes per check when the warning is
@@ -29,27 +28,6 @@ from label_assay.web.service import check_label
 _WARNING_RESULT = [
     [[[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]], fixture_corpus.mandated_warning(), 0.99]
 ]
-
-
-def _png(side: int) -> bytes:
-    buffer = io.BytesIO()
-    Image.new("RGB", (side, side), "white").save(buffer, format="PNG")
-    return buffer.getvalue()
-
-
-def _absent() -> ExtractedField:
-    return ExtractedField(verbatim=None, found=False, value=None)
-
-
-class _EmptyExtractor:
-    def extract(self, image: bytes) -> Extraction:
-        return Extraction(
-            brand_name=_absent(),
-            class_type=_absent(),
-            alcohol_content=_absent(),
-            net_contents=_absent(),
-            government_warning=_absent(),
-        )
 
 
 class _SlowEngine:
@@ -77,8 +55,8 @@ def test_interactive_check_does_not_wait_behind_the_batch_queue(
     # yield only; the many-workers-already-queued schedule is pinned below.
     engine = _SlowEngine(delay=0.25)
     monkeypatch.setattr(ocrmod, "_engine", lambda: engine)
-    batch_image, interactive_image = _png(32), _png(48)
-    extractor = _EmptyExtractor()
+    batch_image, interactive_image = solid_png(32, 32), solid_png(48, 48)
+    extractor = AbsentExtractor()
 
     def batch_worker() -> None:
         for _ in range(4):
@@ -138,8 +116,8 @@ def test_interactive_check_overtakes_workers_already_queued_at_the_lock(
     # behind the workers.
     engine = _GatedEngine()
     monkeypatch.setattr(ocrmod, "_engine", lambda: engine)
-    batch_image, interactive_image = _png(32), _png(48)
-    extractor = _EmptyExtractor()
+    batch_image, interactive_image = solid_png(32, 32), solid_png(48, 48)
+    extractor = AbsentExtractor()
 
     workers = [
         threading.Thread(
@@ -190,7 +168,7 @@ def test_batch_read_waits_until_no_interactive_check_is_pending(
     # through. Exercised via read_lines so the wiring is the shipped one.
     engine = _SlowEngine(delay=0.0)
     monkeypatch.setattr(ocrmod, "_engine", lambda: engine)
-    image = _png(32)
+    image = solid_png(32, 32)
 
     with ocrmod._interactive_scope():
         done = threading.Event()

@@ -18,7 +18,6 @@ from label_assay.extract.images import (
     RIGHT_ANGLE_TRANSPOSES,
     ImageTooLarge,
     downscale_for_vision,
-    open_bounded,
     transpose_image,
 )
 from label_assay.extract.ocr import OcrLine, read_lines
@@ -156,7 +155,6 @@ def check_label(
     try:
         if rotation:
             image = transpose_image(image, rotation)
-        open_bounded(image)
         vision_bytes = downscale_for_vision(image)
     except ImageTooLarge as exc:
         raise ExtractionUnavailable(

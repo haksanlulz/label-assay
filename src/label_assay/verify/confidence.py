@@ -21,7 +21,7 @@ from label_assay.extract.ocr import OcrLine
 from label_assay.text.normalize import squash as _squash
 
 _SUPPORT_FLOOR = 0.60  # below this, the model's quote is not corroborated by OCR
-_FIELDS = ("brand_name", "class_type", "alcohol_content", "net_contents", "government_warning")
+_FIELDS = tuple(Extraction.model_fields)
 
 
 def ocr_is_alive(lines: list[OcrLine]) -> bool:

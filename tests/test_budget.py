@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import datetime as dt
-import io
 
 import pytest
-from PIL import Image
 
 from label_assay.domain.models import Application
 from label_assay.extract.fixture import FixtureExtractor
 from label_assay.web.budget import EST_COST_PER_LABEL_USD, BudgetExhausted, DailyBudget
 from label_assay.web.service import ExtractionUnavailable, check_label
+from synthetic_images import solid_png
 
 
 def test_reserve_accumulates_and_then_refuses() -> None:
@@ -64,12 +63,9 @@ def test_exhausted_budget_stops_the_reader_before_it_is_called() -> None:
     # clean user-facing message rather than an internal error. The extractor is
     # given no fixtures at all: reaching it would KeyError, so passing proves
     # the refusal happened first.
-    buffer = io.BytesIO()
-    Image.new("RGB", (64, 64), "white").save(buffer, format="PNG")
-
     with pytest.raises(ExtractionUnavailable, match="daily limit"):
         check_label(
-            buffer.getvalue(),
+            solid_png(64, 64),
             Application(),
             extractor=FixtureExtractor({}),
             budget=DailyBudget(limit_usd=0.0),

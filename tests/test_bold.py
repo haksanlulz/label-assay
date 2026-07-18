@@ -20,13 +20,7 @@ FIXTURE = fixture_corpus.fixture_path(SPEC)
 
 def _crop(text: str, *, bold: bool, size: int = 40) -> np.ndarray:
     names = ("arialbd.ttf", "DejaVuSans-Bold.ttf") if bold else ("arial.ttf", "DejaVuSans.ttf")
-    font: ImageFont.FreeTypeFont | ImageFont.ImageFont = ImageFont.load_default(size)
-    for name in names:
-        try:
-            font = ImageFont.truetype(name, size)
-            break
-        except OSError:
-            continue
+    font = _font(names, size)
     img = Image.new("L", (640, 72), color=255)
     ImageDraw.Draw(img).text((6, 6), text, font=font, fill=0)
     return np.asarray(img)
@@ -52,10 +46,8 @@ def test_tiny_text_abstains_to_review() -> None:
 
 
 def test_compliant_fixture_bold_heading_is_not_falsely_failed() -> None:
-    from label_assay.extract.ocr import read_lines
-
     image = FIXTURE.read_bytes()
-    result = check_warning_bold(image, read_lines(image))
+    result = check_warning_bold(image, fixture_corpus.fixture_ocr_lines())
     # The fixture's heading is genuinely bold; the check must never FAIL it.
     assert result.verdict != BoldVerdict.NOT_BOLD
 
@@ -85,8 +77,6 @@ def test_heading_from_a_rotation_retry_pass_abstains() -> None:
     # A rotation-retry line's box is in the rotated frame; cropping the upright
     # image with it would measure whatever art happens to sit there. The
     # heading is located, honestly not measurable — never a verdict.
-    from label_assay.extract.ocr import OcrLine
-
     buffer = io.BytesIO()
     Image.new("RGB", (400, 200), "white").save(buffer, format="PNG")
     line = OcrLine(

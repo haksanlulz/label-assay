@@ -7,7 +7,6 @@ API key; OCR and the bold check still run on the real fixture image (offline).
 from __future__ import annotations
 
 import asyncio
-import base64
 import io
 import re
 import time
@@ -21,10 +20,9 @@ from PIL import Image
 import fixture_corpus
 from label_assay.config import Settings
 from label_assay.extract.base import ExtractedField, Extraction
-from label_assay.extract.fixture import FixtureExtractor, fixture_key
 from label_assay.web import app as webapp
 from label_assay.web.service import ExtractionUnavailable
-from synthetic_images import bomb_png
+from synthetic_images import bomb_png, preview_image_from, solid_png
 
 SPEC = fixture_corpus.known_good_compliant()
 FIXTURE = fixture_corpus.fixture_path(SPEC)
@@ -160,9 +158,7 @@ def test_check_shows_clean_error_when_reader_unavailable(monkeypatch: pytest.Mon
 
 def test_check_happy_path_renders_a_cited_verdict(monkeypatch: pytest.MonkeyPatch) -> None:
     image = FIXTURE.read_bytes()
-    fixture = FixtureExtractor(
-        {fixture_key(image): fixture_corpus.perfect_extraction(SPEC)}
-    )
+    fixture = fixture_corpus.perfect_extractor(SPEC, image)
     monkeypatch.setattr(webapp, "default_extractor", lambda _settings: fixture)
 
     resp = client.post(
@@ -184,9 +180,7 @@ def test_fail_page_renders_plain_language_badges_and_the_diff(
     # altered label so corroboration holds and the FAIL is deterministic.
     spec = next(s for s in fixture_corpus.corpus_specs() if s.defect == "warning_altered_text")
     image = fixture_corpus.fixture_path(spec).read_bytes()
-    fixture = FixtureExtractor(
-        {fixture_key(image): fixture_corpus.perfect_extraction(spec)}
-    )
+    fixture = fixture_corpus.perfect_extractor(spec, image)
     monkeypatch.setattr(webapp, "default_extractor", lambda _settings: fixture)
 
     from label_assay.extract.ocr import OcrLine
@@ -251,9 +245,7 @@ def _post_check_with(
         "label_assay.web.service.read_lines", lambda _image, background=False, rotation=0: []
     )
     if image is None:
-        buffer = io.BytesIO()
-        Image.new("RGB", (64, 64), "white").save(buffer, format="PNG")
-        image = buffer.getvalue()
+        image = solid_png(64, 64)
     return client.post(
         "/check",
         files={"image": ("label.png", image, "image/png")},
@@ -354,14 +346,6 @@ def test_result_page_escapes_hostile_verbatim_text(monkeypatch: pytest.MonkeyPat
     assert "<script>" not in resp.text
 
 
-def _preview_image_from(html: str) -> Image.Image:
-    """Decode the page's embedded preview back into pixels, so the assertions
-    run against what the browser would actually render."""
-    match = re.search(r'src="data:image/jpeg;base64,([^"]+)"', html)
-    assert match, "no JPEG data URI found on the page"
-    return Image.open(io.BytesIO(base64.b64decode(match.group(1))))
-
-
 def test_result_page_offers_the_upload_back_as_a_collapsed_preview(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -372,7 +356,7 @@ def test_result_page_offers_the_upload_back_as_a_collapsed_preview(
     assert "<details" in resp.text
     assert "Show the label image you uploaded" in resp.text
     assert "data:image/jpeg;base64," in resp.text
-    img = _preview_image_from(resp.text)
+    img = preview_image_from(resp.text)
     assert img.format == "JPEG"
 
 
@@ -385,7 +369,7 @@ def test_preview_is_genuinely_downscaled_not_the_original_bytes(
     Image.new("RGB", (3000, 2000), "white").save(buffer, format="PNG")
     resp = _post_check_with(monkeypatch, _read_extraction(), image=buffer.getvalue())
     assert resp.status_code == 200
-    img = _preview_image_from(resp.text)
+    img = preview_image_from(resp.text)
     assert max(img.size) <= 1200
     assert img.size[0] > img.size[1]  # aspect kept: wide in, wide out
 

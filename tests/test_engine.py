@@ -21,11 +21,6 @@ SPEC = fixture_corpus.known_good_compliant()
 FIXTURE = fixture_corpus.fixture_path(SPEC)
 
 
-def _warning_reference() -> str:
-    rb = load_rulebook()
-    return next(r for r in rb.rules if r.id == "health_warning_verbatim").match.reference
-
-
 def _f(text: str | None) -> ExtractedField:
     return ExtractedField(verbatim=text, found=text is not None, value=text)
 
@@ -36,7 +31,7 @@ def _compliant_extraction() -> Extraction:
         class_type=_f("Kentucky Straight Bourbon Whiskey"),
         alcohol_content=_f("45% Alc./Vol. (90 Proof)"),
         net_contents=_f("750 mL"),
-        government_warning=_f(_warning_reference()),
+        government_warning=_f(fixture_corpus.mandated_warning()),
     )
 
 
@@ -192,7 +187,7 @@ def _ocr_of_everything_but_brand() -> list[OcrLine]:
         OcrLine("Kentucky Straight Bourbon Whiskey", 0.95),
         OcrLine("45% Alc./Vol. (90 Proof)", 0.95),
         OcrLine("750 mL", 0.95),
-        OcrLine(_warning_reference(), 0.95),
+        OcrLine(fixture_corpus.mandated_warning(), 0.95),
     ]
 
 
@@ -268,8 +263,6 @@ def test_uncorroborated_fail_downgrades_to_review_not_fail() -> None:
 def test_zero_applicable_rules_is_a_review_never_a_pass() -> None:
     # "Compliant" over an empty findings list is the worst outcome for a
     # compliance tool; an empty rule set must route to a human.
-    from label_assay.rulebook.loader import Rulebook
-
     report = verify(_compliant_extraction(), _application(), Rulebook(rules=[], version="empty"))
     assert report.findings == []
     assert report.verdict == Verdict.NEEDS_REVIEW
@@ -298,7 +291,7 @@ def test_recited_warning_over_an_altered_label_is_held_for_review() -> None:
     # The extraction quotes the canonical text (recitation); OCR reads the label
     # as printed, one word off. A fuzzy score calls that ~0.98 similar, so only
     # exact corroboration keeps it from auto-passing a non-compliant label.
-    printed = _warning_reference().replace("impairs", "affects")
+    printed = fixture_corpus.mandated_warning().replace("impairs", "affects")
     report = verify(
         _compliant_extraction(), _application(), load_rulebook(), ocr_lines=_ocr_with_warning(printed)
     )
@@ -310,7 +303,7 @@ def test_recited_warning_over_an_altered_label_is_held_for_review() -> None:
 def test_recited_warning_over_a_truncated_label_is_held_for_review() -> None:
     # The label prints only the first clause; the recited quote contains it
     # wholesale, which is the direction sliding-window scoring gets backwards.
-    reference = _warning_reference()
+    reference = fixture_corpus.mandated_warning()
     printed = reference[: reference.index("(2)")].strip()
     report = verify(
         _compliant_extraction(), _application(), load_rulebook(), ocr_lines=_ocr_with_warning(printed)
@@ -323,7 +316,7 @@ def test_recited_warning_over_a_truncated_label_is_held_for_review() -> None:
 def test_warning_corroboration_is_exact_but_case_and_spacing_insensitive() -> None:
     from label_assay.verify.confidence import corroborates_exactly
 
-    reference = _warning_reference()
+    reference = fixture_corpus.mandated_warning()
     assert corroborates_exactly(reference, [OcrLine(reference, 0.9)])
     assert corroborates_exactly(reference, [OcrLine(reference.upper(), 0.9)])  # body caps are legal
     assert not corroborates_exactly(reference, [OcrLine(reference.replace("birth defects", "birth effects"), 0.9)])
@@ -333,7 +326,7 @@ def test_warning_corroboration_is_exact_but_case_and_spacing_insensitive() -> No
 def test_field_support_penalizes_a_quote_longer_than_the_ocr_read() -> None:
     from label_assay.verify.confidence import _squash, field_support
 
-    reference = _warning_reference()
+    reference = fixture_corpus.mandated_warning()
     truncated_read = _squash(reference[: reference.index("(2)")])
     # The truncated read is a perfect substring of the recited quote; sliding
     # matching scores that 1.0 in the wrong direction.
@@ -373,15 +366,12 @@ def test_altered_warning_labels_are_never_passed_live() -> None:
 def test_bold_finding_runs_when_image_and_ocr_supplied() -> None:
     # Offline (no key): a perfect-reader extraction + real image + real OCR
     # exercise the bold check through the engine. A compliant label must not FAIL.
-    from label_assay.extract.ocr import read_lines
-
-    image = FIXTURE.read_bytes()
     report = verify(
         fixture_corpus.perfect_extraction(SPEC),
         fixture_corpus.application_for(SPEC),
         load_rulebook(),
-        image=image,
-        ocr_lines=read_lines(image),
+        image=FIXTURE.read_bytes(),
+        ocr_lines=fixture_corpus.fixture_ocr_lines(),
     )
     bold = next((f for f in report.findings if f.rule_id == "health_warning_bold"), None)
     assert bold is not None

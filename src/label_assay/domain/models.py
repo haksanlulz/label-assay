@@ -20,11 +20,6 @@ class Verdict(enum.StrEnum):
     NOT_EVALUABLE = "not_evaluable"  # rule cannot be checked from a flat image (e.g. type size in mm)
 
 
-class Severity(enum.StrEnum):
-    FAIL = "fail"
-    WARN = "warn"
-
-
 class SurfaceType(enum.StrEnum):
     FRONT = "front"
     BACK = "back"

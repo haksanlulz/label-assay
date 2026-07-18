@@ -40,7 +40,7 @@ _FIELD_SCHEMA = {
     },
     "required": ["verbatim", "found", "value"],
 }
-_FIELDS = ("brand_name", "class_type", "alcohol_content", "net_contents", "government_warning")
+_FIELDS = tuple(Extraction.model_fields)
 _TOOL = {
     "name": "record_label_fields",
     "description": "Record the mandatory fields visible on the alcohol beverage label.",

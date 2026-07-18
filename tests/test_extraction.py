@@ -18,6 +18,7 @@ import fixture_corpus
 from label_assay.config import get_settings
 from label_assay.extract.base import ExtractedField, Extraction
 from label_assay.text.numbers import parse_alcohol_content
+from synthetic_images import solid_png
 
 SPEC = fixture_corpus.known_good_compliant()
 FIXTURE = fixture_corpus.fixture_path(SPEC)
@@ -41,16 +42,10 @@ def _extraction() -> Extraction:
     )
 
 
-def _solid_png(color: tuple[int, int, int]) -> bytes:
-    buffer = io.BytesIO()
-    Image.new("RGB", (4, 4), color).save(buffer, format="PNG")
-    return buffer.getvalue()
-
-
 def test_fixture_extractor_replays_by_pixel_content() -> None:
     from label_assay.extract.fixture import FixtureExtractor, fixture_key
 
-    img = _solid_png((10, 20, 30))
+    img = solid_png(4, 4, (10, 20, 30))
     fixtures = {fixture_key(img): _extraction()}
     assert FixtureExtractor(fixtures).extract(img) == _extraction()
 
@@ -59,7 +54,7 @@ def test_fixture_extractor_raises_on_unknown_image() -> None:
     from label_assay.extract.fixture import FixtureExtractor
 
     with pytest.raises(KeyError):
-        FixtureExtractor({}).extract(_solid_png((250, 250, 250)))
+        FixtureExtractor({}).extract(solid_png(4, 4, (250, 250, 250)))
 
 
 def test_fixture_key_survives_the_vision_reencode() -> None:
@@ -129,9 +124,7 @@ def test_haiku_malformed_tool_payload_does_not_leak_the_transcription() -> None:
 
 
 def test_ocr_reads_a_fixture_label() -> None:
-    from label_assay.extract.ocr import read_lines
-
-    joined = " ".join(line.text for line in read_lines(_fixture_bytes()))
+    joined = " ".join(line.text for line in fixture_corpus.fixture_ocr_lines())
     squashed = re.sub(r"[^a-z0-9]", "", joined.casefold())
     assert "governmentwarning" in squashed  # the statutory heading is legible
 

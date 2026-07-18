@@ -9,23 +9,18 @@ from __future__ import annotations
 
 from hypothesis import given, strategies as st
 
-from label_assay.rulebook.loader import load_rulebook
+from fixture_corpus import mandated_warning
 from label_assay.text.normalize import canon_brand, canon_statutory
-
-
-def _reference() -> str:
-    rb = load_rulebook()
-    return next(r for r in rb.rules if r.id == "health_warning_verbatim").match.reference
 
 
 def test_statutory_is_a_noop_on_the_canonical_reference() -> None:
     # Admissibility: canonicalizing the mandated text must not change it.
-    ref = _reference()
+    ref = mandated_warning()
     assert canon_statutory(ref) == ref
 
 
 def test_statutory_collapses_ocr_whitespace_and_linebreak_hyphenation() -> None:
-    ref = _reference()
+    ref = mandated_warning()
     noisy = ref.replace(" ", "  ").replace("defects.", "de-\nfects.")
     assert canon_statutory(noisy) == canon_statutory(ref)
 

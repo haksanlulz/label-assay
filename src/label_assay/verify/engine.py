@@ -60,19 +60,21 @@ def _finding(rule: Rule, verdict: Verdict, detail: str, diff: tuple = ()) -> Fin
     )
 
 
+_WARNING_VERDICTS = {
+    WarningVerdict.MATCH: Verdict.PASS,
+    WarningVerdict.CAPITALIZATION: Verdict.FAIL,
+    WarningVerdict.ALTERED: Verdict.FAIL,
+    # "removed" vs. "we couldn't read it" is indistinguishable, so absence
+    # routes to review rather than a silent auto-fail.
+    WarningVerdict.ABSENT: Verdict.NEEDS_REVIEW,
+}
+
+
 def _match_warning_verbatim(rule: Rule, ctx: VerifyContext) -> Finding:
     field = getattr(ctx.extraction, rule.match.field)
     reference = rule.match.reference or ""
     result = compare_warning(field.verbatim, reference)
-    mapping = {
-        WarningVerdict.MATCH: Verdict.PASS,
-        WarningVerdict.CAPITALIZATION: Verdict.FAIL,
-        WarningVerdict.ALTERED: Verdict.FAIL,
-        # "removed" vs. "we couldn't read it" is indistinguishable, so absence
-        # routes to review rather than a silent auto-fail.
-        WarningVerdict.ABSENT: Verdict.NEEDS_REVIEW,
-    }
-    verdict = mapping[result.verdict]
+    verdict = _WARNING_VERDICTS[result.verdict]
     # Recitation defense (ADR-0002): a vision model can quote the mandated text
     # over a label that prints something subtly different, and the generic fuzzy
     # gate scores that near-perfect. A PASS on this field therefore also requires
@@ -192,13 +194,12 @@ def verify(
     application: Application,
     rulebook: Rulebook,
     *,
-    beverage_class: str | None = None,
     ocr_lines: list[OcrLine] | None = None,
     image: bytes | None = None,
 ) -> LabelReport:
     ctx = VerifyContext(extraction, application, ocr_lines, image)
     # Prefer the filed class; fall back to what the label itself says (batch mode).
-    bev = beverage_class or infer_beverage_class(application.class_type or (extraction.class_type.value or ""))
+    bev = infer_beverage_class(application.class_type or (extraction.class_type.value or ""))
     unconfirmed = unconfirmed_fields(extraction, ocr_lines) if ocr_lines is not None else set()
 
     findings: list[Finding] = []
@@ -216,7 +217,7 @@ def verify(
         overall = Verdict.FAIL
     elif Verdict.NEEDS_REVIEW in verdicts:
         overall = Verdict.NEEDS_REVIEW
-    elif not findings or Verdict.PASS not in verdicts:
+    elif Verdict.PASS not in verdicts:
         # No applicable checks ran, or every one abstained (all NOT_EVALUABLE).
         # Either way there is zero positive evidence — that is a review, never
         # a silent pass. Unreachable with the shipped rulebook (the warning

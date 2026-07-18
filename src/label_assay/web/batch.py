@@ -75,6 +75,14 @@ class ApplicationCSVError(ValueError):
     mistake, for example). The message is safe to show a user."""
 
 
+# One owner for the not-a-CSV message: both raise sites in parse_application_csv
+# (binary header bytes, csv module error) deliberately share this wording.
+_NOT_A_CSV = (
+    "That applications file could not be read as a CSV. Export the "
+    "spreadsheet as a .csv file and try again."
+)
+
+
 @dataclass
 class BatchItem:
     filename: str
@@ -196,10 +204,7 @@ def parse_application_csv(data: bytes) -> dict[str, Application]:
         # Undecodable or control bytes in the header row mean a binary file, not
         # a CSV with the wrong columns — say so instead of "no filename column".
         if any("�" in name or any(ord(ch) < 32 for ch in name) for name in header):
-            raise ApplicationCSVError(
-                "That applications file could not be read as a CSV. Export the "
-                "spreadsheet as a .csv file and try again."
-            )
+            raise ApplicationCSVError(_NOT_A_CSV)
         reader.fieldnames = header
         if "filename" not in header:
             raise ApplicationCSVError(
@@ -219,10 +224,7 @@ def parse_application_csv(data: bytes) -> dict[str, Application]:
                 fanciful_name=(row.get("fanciful_name") or "").strip(),
             )
     except csv.Error as exc:
-        raise ApplicationCSVError(
-            "That applications file could not be read as a CSV. Export the "
-            "spreadsheet as a .csv file and try again."
-        ) from exc
+        raise ApplicationCSVError(_NOT_A_CSV) from exc
     return applications
 
 

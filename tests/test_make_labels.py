@@ -2,9 +2,9 @@
 coverage, application-CSV compatibility with the app's own parser, and every
 manifest expected verdict checked against the engine itself.
 
-Determinism is checked by generating twice in this test and comparing bytes —
-never against the committed fixtures, whose bytes depend on the generating
-machine's fonts.
+Determinism is checked by comparing two in-process generations (the module's
+corpus_dir fixture and one fresh run) — never against the committed fixtures,
+whose bytes depend on the generating machine's fonts.
 """
 
 from __future__ import annotations
@@ -31,18 +31,20 @@ def corpus_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 def test_same_seed_reproduces_byte_identical_output(
-    tmp_path_factory: pytest.TempPathFactory,
+    corpus_dir: Path, tmp_path_factory: pytest.TempPathFactory
 ) -> None:
-    a = tmp_path_factory.mktemp("labels_a")
-    b = tmp_path_factory.mktemp("labels_b")
-    gen.generate(a, seed=gen.DEFAULT_SEED, count=gen.DEFAULT_COUNT)
-    gen.generate(b, seed=gen.DEFAULT_SEED, count=gen.DEFAULT_COUNT)
+    # corpus_dir was generated in this process with the same seed and count, so
+    # one fresh run against it is the two-independent-generations comparison.
+    fresh = tmp_path_factory.mktemp("labels_b")
+    gen.generate(fresh, seed=gen.DEFAULT_SEED, count=gen.DEFAULT_COUNT)
 
-    names_a = sorted(p.name for p in a.iterdir())
-    names_b = sorted(p.name for p in b.iterdir())
+    names_a = sorted(p.name for p in corpus_dir.iterdir())
+    names_b = sorted(p.name for p in fresh.iterdir())
     assert names_a == names_b
     for name in names_a:
-        assert (a / name).read_bytes() == (b / name).read_bytes(), f"{name} differs across runs"
+        assert (corpus_dir / name).read_bytes() == (fresh / name).read_bytes(), (
+            f"{name} differs across runs"
+        )
 
 
 def test_manifest_and_pngs_are_consistent(corpus_dir: Path) -> None:

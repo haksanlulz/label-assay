@@ -6,27 +6,21 @@ diagnosis path than these records."""
 from __future__ import annotations
 
 import asyncio
-import io
 import logging
 
 import pytest
-from PIL import Image
 from fastapi.testclient import TestClient
 
+import fixture_corpus
 from label_assay.domain.models import Application, Verdict
-from label_assay.extract.base import ExtractedField, Extraction
+from label_assay.extract.base import Extraction
 from label_assay.extract.fixture import FixtureExtractor
 from label_assay.web import app as webapp
 from label_assay.web import batch as batchmod
 from label_assay.web.batch import create_job, run_job
+from synthetic_images import solid_png
 
 client = TestClient(webapp.app)
-
-
-def _png() -> bytes:
-    buffer = io.BytesIO()
-    Image.new("RGB", (64, 64), "white").save(buffer, format="PNG")
-    return buffer.getvalue()
 
 
 class _RaisingExtractor:
@@ -41,7 +35,7 @@ def test_vision_failure_is_logged_and_the_page_stays_clean(
     with caplog.at_level(logging.ERROR, logger="label_assay.web.service"):
         resp = client.post(
             "/check",
-            files={"image": ("l.png", _png(), "image/png")},
+            files={"image": ("l.png", solid_png(64, 64), "image/png")},
             data={"brand_name": "X", "class_type": "Y"},
         )
     assert resp.status_code == 503
@@ -62,7 +56,7 @@ def test_batch_item_pipeline_bug_is_logged_with_traceback(
     monkeypatch.setattr(batchmod, "check_label", broken_check_label)
     job = create_job(["a.png"])
     path = tmp_path / "a.png"
-    path.write_bytes(_png())
+    path.write_bytes(solid_png(64, 64))
     with caplog.at_level(logging.ERROR, logger="label_assay.web.batch"):
         asyncio.run(run_job(job, [("a.png", path)], FixtureExtractor({})))
     assert job.items[0].status == "error"
@@ -83,7 +77,7 @@ def test_batch_item_reader_failure_records_the_cause(
     # item index, never the uploaded filename (user data stays out of the log).
     job = create_job(["a.png"])
     path = tmp_path / "a.png"
-    path.write_bytes(_png())
+    path.write_bytes(solid_png(64, 64))
     with caplog.at_level(logging.WARNING, logger="label_assay.web.batch"):
         asyncio.run(run_job(job, [("a.png", path)], FixtureExtractor({})))
     assert job.items[0].status == "error"
@@ -121,15 +115,13 @@ def test_completed_check_logs_one_phase_timing_line_with_no_user_data(
     # label content.
     import re
 
-    import fixture_corpus
-    from label_assay.extract.fixture import fixture_key
     from label_assay.extract.ocr import OcrLine
     from label_assay.web import service as servicemod
     from label_assay.web.service import check_label
 
     spec = fixture_corpus.known_good_compliant()
     image = fixture_corpus.fixture_path(spec).read_bytes()
-    fixture = FixtureExtractor({fixture_key(image): fixture_corpus.perfect_extraction(spec)})
+    fixture = fixture_corpus.perfect_extractor(spec, image)
     monkeypatch.setattr(
         servicemod,
         "read_lines",
@@ -163,11 +155,8 @@ def test_bold_check_failure_is_logged_and_degrades(
 
     monkeypatch.setattr(boldmod, "check_warning_bold", broken)
     rule = next(r for r in load_rulebook().rules if r.match.strategy == "warning_bold")
-    f = ExtractedField(verbatim=None, found=False, value=None)
     ctx = engmod.VerifyContext(
-        extraction=Extraction(
-            brand_name=f, class_type=f, alcohol_content=f, net_contents=f, government_warning=f
-        ),
+        extraction=fixture_corpus.absent_extraction(),
         application=Application(),
         ocr_lines=[OcrLine("GOVERNMENT WARNING", 0.9)],
         image=b"\x89PNG-not-really",
