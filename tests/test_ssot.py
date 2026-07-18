@@ -43,6 +43,75 @@ def test_every_rule_is_cited() -> None:
         assert rule.citation.startswith("27 CFR"), f"rule {rule.id!r} lacks a 27 CFR citation"
 
 
+def test_loader_rejects_a_rule_without_a_title() -> None:
+    # The title is the plain-language name a finding is displayed under, so it
+    # is as mandatory as the citation: absent or empty, the rule cannot load.
+    from pydantic import ValidationError
+
+    from label_assay.rulebook.loader import Rule
+
+    raw = {
+        "id": "untitled_rule",
+        "citation": "27 CFR 5.64",
+        "beverage_classes": ["all"],
+        "description": "A rule with no plain-language name.",
+        "match": {"strategy": "brand_match", "field": "brand_name"},
+    }
+    with pytest.raises(ValidationError):
+        Rule(**raw)
+    with pytest.raises(ValidationError):
+        Rule(**raw, title="")
+
+
+# AP headline case: articles, short conjunctions, and short prepositions stay
+# lowercase unless first, last, or right after a colon; everything else —
+# including short verbs like "Is" — is capitalized.
+_AP_MINOR_WORDS = frozenset(
+    "a an the and but or for nor at by in of off on per to up as via".split()
+)
+
+
+def _is_ap_headline_case(title: str) -> bool:
+    words = title.split()
+    for i, word in enumerate(words):
+        bare = word.strip(":;,.—\"'")
+        if not bare:
+            return False
+        exempt = i in (0, len(words) - 1) or words[i - 1].endswith(":")
+        if bare.lower() in _AP_MINOR_WORDS and not exempt:
+            if not bare[0].islower():
+                return False
+        elif not bare[0].isupper():
+            return False
+    return True
+
+
+def test_every_shipped_rule_has_a_short_ap_cased_title() -> None:
+    for rule in load_rulebook().rules:
+        assert rule.title.strip(), f"rule {rule.id!r} has an empty title"
+        assert _is_ap_headline_case(rule.title), (
+            f"rule {rule.id!r} title {rule.title!r} is not AP headline case"
+        )
+
+
+def test_rule_titles_carry_no_statutory_text() -> None:
+    # A title names the requirement; the 16.21 text itself lives only in the
+    # rule's match reference. The title-case words "Government Warning" are the
+    # statement's name, not the statute's all-caps rendering, which stays out
+    # along with any fragment of the statement's body.
+    for rule in load_rulebook().rules:
+        assert "GOVERNMENT WARNING" not in rule.title
+        folded = rule.title.casefold()
+        for phrase in (
+            "according to the surgeon general",
+            "birth defects",
+            "impairs your ability",
+            "operate machinery",
+            "health problems",
+        ):
+            assert phrase not in folded, f"rule {rule.id!r} title carries statutory text"
+
+
 def test_rulebook_version_is_stable_across_loads() -> None:
     # Content-addressed version: same files -> same version hash. The cache is
     # cleared between loads — comparing the lru_cached object to itself would

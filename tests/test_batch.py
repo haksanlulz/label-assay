@@ -386,9 +386,16 @@ def test_headline_does_not_claim_all_checks_passed_over_an_abstention() -> None:
     report = LabelReport(
         verdict=Verdict.PASS,
         findings=[
-            Finding(rule_id="w", citation="27 CFR 16.21", verdict=Verdict.PASS, detail="ok"),
+            Finding(
+                rule_id="w",
+                title="Warning Wording",
+                citation="27 CFR 16.21",
+                verdict=Verdict.PASS,
+                detail="ok",
+            ),
             Finding(
                 rule_id="b",
+                title="Brand Name",
                 citation="27 CFR 5.64",
                 verdict=Verdict.NOT_EVALUABLE,
                 detail="No application brand name was provided to compare against.",
@@ -495,10 +502,20 @@ def test_batch_items_read_from_disk_at_processing_time_as_background_priority(
     # hands the job's retry-sideways choice through unchanged.
     captured: dict = {}
 
-    def capture(data, application, *, extractor, budget=None, background=False, recover_rotation=False):
+    def capture(
+        data,
+        application,
+        *,
+        extractor,
+        budget=None,
+        background=False,
+        recover_rotation=False,
+        log_context="check",
+    ):
         captured["data"] = data
         captured["background"] = background
         captured["recover_rotation"] = recover_rotation
+        captured["log_context"] = log_context
         return CheckResult(
             report=LabelReport(verdict=Verdict.PASS, findings=[], rulebook_version="test"),
             extraction=fixture_corpus.perfect_extraction(SPEC),
@@ -508,10 +525,12 @@ def test_batch_items_read_from_disk_at_processing_time_as_background_priority(
     monkeypatch.setattr(batchmod, "check_label", capture)
     path = tmp_path / "x.png"
     path.write_bytes(b"label bytes")
-    batchmod._check_spooled(path, Application(), FixtureExtractor({}), None, True)
+    batchmod._check_spooled(path, Application(), FixtureExtractor({}), None, True, "Batch job j item 0")
     assert captured["data"] == b"label bytes"
     assert captured["background"] is True
     assert captured["recover_rotation"] is True
+    # The timing line's context is the job-addressed form, never the filename.
+    assert captured["log_context"] == "Batch job j item 0"
 
 
 def test_csv_export() -> None:
@@ -540,6 +559,7 @@ def _report_with(verdicts: dict[str, Verdict]) -> LabelReport:
     findings = [
         Finding(
             rule_id=rule.id,
+            title=rule.title,
             citation=rule.citation,
             verdict=verdicts.get(rule.id, Verdict.PASS),
             detail="fixture finding",
@@ -562,7 +582,14 @@ def test_csv_export_carries_the_per_rule_grid_for_a_mixed_batch(
     }
 
     def fake_check_label(
-        data, application, *, extractor, budget=None, background=False, recover_rotation=False
+        data,
+        application,
+        *,
+        extractor,
+        budget=None,
+        background=False,
+        recover_rotation=False,
+        log_context="check",
     ):
         if data == b"unreadable-label":
             raise RuntimeError("simulated pipeline crash")

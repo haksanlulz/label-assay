@@ -50,7 +50,14 @@ def infer_beverage_class(class_type: str | None) -> str:
 
 
 def _finding(rule: Rule, verdict: Verdict, detail: str, diff: tuple = ()) -> Finding:
-    return Finding(rule_id=rule.id, citation=rule.citation, verdict=verdict, detail=detail, diff=list(diff))
+    return Finding(
+        rule_id=rule.id,
+        title=rule.title,
+        citation=rule.citation,
+        verdict=verdict,
+        detail=detail,
+        diff=list(diff),
+    )
 
 
 def _match_warning_verbatim(rule: Rule, ctx: VerifyContext) -> Finding:

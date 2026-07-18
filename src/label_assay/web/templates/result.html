@@ -15,6 +15,7 @@
   <li class="finding finding--{{ f.verdict.value }}">
     <div class="finding__head">
       <span class="badge badge--{{ f.verdict.value }}">{{ verdict_label[f.verdict] }}</span>
+      <span class="finding__title">{{ f.title }}</span>
       <span class="finding__cite">{{ f.citation }}</span>
     </div>
     <p class="finding__detail">{{ f.detail }}</p>

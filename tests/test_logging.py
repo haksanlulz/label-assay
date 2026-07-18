@@ -112,6 +112,42 @@ def test_batch_task_crash_is_logged(caplog: pytest.LogCaptureFixture) -> None:
     assert not webapp._BG_TASKS
 
 
+def test_completed_check_logs_one_phase_timing_line_with_no_user_data(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Every completed check leaves exactly one INFO record attributing its time
+    # to the vision call vs. the OCR read — that record is how a slow deployed
+    # check is diagnosed — and it carries phase seconds only: no filename, no
+    # label content.
+    import re
+
+    import fixture_corpus
+    from label_assay.extract.fixture import fixture_key
+    from label_assay.extract.ocr import OcrLine
+    from label_assay.web import service as servicemod
+    from label_assay.web.service import check_label
+
+    spec = fixture_corpus.known_good_compliant()
+    image = fixture_corpus.fixture_path(spec).read_bytes()
+    fixture = FixtureExtractor({fixture_key(image): fixture_corpus.perfect_extraction(spec)})
+    monkeypatch.setattr(
+        servicemod,
+        "read_lines",
+        lambda _image, background=False, rotation=0: [
+            OcrLine(fixture_corpus.mandated_warning(), 0.99)
+        ],
+    )
+    with caplog.at_level(logging.INFO, logger="label_assay.web.service"):
+        check_label(image, fixture_corpus.application_for(spec), extractor=fixture)
+
+    timed = [r for r in caplog.records if "timed:" in r.getMessage()]
+    assert len(timed) == 1
+    message = timed[0].getMessage()
+    assert re.fullmatch(r"check timed: vision=\d+\.\ds ocr=\d+\.\ds total=\d+\.\ds", message)
+    assert spec.filename not in message
+    assert ".png" not in message
+
+
 def test_bold_check_failure_is_logged_and_degrades(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
