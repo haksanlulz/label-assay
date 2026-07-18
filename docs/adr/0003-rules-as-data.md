@@ -1,4 +1,4 @@
-# 3. The TTB rulebook is data, not code
+# 3. The TTB Rulebook Is Data, Not Code
 
 Date: 2026-07-14
 

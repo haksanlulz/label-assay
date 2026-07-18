@@ -1,4 +1,4 @@
-# 4. Cloud-independence: one swappable extractor port
+# 4. Cloud-Independence: One Swappable Extractor Port
 
 Date: 2026-07-14
 

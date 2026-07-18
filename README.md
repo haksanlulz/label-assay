@@ -4,7 +4,7 @@ Checks alcohol beverage labels against TTB labeling requirements (27 CFR parts 5
 
 **Live:** https://haksanlulz-label-assay.hf.space
 
-## Why it works this way
+## Why It Works This Way
 
 The reading is done by AI. The deciding is not.
 
@@ -15,7 +15,7 @@ A vision model transcribes what is on the label. Compliance verdicts are then co
 
 An independent OCR pass reads the same image. Where the two readings disagree, the finding is held for a human rather than passed or failed — the two channels fail in different ways, so their agreement is real evidence in a way a model's self-reported confidence is not.
 
-## What it checks
+## What It Checks
 
 | Check | Citation |
 |---|---|
@@ -30,13 +30,13 @@ Two further fields are read but not checked: net contents is extracted and avail
 
 Every finding carries its citation. Verdicts are **advisory** — a compliance specialist makes the decision.
 
-## Verdict model
+## Verdict Model
 
 - **Compliant** — every automated check passed.
 - **Needs review** — something could not be verified automatically: text that could not be read, the two readings disagreeing, or a rule that is not checkable from an image. Never a silent pass or fail.
 - **Needs correction** — a check positively failed on evidence that was actually read.
 
-## Data flow and privacy
+## Data Flow and Privacy
 
 The label image leaves the box. Each check re-encodes the uploaded image to a bounded copy — pixels only, so EXIF metadata such as GPS position is stripped — then base64-encodes that copy and sends it to Anthropic's Claude API (the hosted vision model in `extract/haiku.py`) to transcribe the printed text. The vision adapter is blind by construction — the application data and the OCR read are never sent — and no other field, filename, or file is transmitted. The second read (local OCR) runs offline and sends nothing.
 
@@ -44,7 +44,7 @@ Images are never retained. Single-label checks are processed in memory, and the 
 
 The label artwork in scope is public COLA-registry material with no personal data, so the disclosure risk is low. Anthropic's handling of API inputs is governed by its own commercial terms, not by this project; review Anthropic's commercial and data-usage terms (anthropic.com/legal) before sending any non-public content. The outbound dependency is not structural: the swappable extractor port ([docs/adr/0004-swappable-extractor.md](docs/adr/0004-swappable-extractor.md)) exists so a local or in-tenant vision model can replace the hosted API without other code changes.
 
-## Run it
+## Run It
 
 ```
 uv sync
@@ -77,7 +77,7 @@ uv run python tools/verify_deploy.py --health-only   # same, without spending a 
 
 It fails unless `/health` answers with every subsystem ready and this tree's exact rulebook hash, removed routes actually 404, and one timed check of a known-compliant fixture comes back compliant through the deployed instance. The Live link above is only claimed after this passes; a dropped connection means the Space is stopped or still building, and the deploy workflow can be re-run by hand from the Actions tab.
 
-## Test labels
+## Test Labels
 
 `tools/make_test_labels.py` generates the corpus in `tests/fixtures/labels/`: 24 synthetic labels spanning distilled spirits, wine, and malt classes, four layouts, six palettes, several font families, and four canvas sizes, with invented brands in varied casings. About half are compliant — two of those render the entire warning statement in capitals, which is legal because 27 CFR 16.22(a)(2) fixes only the heading's case; the rest each carry one specific defect mapped to a check the engine actually performs — warning heading in title case, heading not bold, altered statutory text, missing warning, proof ≠ 2 × ABV, and a label brand differing from the filed brand (both a typo-level variant and a different brand).
 
@@ -116,7 +116,7 @@ Rules regulated in millimetres (type size, characters per inch, contrasting back
 
 Full list, with reasoning: [docs/DESIGN.md](docs/DESIGN.md).
 
-## Approach, tools, and assumptions
+## Approach, Tools, and Assumptions
 
 See [docs/DESIGN.md](docs/DESIGN.md) and the decision records in [docs/adr/](docs/adr/).
 

@@ -1,4 +1,4 @@
-# 1. Hybrid extraction, not a single vision-model verdict
+# 1. Hybrid Extraction, Not a Single Vision-Model Verdict
 
 Date: 2026-07-14
 

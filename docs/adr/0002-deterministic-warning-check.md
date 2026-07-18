@@ -1,4 +1,4 @@
-# 2. The statutory warning is compared deterministically, never by the model
+# 2. The Statutory Warning Is Compared Deterministically, Never by the Model
 
 Date: 2026-07-14
 
