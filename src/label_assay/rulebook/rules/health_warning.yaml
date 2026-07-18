@@ -35,9 +35,11 @@ rules:
     severity: fail
     description: >-
       The words "GOVERNMENT WARNING" must appear in bold type, and the remainder
-      of the statement must not. Checked by comparing the stroke width of the
-      heading against the body text on the same line; abstains to review when the
-      text is too small to judge from the image.
+      of the statement must not. Checked by comparing the heading's stroke width
+      against the body text — beside it on the same line, or size-normalized
+      against the statement's own lines when the heading prints alone (that
+      cross-line measure can clear a heading, never fail one); abstains to
+      review when the text is too small to judge from the image.
     match:
       strategy: warning_bold
       field: government_warning

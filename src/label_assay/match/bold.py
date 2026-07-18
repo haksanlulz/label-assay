@@ -21,13 +21,19 @@ abstain when the text is under ~14px (too small to judge from pixels). Tuned so
 a false verdict in either direction is near-zero; residual errors fall to
 review.
 
-The measurement is only meaningful when the heading and real body text share the
-located line. When OCR returns the heading as its own line (a common narrow-label
-layout), there is nothing beside it to compare, so the check abstains to review
-rather than measuring a sliver of the heading against itself. A heading found
-only by the service's rotation retry abstains the same way: its box is in the
-rotated frame, so cropping the upright image with it would measure the wrong
-pixels.
+The raw stroke comparison is only meaningful when the heading and real body
+text share the located line, and with it a type size. When OCR returns the
+heading as its own line (a common narrow-label layout), the check compares
+across lines instead, normalizing each line's stroke width by its cap height so
+different type sizes become comparable at all. That normalization is an
+approximation — faces and rasterization vary the stroke-to-cap proportion — so
+the cross-line ratio is only ever used to CLEAR a heading as bold, never to
+fail one: measured on rendered warnings, regular-weight headings score
+0.75–1.01 against their body lines and true-bold headings 1.16–2.02, and a
+heading that does not clear the floor between those bands falls to the same
+review abstention as before. A heading found only by the service's rotation
+retry abstains before any measurement: its box is in the rotated frame, so
+cropping the upright image with it would measure the wrong pixels.
 """
 
 from __future__ import annotations
@@ -35,6 +41,7 @@ from __future__ import annotations
 import enum
 import re
 from dataclasses import dataclass
+from statistics import median
 
 _MIN_CAP_PX = 14.0
 _BOLD_RATIO = 1.30
@@ -46,6 +53,22 @@ _NOT_BOLD_CONCLUSIVE = 0.90
 # Beyond this cap-height ratio the heading and body are not "same line, same
 # size", and their raw stroke widths stop being directly comparable.
 _SAME_SIZE_MAX = 1.40
+# Ordinary words of the 27 CFR 16.21 statement body (the statement's own common
+# English words, not the statutory text — this layer stays rulebook-free): an
+# OCR line containing at least two of them is treated as warning body when the
+# heading prints on its own line.
+_WARNING_BODY_WORDS = (
+    "surgeon", "general", "women", "should", "drink", "alcoholic", "beverages",
+    "pregnancy", "birth", "defects", "consumption", "impairs", "ability",
+    "machinery", "health",
+)
+# Clearance floor for the cross-line ratio, (heading stroke/cap) over the
+# median body-line stroke/cap. Empirical separation on rendered warnings:
+# regular-weight headings measure 0.75–1.01 against their body lines, true-bold
+# headings 1.16–2.02; 1.15 sits between the classes. Clear-only — a ratio under
+# the floor is a missing clearance, not evidence of a regular heading (see
+# _cross_line_ratio).
+_CROSS_LINE_BOLD = 1.15
 
 
 class BoldVerdict(enum.StrEnum):
@@ -103,6 +126,50 @@ def measure_strokes(gray) -> _Strokes | None:
     return _Strokes(stroke_px=stroke, cap_px=cap)
 
 
+def _box_crop(gray, box):
+    xs = [p[0] for p in box]
+    ys = [p[1] for p in box]
+    return gray[int(min(ys)):int(max(ys)), int(min(xs)):int(max(xs))]
+
+
+def _cross_line_ratio(gray, head_line, ocr_lines) -> float | None:
+    """Median size-normalized stroke ratio of the heading against the warning
+    body lines, or None when too little measures reliably.
+
+    Normalizing stroke width by cap height is what makes lines of different
+    type sizes comparable, and it is an approximation — faces and rasterization
+    vary the stroke-to-cap proportion — so callers may use this ratio only to
+    CLEAR a heading as bold, never to convict one.
+
+    The cap-height floor binds the heading — the text the verdict is about, at
+    the same threshold the same-line path uses. Body lines are evidence
+    samples, not verdict subjects, and carry no floor of their own: each must
+    only measure at all, its legibility is vouched for by OCR having read its
+    words, and warning bodies print smaller than 14px caps on labels this check
+    must still clear (the corpus' own body lines measure 12px). The empirical
+    bands behind _CROSS_LINE_BOLD were measured under exactly this rule.
+    """
+    head = measure_strokes(_box_crop(gray, head_line.box))
+    if head is None or head.cap_px < _MIN_CAP_PX:
+        return None
+    ratios = []
+    for line in ocr_lines:
+        if line is head_line or not line.box or line.rotation:
+            # A rotation-retry line's box is in the rotated frame; cropping the
+            # upright image with it would measure unrelated pixels.
+            continue
+        text = line.text.casefold()
+        if sum(word in text for word in _WARNING_BODY_WORDS) < 2:
+            continue
+        body = measure_strokes(_box_crop(gray, line.box))
+        if body is None or body.stroke_px <= 0 or body.cap_px <= 0:
+            continue
+        ratios.append((head.stroke_px / head.cap_px) / (body.stroke_px / body.cap_px))
+    if len(ratios) < 2:  # a single line is one noisy sample, not a median
+        return None
+    return median(ratios)
+
+
 def bold_ratio_verdict(head_gray, body_gray) -> BoldFinding:
     head, body = measure_strokes(head_gray), measure_strokes(body_gray)
     if head is None or body is None or body.stroke_px <= 0:
@@ -142,8 +209,9 @@ def bold_ratio_verdict(head_gray, body_gray) -> BoldFinding:
 
 
 def check_warning_bold(image: bytes, ocr_lines) -> BoldFinding:
-    """Locate the warning heading via OCR, split it into the heading words and the
-    body text on the same line, and compare their stroke widths."""
+    """Locate the warning heading via OCR and compare stroke widths: against the
+    body text on the same line when there is any, otherwise across the
+    statement's own body lines, size-normalized and clear-only."""
     import numpy as np
 
     from label_assay.extract.images import open_bounded
@@ -180,11 +248,23 @@ def check_warning_bold(image: bytes, ocr_lines) -> BoldFinding:
     # itself and compare the heading against its own tail.
     remainder = re.sub(r"[^a-z0-9]", "", line.text[match.end():].casefold())
     if len(remainder) < 8:
-        return BoldFinding(
-            BoldVerdict.REVIEW,
-            "The warning heading sits on its own line; boldness needs a person to check.",
-            None,
-        )
+        # Nothing beside the heading to compare raw widths against, so measure
+        # across lines, size-normalized. Clear-only: cross-line normalization
+        # is an approximation, so a ratio at or above the floor clears the
+        # heading and anything else keeps the abstention — this path never
+        # emits NOT_BOLD.
+        ratio = _cross_line_ratio(gray, line, ocr_lines)
+        if ratio is not None and ratio >= _CROSS_LINE_BOLD:
+            return BoldFinding(
+                BoldVerdict.BOLD_OK,
+                f"The heading is bolder than the statement body across lines, "
+                f"size-normalized (ratio {ratio:.2f}).",
+                ratio,
+            )
+        detail = "The warning heading sits on its own line; boldness needs a person to check."
+        if ratio is not None:
+            detail += f" Measured across lines, size-normalized: ratio {ratio:.2f}."
+        return BoldFinding(BoldVerdict.REVIEW, detail, ratio)
     split = x0 + int((x1 - x0) * (match.end() / len(line.text)))
 
     head, body = gray[y0:y1, x0:split], gray[y0:y1, split:x1]
