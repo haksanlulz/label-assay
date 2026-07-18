@@ -428,3 +428,69 @@ def test_check_does_not_block_the_event_loop(monkeypatch: pytest.MonkeyPatch) ->
     assert health_status == 200
     assert check_status == 503  # the slow check still renders its clean error page
     assert health_done < 0.5, f"/health waited {health_done:.2f}s behind a single /check"
+
+
+_EXPECTED_CSP = (
+    "default-src 'self'; img-src 'self' data:; style-src 'self'; "
+    "script-src 'self'; object-src 'none'; base-uri 'none'; "
+    "frame-ancestors 'none'; form-action 'self'"
+)
+
+
+def test_security_headers_on_a_normal_response() -> None:
+    # Every response carries the hardening header set. The CSP stays strict
+    # because the single-label path needs no inline script or style and every
+    # asset is same-origin; the result page's data: image preview is the one
+    # non-'self' source allowed.
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert resp.headers["content-security-policy"] == _EXPECTED_CSP
+    assert resp.headers["x-content-type-options"] == "nosniff"
+    assert resp.headers["x-frame-options"] == "DENY"
+    assert resp.headers["referrer-policy"] == "no-referrer"
+    assert resp.headers["permissions-policy"] == "camera=(), microphone=(), geolocation=()"
+    assert resp.headers["strict-transport-security"] == "max-age=31536000"
+
+
+def test_batch_data_json_endpoint_carries_nosniff() -> None:
+    # The /batch/{id}/data body reflects the uploaded filename verbatim; the
+    # rendered table escapes it, and nosniff is the belt that stops a content-
+    # sniffing client from ever reading the JSON body as markup.
+    resp = client.get("/batch/deadbeefdead/data")
+    assert resp.status_code == 404
+    assert resp.headers["content-type"].startswith("application/json")
+    assert resp.headers["x-content-type-options"] == "nosniff"
+
+
+def test_index_carries_no_inline_style_so_the_csp_stays_strict() -> None:
+    # The one inline style moved to app.css; a strict style-src 'self' (no
+    # 'unsafe-inline') holds only while the rendered pages carry no style=
+    # attribute.
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "style=" not in resp.text
+    assert 'class="batch-cta"' in resp.text
+
+
+def test_upload_surfaces_disclose_the_third_party_data_flow() -> None:
+    # The uploader is told the image is sent to a third-party API before they
+    # submit it — the disclosure the templates previously lacked.
+    index = client.get("/")
+    assert "Anthropic" in index.text and "sent to" in index.text
+    batch = client.get("/batch")
+    assert "Anthropic" in batch.text and "sent to" in batch.text
+
+
+def test_batch_js_clamps_the_badge_class_to_a_fixed_allowlist() -> None:
+    # The badge modifier is interpolated into a class attribute via innerHTML, so
+    # it must be clamped to a fixed set — esc() does not neutralize an attribute
+    # breakout. Pin that the allowlist exists, that badgeClass clamps through it,
+    # and that it covers every verdict the server can emit (so real rows still
+    # render while an off-contract value cannot reach the attribute).
+    js = (Path(webapp.__file__).parent / "static" / "batch.js").read_text(encoding="utf-8")
+    block = re.search(r"var BADGE_CLASSES = \[(.*?)\];", js)
+    assert block, "batch.js BADGE_CLASSES allowlist not found"
+    allowed = set(re.findall(r'"([a-z_]+)"', block.group(1)))
+    assert "BADGE_CLASSES.indexOf" in js  # clamps, never returns the raw status
+    for verdict in webapp._VERDICT_LABEL:
+        assert verdict.value in allowed

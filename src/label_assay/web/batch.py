@@ -4,9 +4,15 @@ The 5-second promise is a per-label interactive target; a batch is minutes, so
 labels are fanned out (bounded) and their rows land as they finish, rather than
 one request blocking on all of them. Uploads are spooled to named temp files at
 create time and a worker reads one file's bytes only while processing its item,
-so peak memory is concurrency × one file, never the whole drop. Job state is
-in-memory and single-instance — fine for a prototype on one always-on machine;
-a production deployment would use a shared job store.
+so the whole drop is never in memory at once. Peak memory scales with the
+concurrency, not the batch size — but the per-worker cost is a decoded raster,
+not the compressed upload: an image is decoded before it is downscaled for the
+vision call, so a single file at the ``images._MAX_PIXELS`` ceiling (40 MP) holds
+~160 MB of raster while it runs, and up to ``_CONCURRENCY`` of those overlap. Size
+``_CONCURRENCY`` and ``images._MAX_PIXELS`` against the smallest target instance's
+memory, not against the 5 MB per-file upload cap. Job state is in-memory and
+single-instance — fine for a prototype on one always-on machine; a production
+deployment would use a shared job store.
 
 A batch is labels *plus the data filed on their applications* — importers submit
 applications, not loose artwork. The application data arrives as a CSV keyed by
@@ -193,6 +199,25 @@ def parse_application_csv(data: bytes) -> dict[str, Application]:
             "spreadsheet as a .csv file and try again."
         ) from exc
     return applications
+
+
+# A cell whose text begins with one of these is read as a formula by spreadsheet
+# software, so a user-controlled value that leads with one is evaluated when the
+# downloaded export is opened — exfiltrating data (HYPERLINK/WEBSERVICE) or
+# invoking a command (DDE). That is CSV injection (CWE-1236). csv.writer quotes
+# embedded delimiters, quotes and newlines, but a formula lead is orthogonal to
+# CSV structure and it does nothing about it.
+_CSV_FORMULA_LEADS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def neutralize_csv_cell(value: str) -> str:
+    """Return ``value`` safe to write into an exported CSV cell. A value that
+    begins with a formula lead is forced to text with a leading apostrophe (the
+    marker a spreadsheet consumes on open); an ordinary value — a filename like
+    ``x.png`` — is returned unchanged."""
+    if value and value[0] in _CSV_FORMULA_LEADS:
+        return "'" + value
+    return value
 
 
 def discard_spooled(paths: Iterable[Path]) -> None:
