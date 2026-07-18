@@ -30,7 +30,7 @@ Each of these is a scoping decision, not an omission.
 2. **Read again, independently.** A local OCR pass (RapidOCR) reads the same image offline, with per-line confidence. In a batch — on by default, off by a checkbox — when the upright read does not contain the mandated warning, it is retried with the image rotated 90, 180, and 270 degrees (at most three extra passes, paid only in that miss case) and the first rotation that reads the warning is merged into the result. The single-label path never searches: the operator states the rotation on the form and the image is straightened once before either reader sees it.
 3. **Decide.** A pure function verifies the extraction against the rulebook and the application. No model is consulted. Each rule's match strategy is dispatched from the rulebook; the engine never branches on an individual rule.
 4. **Gate.** Where OCR cannot corroborate the model's quoted text, that finding is held for review — never passed or failed. Absence of OCR evidence is never treated as evidence of absence: an unreadable image singles out no field. For the mandated warning the bar is strict: a pass stands only when the OCR read contains the statutory text itself, because a vision model can recite that paragraph over a label that prints something else.
-5. **Report.** Worst finding wins: any failure fails; else any review needs review; else compliant.
+5. **Report.** Worst finding wins: any failure fails; else any review needs review; compliant only when at least one check actually passed — zero findings, or nothing but abstentions, is held for review.
 
 ### Rules as data
 

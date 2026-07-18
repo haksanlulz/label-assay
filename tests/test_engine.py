@@ -13,7 +13,7 @@ from label_assay.config import get_settings
 from label_assay.domain.models import Application, Verdict
 from label_assay.extract.base import ExtractedField, Extraction
 from label_assay.extract.ocr import OcrLine
-from label_assay.rulebook.loader import load_rulebook
+from label_assay.rulebook.loader import Rulebook, load_rulebook
 from label_assay.verify.confidence import unconfirmed_fields
 from label_assay.verify.engine import infer_beverage_class, verify
 
@@ -140,6 +140,21 @@ def test_missing_warning_needs_review_not_fail() -> None:
         update={"government_warning": ExtractedField(verbatim=None, found=False, value=None)}
     )
     report = verify(extraction, _application(), load_rulebook())
+    assert report.verdict == Verdict.NEEDS_REVIEW
+
+
+def test_all_abstentions_is_a_review_never_a_pass() -> None:
+    # Zero positive evidence must not render "Compliant". Unreachable with the
+    # shipped rulebook (the warning matcher always decides or reviews), so this
+    # pins the aggregation itself: a rulebook whose only applicable rule
+    # abstains — the bold check with no image — must aggregate to review.
+    full = load_rulebook()
+    bold_only = Rulebook(
+        rules=[r for r in full.rules if r.id == "health_warning_bold"], version=full.version
+    )
+    assert bold_only.rules, "the bold rule vanished from the rulebook"
+    report = verify(_compliant_extraction(), _application(), bold_only)
+    assert {f.verdict for f in report.findings} == {Verdict.NOT_EVALUABLE}
     assert report.verdict == Verdict.NEEDS_REVIEW
 
 
