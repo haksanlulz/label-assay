@@ -56,11 +56,11 @@
     {% endfor %}
     <tr>
       <th scope="row">Government warning</th>
-      <td>{% if extraction.government_warning.found %}Present. Its wording and format are judged in the findings above.{% else %}<span class="hint">Not found on the label.</span>{% endif %}</td>
+      <td>{% if extraction.government_warning.found %}Present; judged in the findings above.{% else %}<span class="hint">Not found on the label.</span>{% endif %}</td>
     </tr>
   </tbody>
 </table>
-<p class="hint">Fields that no check above covers are shown for your reference; they were read from the label, not judged.</p>
+<p class="hint">Fields outside the checks above were read from the label, not judged.</p>
 {% endif %}
 
 {% if preview %}

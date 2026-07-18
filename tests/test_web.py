@@ -231,7 +231,7 @@ def test_result_page_reads_back_what_the_reader_returned(monkeypatch: pytest.Mon
     assert "&ldquo;London Dry Gin&rdquo;" in resp.text
     assert "&ldquo;45% ALC./VOL. (90 PROOF)&rdquo;" in resp.text
     assert "&ldquo;750 ML&rdquo;" in resp.text
-    assert "Present. Its wording and format are judged in the findings above." in resp.text
+    assert "Present; judged in the findings above." in resp.text
     assert "Not found on the label." not in resp.text  # every field was read
     # The reference-only note about unchecked fields is on the page.
     assert "read from the label, not judged" in resp.text
@@ -244,7 +244,7 @@ def test_result_page_marks_absent_fields_as_not_found(monkeypatch: pytest.Monkey
     )
     assert resp.status_code == 200
     assert resp.text.count("Not found on the label.") == 2
-    assert "Present. Its wording and format are judged" not in resp.text
+    assert "Present; judged" not in resp.text
 
 
 def test_result_page_escapes_hostile_verbatim_text(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -472,16 +472,19 @@ def test_index_carries_no_inline_style_so_the_csp_stays_strict() -> None:
 
 
 def test_upload_surfaces_disclose_the_third_party_data_flow() -> None:
-    # The uploader is told the image is sent to a third-party API before they
-    # submit it — and that the upload's camera metadata is stripped first, a
-    # claim that is only allowed on the page because every egress path re-encodes
-    # (extract/images.downscale_for_vision never emits the original bytes).
+    # The uploader is told, before submitting, that the image is sent to a
+    # third-party API, that camera metadata is stripped first (a claim only
+    # allowed on the page because every egress path re-encodes —
+    # extract/images.downscale_for_vision never emits the original bytes), and
+    # that the image is not stored. The pins guard the facts, not the phrasing.
     index = client.get("/")
     assert "Anthropic" in index.text and "sent to" in index.text
     assert "metadata" in index.text and "removed" in index.text
+    assert "not stored" in index.text
     batch = client.get("/batch")
     assert "Anthropic" in batch.text and "sent to" in batch.text
     assert "metadata" in batch.text and "removed" in batch.text
+    assert "not stored" in batch.text
 
 
 def test_oversized_declared_body_is_refused_with_a_plain_413() -> None:
@@ -494,7 +497,7 @@ def test_oversized_declared_body_is_refused_with_a_plain_413() -> None:
     )
     assert resp.status_code == 413
     assert resp.headers["content-type"].startswith("text/plain")
-    assert "split the batch" in resp.text
+    assert "Split the batch" in resp.text
     assert resp.headers["x-content-type-options"] == "nosniff"
     assert resp.headers["content-security-policy"] == _EXPECTED_CSP
 

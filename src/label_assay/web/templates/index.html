@@ -1,16 +1,15 @@
 {% extends "base.html" %}
 {% block main %}
 <h1>Check a label</h1>
-<p class="lead">Upload a label image and the details filed on the application. You'll get a
-result &mdash; compliant, needs review, or needs correction &mdash; with the specific rule
-and citation behind each finding.</p>
+<p class="lead">Checks a label image against the details filed on the application &mdash;
+compliant, needs review, or needs correction &mdash; and each
+finding carries its CFR citation.</p>
 
 <form class="card" method="post" action="/check" enctype="multipart/form-data">
   <label for="image">Label image (PNG or JPEG, up to 5&nbsp;MB)</label>
   <input type="file" id="image" name="image" accept="image/png,image/jpeg" required>
-  <p class="hint">The label image is sent to Anthropic's Claude API to read the printed text.
-     Camera metadata (EXIF, including any location tags) is removed first, and the image is
-     not stored after the check.</p>
+  <p class="hint">The image is sent to Anthropic's Claude API to read the printed text, with
+     camera metadata (EXIF, including location) removed first; it is not stored after the check.</p>
 
   <label for="rotation">Label image is rotated:</label>
   <select id="rotation" name="rotation">
@@ -19,17 +18,15 @@ and citation behind each finding.</p>
     <option value="180">180&deg; (upside down)</option>
     <option value="270">90&deg; counter-clockwise</option>
   </select>
-  <p class="hint">If the label looks sideways or upside down in the image, say which way it is
-     turned. The image is straightened before it is read, and the result page shows the
-     straightened image that was checked.</p>
+  <p class="hint">The image is straightened before it is read; the result page shows the
+     straightened image.</p>
 
   <label for="brand_name">Brand name on the application</label>
   <input type="text" id="brand_name" name="brand_name" required autocomplete="off">
 
   <label for="fanciful_name">Fanciful name (if filed)</label>
   <input type="text" id="fanciful_name" name="fanciful_name" autocomplete="off">
-  <p class="hint">Some applications file a fanciful name alongside the brand name, and the
-     label may display either. Leave blank when none was filed.</p>
+  <p class="hint">Leave blank if none was filed.</p>
 
   <label for="class_type">Class or type on the application</label>
   <input type="text" id="class_type" name="class_type" required autocomplete="off"

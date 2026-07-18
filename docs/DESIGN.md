@@ -107,7 +107,7 @@ Framed against the NIST AI Risk Management Framework 1.0 (govern / map / measure
 
 ## Accessibility
 
-Built to WCAG 2.1 AA to be Section 508-ready; see [../ACCESSIBILITY.md](../ACCESSIBILITY.md). The single-label flow is server-rendered and works with JavaScript disabled. This is also why a dashboard framework was not used: Streamlit and Gradio have no 508 conformance story.
+Built to WCAG 2.1 AA to be Section 508-ready; see [ACCESSIBILITY.md](ACCESSIBILITY.md). The single-label flow is server-rendered and works with JavaScript disabled. This is also why a dashboard framework was not used: Streamlit and Gradio have no 508 conformance story.
 
 ## AI assistance
 

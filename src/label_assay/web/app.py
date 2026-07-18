@@ -59,11 +59,11 @@ _VERDICT_COPY = {
     Verdict.PASS: ("Compliant", "This label passed every automated check below."),
     Verdict.NEEDS_REVIEW: (
         "Needs your review",
-        "I couldn't verify everything automatically. Please check the items marked for review below.",
+        "I couldn't verify everything automatically. Check the items marked for review below.",
     ),
     Verdict.FAIL: (
         "Needs correction",
-        "This label has at least one problem that needs correction. See the findings below.",
+        "At least one finding below needs correction.",
     ),
 }
 
@@ -149,7 +149,7 @@ app.mount("/static", StaticFiles(directory=str(_WEB / "static")), name="static")
 _MAX_REQUEST_BYTES = 1_700_000_000
 _TOO_LARGE_BODY = (
     b"That request is larger than this server accepts in one upload. "
-    b"Please split the batch and try again."
+    b"Split the batch and try again."
 )
 
 
@@ -350,17 +350,17 @@ async def check(
     # keeps an oversized upload from being materialized in memory first. The
     # post-read check stays as the fallback when no size is reported.
     if (image.size or 0) > _MAX_BYTES:
-        return _error_page(request, "That image is larger than 5 MB. Please use a smaller file.", 413)
+        return _error_page(request, "That image is larger than 5 MB. Use a smaller file.", 413)
     data = await image.read()
     if len(data) > _MAX_BYTES:
-        return _error_page(request, "That image is larger than 5 MB. Please use a smaller file.", 413)
+        return _error_page(request, "That image is larger than 5 MB. Use a smaller file.", 413)
     if not data.startswith(_MAGIC):
         return _error_page(request, "That file doesn't look like a PNG or JPEG image.", 415)
     turn = _ROTATION_CHOICES.get(rotation.strip())
     if turn is None:
         return _error_page(
             request,
-            "That rotation choice wasn't recognized. Please pick one of the options on the form.",
+            "That rotation choice wasn't recognized. Pick one of the options on the form.",
             422,
         )
 
@@ -407,10 +407,10 @@ def batch_new(request: Request) -> HTMLResponse:
     )
 
 
-_TOO_LARGE_DETAIL = "This file is larger than 5 MB, so it was not checked. Please use a smaller scan."
+_TOO_LARGE_DETAIL = "This file is larger than 5 MB, so it was not checked. Use a smaller scan."
 _CSV_TOO_LARGE = (
     "That applications file is larger than 5 MB. A batch of a few hundred "
-    "applications is far smaller; please check the file."
+    "applications is far smaller; check the file."
 )
 
 _SPOOL_CHUNK = 1024 * 1024
@@ -499,7 +499,7 @@ async def batch_create(
             total += size
             if total > batchmod.MAX_TOTAL_DISK_BYTES:
                 return reject(
-                    "That batch is too large to process in one go. Please split it into "
+                    "That batch is too large to process in one go. Split it into "
                     "smaller batches.",
                     413,
                 )
@@ -508,7 +508,7 @@ async def batch_create(
             return reject("No PNG or JPEG images were uploaded.", 400)
         if len(files) > batchmod.MAX_FILES:
             return reject(
-                f"A batch is limited to {batchmod.MAX_FILES} labels. Please split it up.", 413
+                f"A batch is limited to {batchmod.MAX_FILES} labels. Split it up.", 413
             )
 
         application_map: dict[str, Application] = {}
