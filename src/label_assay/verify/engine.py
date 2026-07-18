@@ -11,7 +11,9 @@ Two safety layers wrap the matchers:
   independent OCR read cannot corroborate is held for review, never passed or
   failed.
 - Worst-finding aggregation: any FAIL fails; else any NEEDS_REVIEW needs review;
-  else PASS. NOT_EVALUABLE findings never force a verdict.
+  else PASS only when at least one check actually passed — a report with no
+  findings, or nothing but abstentions, is held for review. NOT_EVALUABLE
+  findings never force a verdict.
 """
 
 from __future__ import annotations
@@ -207,9 +209,12 @@ def verify(
         overall = Verdict.FAIL
     elif Verdict.NEEDS_REVIEW in verdicts:
         overall = Verdict.NEEDS_REVIEW
-    elif not findings:
-        # No applicable checks ran. That is a review, never a silent pass — a
-        # compliance tool must not render "Compliant" over zero evidence.
+    elif not findings or Verdict.PASS not in verdicts:
+        # No applicable checks ran, or every one abstained (all NOT_EVALUABLE).
+        # Either way there is zero positive evidence — that is a review, never
+        # a silent pass. Unreachable with the shipped rulebook (the warning
+        # matcher always decides or reviews), but the invariant must hold by
+        # construction, not by rulebook shape.
         overall = Verdict.NEEDS_REVIEW
     else:
         overall = Verdict.PASS
