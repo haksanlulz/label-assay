@@ -23,6 +23,7 @@ from fastapi import FastAPI, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from label_assay import __version__
 from label_assay.config import get_settings
@@ -140,6 +141,60 @@ async def _lifespan(_app: FastAPI):
 
 app = FastAPI(title="LabelAssay", version=__version__, lifespan=_lifespan)
 app.mount("/static", StaticFiles(directory=str(_WEB / "static")), name="static")
+
+
+# Headroom over the largest legitimate request — the 1.6 GB batch total plus
+# multipart framing — so any declared body past it is a mistake or an attack,
+# refused before a byte of it streams.
+_MAX_REQUEST_BYTES = 1_700_000_000
+_TOO_LARGE_BODY = (
+    b"That request is larger than this server accepts in one upload. "
+    b"Please split the batch and try again."
+)
+
+
+class _RequestSizeCeiling:
+    """Pure ASGI middleware (not BaseHTTPMiddleware): a request whose declared
+    Content-Length exceeds the ceiling is answered with a plain 413 before any
+    of the body is read, so an oversized declaration costs no spool and no
+    parse. A request without a Content-Length passes through — the multipart
+    parser's own per-part caps and the batch total-bytes guard still bound what
+    it can deliver."""
+
+    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
+        self._app = app
+        self._max_bytes = max_bytes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and self._declared_length(scope) > self._max_bytes:
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 413,
+                    "headers": [
+                        (b"content-type", b"text/plain; charset=utf-8"),
+                        (b"content-length", str(len(_TOO_LARGE_BODY)).encode("ascii")),
+                    ],
+                }
+            )
+            await send({"type": "http.response.body", "body": _TOO_LARGE_BODY})
+            return
+        await self._app(scope, receive, send)
+
+    @staticmethod
+    def _declared_length(scope: Scope) -> int:
+        for name, value in scope.get("headers", ()):
+            if name == b"content-length":
+                try:
+                    return int(value)
+                except ValueError:
+                    return 0  # malformed: let the server's own parsing reject it
+        return 0
+
+
+# Added before the security-headers middleware so that middleware wraps it and
+# the 413 carries the same hardening header set as every other response.
+app.add_middleware(_RequestSizeCeiling, max_bytes=_MAX_REQUEST_BYTES)
 
 
 # Response hardening, applied to every route. The single-label flow ships zero
@@ -515,7 +570,15 @@ async def batch_create(
 @app.get("/batch/{job_id}", response_class=HTMLResponse)
 def batch_result(request: Request, job_id: str) -> HTMLResponse:
     if batchmod.get_job(job_id) is None:
-        return _error_page(request, "That batch was not found. It may have expired.", 404)
+        # Literally true of the store: finished results are kept for the most
+        # recent batches only and are replaced as newer batches run, and a
+        # server restart clears them (state is in-process).
+        return _error_page(
+            request,
+            "That batch was not found. Results are kept for the most recent "
+            "batches only, so older results are removed as new batches run.",
+            404,
+        )
     return _TEMPLATES.TemplateResponse(request, "batch_result.html", _ctx({"job_id": job_id}))
 
 

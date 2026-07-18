@@ -7,7 +7,8 @@ from __future__ import annotations
 import io
 
 import pytest
-from PIL import Image
+from PIL import ExifTags, Image
+from PIL.PngImagePlugin import PngInfo
 
 import fixture_corpus
 import label_assay.web.service as service
@@ -30,9 +31,83 @@ def _png(width: int, height: int) -> bytes:
     return buffer.getvalue()
 
 
-def test_small_images_pass_through_byte_identical() -> None:
-    data = _png(640, 480)
-    assert downscale_for_vision(data) is data
+def test_vision_copy_is_always_a_fresh_reencode_with_zero_exif() -> None:
+    # A small upright JPEG used to pass through byte-identical — carrying its
+    # EXIF (GPS position included) to the third-party API. The vision copy must
+    # be a fresh re-encode on every path: no EXIF entries out, pixels unchanged.
+    exif = Image.Exif()
+    exif[271] = "PhoneMaker"  # tag 271 = Make
+    gps = exif.get_ifd(ExifTags.IFD.GPSInfo)
+    gps[ExifTags.GPS.GPSLatitudeRef] = "N"
+    gps[ExifTags.GPS.GPSLatitude] = (40.0, 44.0, 0.0)
+    buffer = io.BytesIO()
+    Image.new("RGB", (640, 480), (200, 30, 90)).save(buffer, format="JPEG", exif=exif)
+    data = buffer.getvalue()
+    src = Image.open(io.BytesIO(data))
+    assert dict(src.getexif().get_ifd(ExifTags.IFD.GPSInfo))  # the threat is real in the input
+
+    out = downscale_for_vision(data)
+    assert out != data
+    img = Image.open(io.BytesIO(out))
+    assert not dict(img.getexif())  # zero EXIF entries on the egress copy
+    assert not dict(img.getexif().get_ifd(ExifTags.IFD.GPSInfo))
+    # Same visual content: the re-encode is lossless over the decoded raster.
+    assert img.size == src.size
+    assert img.convert("RGB").tobytes() == src.convert("RGB").tobytes()
+
+
+def test_small_upright_png_never_carries_source_metadata() -> None:
+    # The no-metadata guarantee holds for lossless sources too: a small PNG
+    # with text and EXIF chunks comes out as a fresh pixel-only encode. (A
+    # metadata-free PNG can re-encode to coincidentally identical bytes, so
+    # the contract is pinned on the metadata, not on byte inequality.)
+    exif = Image.Exif()
+    exif[271] = "ScannerMaker"  # tag 271 = Make
+    meta = PngInfo()
+    meta.add_text("Comment", "operator note that must not egress")
+    buffer = io.BytesIO()
+    Image.new("RGB", (640, 480), "white").save(buffer, format="PNG", pnginfo=meta, exif=exif)
+    data = buffer.getvalue()
+    assert b"operator note" in data  # the chunk really is in the source bytes
+
+    out = downscale_for_vision(data)
+    assert out is not data  # never the original byte string
+    assert out.startswith(b"\x89PNG")
+    assert b"operator note" not in out
+    img = Image.open(io.BytesIO(out))
+    assert not dict(img.getexif())
+    assert img.size == (640, 480)  # already inside the bound: no downscale
+
+
+def _png_chunk_names(data: bytes) -> set[str]:
+    # A reviewer's-eye view of the egress bytes: the chunk names actually in
+    # the stream, independent of what PIL chooses to surface in ``info``.
+    names = set()
+    offset = 8  # past the PNG signature
+    while offset < len(data):
+        length = int.from_bytes(data[offset : offset + 4], "big")
+        names.add(data[offset + 4 : offset + 8].decode("ascii"))
+        offset += 12 + length  # 4-byte length + 4-byte name + payload + 4-byte CRC
+    return names
+
+
+def test_vision_copy_carries_no_icc_profile_from_jpeg_or_png_sources() -> None:
+    # EXIF is not the only metadata that survives a decode: PIL's PNG save
+    # copies the source's ICC profile out of ``im.info`` into a fresh iCCP
+    # chunk unless told not to, and ICC profiles can carry vendor description
+    # and copyright text. The pixels-only contract is chunk-level — nothing
+    # beyond the structural chunks leaves for the third party.
+    profile = b"fake profile carrying vendor text that must not egress"
+    for fmt in ("JPEG", "PNG"):
+        buffer = io.BytesIO()
+        Image.new("RGB", (640, 480), "white").save(buffer, format=fmt, icc_profile=profile)
+        data = buffer.getvalue()
+        source_info = Image.open(io.BytesIO(data)).info
+        assert source_info.get("icc_profile")  # the threat is real in the input
+
+        out = downscale_for_vision(data)
+        assert "icc_profile" not in Image.open(io.BytesIO(out)).info
+        assert _png_chunk_names(out) <= {"IHDR", "IDAT", "IEND"}
 
 
 def test_tall_composites_are_capped_under_the_api_limit() -> None:
@@ -99,8 +174,9 @@ def test_exif_orientation_is_applied_at_the_bounded_decode() -> None:
 
 
 def test_small_sideways_upload_is_reencoded_upright_for_vision() -> None:
-    # The byte-identical shortcut must not ship sideways-stored pixels whose
-    # uprightness depends on the provider honoring EXIF.
+    # A sideways-stored upload goes out upright: the re-encode bakes the EXIF
+    # orientation into the pixels rather than depending on the provider
+    # honoring the (now-stripped) tag.
     data = _exif_sideways_jpeg()
     out = downscale_for_vision(data)
     assert out != data

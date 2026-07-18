@@ -50,29 +50,19 @@ RIGHT_ANGLE_TRANSPOSES = {
 }
 
 
-_ORIENTATION = 0x0112  # the EXIF Orientation tag
-
-
-def _stored_sideways(image: bytes) -> bool:
-    """Do these bytes carry an EXIF orientation that ``open_bounded`` applies?
-    A header-only read; the 2..8 range mirrors the orientations
-    ``ImageOps.exif_transpose`` acts on (1 and absent mean already upright)."""
-    orientation = Image.open(io.BytesIO(image)).getexif().get(_ORIENTATION, 1)
-    return isinstance(orientation, int) and 2 <= orientation <= 8
-
-
 def downscale_for_vision(image: bytes, max_edge: int = _VISION_MAX_EDGE) -> bytes:
-    """Bytes for the vision call: the original image when it already fits,
-    otherwise a re-encode with the long edge capped at ``max_edge``. The
-    re-encode is PNG, not JPEG — label art is text, and compression artifacts
-    would land in the strokes the model is asked to quote."""
+    """Bytes for the vision call: always a fresh re-encode of the decoded
+    pixels, with the long edge capped at ``max_edge`` when the image is larger.
+    Never the original byte string, even when it already fits: a re-encode
+    carries pixels only, so the upload's metadata — EXIF with GPS position,
+    camera serial, capture time — stays out of the third-party request, and a
+    sideways-stored upload goes out upright rather than depending on the
+    provider honoring EXIF. The re-encode is PNG, not JPEG — label art is
+    text, and compression artifacts would land in the strokes the model is
+    asked to quote."""
     img = open_bounded(image)
-    if max(img.size) <= max_edge and not _stored_sideways(image):
-        # Byte-identical only when the stored pixels are already upright: a
-        # sideways-stored upload is re-encoded even when small, so the model
-        # seeing it upright never depends on the provider honoring EXIF.
-        return image
-    img.thumbnail((max_edge, max_edge))
+    if max(img.size) > max_edge:
+        img.thumbnail((max_edge, max_edge))
     return _encode_png(img)
 
 
@@ -95,7 +85,11 @@ def _encode_png(img: Image.Image) -> bytes:
     if img.mode not in ("1", "L", "LA", "P", "RGB", "RGBA"):
         img = img.convert("RGB")  # e.g. CMYK, which PNG cannot carry
     buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
+    # icc_profile=None: PIL's PNG save otherwise copies the decoded source's
+    # ICC profile out of ``im.info`` into the fresh encode, and ICC profiles
+    # can carry vendor text — the one metadata chunk a re-encode does not
+    # shed on its own.
+    img.save(buffer, format="PNG", icc_profile=None)
     return buffer.getvalue()
 
 

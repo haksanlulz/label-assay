@@ -8,8 +8,9 @@ and citation behind each finding.</p>
 <form class="card" method="post" action="/check" enctype="multipart/form-data">
   <label for="image">Label image (PNG or JPEG, up to 5&nbsp;MB)</label>
   <input type="file" id="image" name="image" accept="image/png,image/jpeg" required>
-  <p class="hint">The label image is sent to Anthropic's Claude API to read the printed text. The
-     image is not stored after the check.</p>
+  <p class="hint">The label image is sent to Anthropic's Claude API to read the printed text.
+     Camera metadata (EXIF, including any location tags) is removed first, and the image is
+     not stored after the check.</p>
 
   <label for="rotation">Label image is rotated:</label>
   <select id="rotation" name="rotation">

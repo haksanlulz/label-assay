@@ -30,6 +30,15 @@ RUN uv sync --frozen --no-install-project --no-dev
 COPY . .
 RUN uv sync --frozen --no-dev
 
+# Drop privileges for the runtime. The process needs only read access to /app:
+# batch uploads spool through tempfile (TMPDIR, /tmp by default), the OCR
+# models ship inside the installed wheel, and nothing writes the app tree at
+# runtime. --create-home gives library caches (~/.cache) a writable landing
+# spot; the chown keeps `uv run` unsurprised by ownership regardless of the
+# build user's umask.
+RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8080
 # --no-sync: use the environment already built above; don't re-resolve at boot
 # (that removed installed packages and slowed cold start).
