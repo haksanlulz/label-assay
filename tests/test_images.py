@@ -13,7 +13,7 @@ from PIL.PngImagePlugin import PngInfo
 import fixture_corpus
 import label_assay.web.service as service
 from label_assay.domain.models import Application
-from label_assay.extract.base import ExtractedField, Extraction
+from label_assay.extract.base import Extraction
 from label_assay.extract.images import (
     ImageTooLarge,
     downscale_for_vision,
@@ -22,13 +22,7 @@ from label_assay.extract.images import (
 )
 from label_assay.extract.ocr import OcrLine
 from label_assay.web.service import check_label
-from synthetic_images import bomb_png
-
-
-def _png(width: int, height: int) -> bytes:
-    buffer = io.BytesIO()
-    Image.new("RGB", (width, height), "white").save(buffer, format="PNG")
-    return buffer.getvalue()
+from synthetic_images import bomb_png, solid_png
 
 
 def test_vision_copy_is_always_a_fresh_reencode_with_zero_exif() -> None:
@@ -111,7 +105,7 @@ def test_vision_copy_carries_no_icc_profile_from_jpeg_or_png_sources() -> None:
 
 
 def test_tall_composites_are_capped_under_the_api_limit() -> None:
-    data = _png(300, 8192)  # taller than the vision API's 8000 px maximum
+    data = solid_png(300, 8192)  # taller than the vision API's 8000 px maximum
     out = downscale_for_vision(data)
     img = Image.open(io.BytesIO(out))
     assert max(img.size) <= 1568
@@ -194,10 +188,7 @@ class _SpyExtractor:
 
     def extract(self, image: bytes) -> Extraction:
         self.received = image
-        f = ExtractedField(verbatim=None, found=False, value=None)
-        return Extraction(
-            brand_name=f, class_type=f, alcohol_content=f, net_contents=f, government_warning=f
-        )
+        return fixture_corpus.absent_extraction()
 
 
 def test_check_label_downscales_only_the_vision_copy(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -210,7 +201,7 @@ def test_check_label_downscales_only_the_vision_copy(monkeypatch: pytest.MonkeyP
         return [OcrLine(text=fixture_corpus.mandated_warning(), confidence=0.99)]
 
     monkeypatch.setattr(service, "read_lines", spy_read_lines)
-    data = _png(300, 8192)
+    data = solid_png(300, 8192)
     spy = _SpyExtractor()
     check_label(data, Application(), extractor=spy)
     assert seen_by_ocr == [data]  # OCR read the original, full-resolution bytes

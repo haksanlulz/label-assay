@@ -19,9 +19,7 @@ counter-clockwise transpose.
 from __future__ import annotations
 
 import asyncio
-import base64
 import io
-import re
 import threading
 
 import pytest
@@ -29,9 +27,10 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 import fixture_corpus
+from fixture_corpus import AbsentExtractor
 from label_assay.domain.models import Application, Verdict
 from label_assay.extract import ocr as ocrmod
-from label_assay.extract.base import ExtractedField, Extraction
+from label_assay.extract.base import Extraction
 from label_assay.extract.images import transpose_image
 from label_assay.extract.ocr import OcrLine
 from label_assay.web import app as webapp
@@ -39,6 +38,7 @@ from label_assay.web import batch as batchmod
 from label_assay.web import service
 from label_assay.web.batch import create_job, run_job
 from label_assay.web.service import _recover_rotated_warning, check_label
+from synthetic_images import preview_image_from, solid_png
 
 SPEC = fixture_corpus.known_good_compliant()
 FIXTURE = fixture_corpus.fixture_path(SPEC)
@@ -59,33 +59,12 @@ def _rotated_fixture(degrees_ccw: int) -> bytes:
     return buffer.getvalue()
 
 
-def _png(width: int, height: int) -> bytes:
-    buffer = io.BytesIO()
-    Image.new("RGB", (width, height), "white").save(buffer, format="PNG")
-    return buffer.getvalue()
-
-
 class _PerfectExtractor:
     """The vision channel reads rotated text natively, so it is modeled as the
     perfect read of the fixture regardless of the image's orientation."""
 
     def extract(self, image: bytes) -> Extraction:
         return fixture_corpus.perfect_extraction(SPEC)
-
-
-def _absent() -> ExtractedField:
-    return ExtractedField(verbatim=None, found=False, value=None)
-
-
-class _AbsentExtractor:
-    def extract(self, image: bytes) -> Extraction:
-        return Extraction(
-            brand_name=_absent(),
-            class_type=_absent(),
-            alcohol_content=_absent(),
-            net_contents=_absent(),
-            government_warning=_absent(),
-        )
 
 
 def _counting_real_read(passes: list[int]):
@@ -172,7 +151,9 @@ def test_retry_does_not_fire_when_the_warning_reads_upright(
         return [OcrLine(text=REFERENCE, confidence=0.99)]
 
     monkeypatch.setattr(service, "read_lines", stub)
-    check_label(_png(64, 64), Application(), extractor=_AbsentExtractor(), recover_rotation=True)
+    check_label(
+        solid_png(64, 64), Application(), extractor=AbsentExtractor(), recover_rotation=True
+    )
     assert passes == [0]  # one read; no rotation pass was paid for
 
 
@@ -226,10 +207,10 @@ def test_run_job_retries_a_miss_row_only_when_told_to(
 
         monkeypatch.setattr(service, "read_lines", stub)
         path = tmp_path / f"spool-{enabled}.png"
-        path.write_bytes(_png(64, 64))
+        path.write_bytes(solid_png(64, 64))
         job = create_job(["label.png"])
         asyncio.run(
-            run_job(job, [("label.png", path)], _AbsentExtractor(), recover_rotation=enabled)
+            run_job(job, [("label.png", path)], AbsentExtractor(), recover_rotation=enabled)
         )
         assert job.items[0].status == "done"
         assert passes == expected, f"recover_rotation={enabled} made passes {passes}"
@@ -246,7 +227,7 @@ def test_batch_route_parses_the_retry_checkbox(monkeypatch: pytest.MonkeyPatch) 
         batchmod.discard_spooled(path for _name, path in files)
 
     monkeypatch.setattr(batchmod, "run_job", capture_run_job)
-    monkeypatch.setattr(webapp, "default_extractor", lambda _settings: _AbsentExtractor())
+    monkeypatch.setattr(webapp, "default_extractor", lambda _settings: AbsentExtractor())
     png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
     with TestClient(webapp.app) as c:
         for data in ({"recover_rotation": "on"}, None):
@@ -263,12 +244,6 @@ def test_batch_route_parses_the_retry_checkbox(monkeypatch: pytest.MonkeyPatch) 
 
 
 # --- The interactive path: stated rotation, never a retry --------------------
-
-
-def _preview_image_from(html: str) -> Image.Image:
-    match = re.search(r'src="data:image/jpeg;base64,([^"]+)"', html)
-    assert match, "no JPEG data URI found on the page"
-    return Image.open(io.BytesIO(base64.b64decode(match.group(1))))
 
 
 def test_interactive_route_straightens_a_sideways_upload_from_the_stated_rotation(
@@ -297,7 +272,7 @@ def test_interactive_route_straightens_a_sideways_upload_from_the_stated_rotatio
     assert resp.status_code == 200
     assert "Compliant" in resp.text  # every check passed on the straightened raster
     # The echoed preview is the corrected raster's orientation, not the upload's.
-    preview = _preview_image_from(resp.text)
+    preview = preview_image_from(resp.text)
     assert (preview.width > preview.height) == (upright_size[0] > upright_size[1])
 
 
@@ -314,10 +289,10 @@ def test_interactive_route_never_pays_a_retry_pass_even_on_a_missing_warning(
         return [OcrLine(text="no warning anywhere", confidence=0.9)]
 
     monkeypatch.setattr(service, "read_lines", stub)
-    monkeypatch.setattr(webapp, "default_extractor", lambda _settings: _AbsentExtractor())
+    monkeypatch.setattr(webapp, "default_extractor", lambda _settings: AbsentExtractor())
     resp = client.post(
         "/check",
-        files={"image": ("l.png", _png(64, 64), "image/png")},
+        files={"image": ("l.png", solid_png(64, 64), "image/png")},
         data={"brand_name": "X", "class_type": "Y"},
     )
     assert resp.status_code == 200
@@ -332,10 +307,10 @@ def test_route_rejects_a_garbage_rotation_value_cleanly(
     # never a 500, and nothing is read or spent.
     calls: list[int] = []
     monkeypatch.setattr(webapp, "check_label", lambda *a, **k: calls.append(1))
-    monkeypatch.setattr(webapp, "default_extractor", lambda _settings: _AbsentExtractor())
+    monkeypatch.setattr(webapp, "default_extractor", lambda _settings: AbsentExtractor())
     resp = client.post(
         "/check",
-        files={"image": ("l.png", _png(64, 64), "image/png")},
+        files={"image": ("l.png", solid_png(64, 64), "image/png")},
         data={"brand_name": "X", "class_type": "Y", "rotation": value},
     )
     assert resp.status_code == 422
@@ -347,7 +322,7 @@ def test_check_label_rejects_an_unsupported_rotation() -> None:
     # The service contract mirrors read_lines: a rotation outside the map is a
     # programming error, raised before any decode or spend.
     with pytest.raises(ValueError, match="rotation"):
-        check_label(_png(8, 8), Application(), extractor=_AbsentExtractor(), rotation=45)
+        check_label(solid_png(8, 8), Application(), extractor=AbsentExtractor(), rotation=45)
 
 
 def test_rotation_options_map_to_the_transpose_that_restores_the_pixels() -> None:
@@ -431,7 +406,9 @@ def test_every_retry_pass_takes_the_engine_lock_and_never_nests_it(
 
     monkeypatch.setattr(ocrmod, "_ENGINE_LOCK", probe)
     monkeypatch.setattr(ocrmod, "_engine", lambda: engine)
-    check_label(_png(40, 20), Application(), extractor=_AbsentExtractor(), recover_rotation=True)
+    check_label(
+        solid_png(40, 20), Application(), extractor=AbsentExtractor(), recover_rotation=True
+    )
 
     assert probe.acquisitions == 4  # the upright pass and exactly three retries
     assert probe.max_depth == 1  # no pass ran inside another's acquisition

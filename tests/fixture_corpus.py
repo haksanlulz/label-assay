@@ -10,9 +10,14 @@ from __future__ import annotations
 import sys
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from label_assay.domain.models import Application
 from label_assay.extract.base import ExtractedField, Extraction
+from label_assay.extract.fixture import FixtureExtractor, fixture_key
+
+if TYPE_CHECKING:
+    from label_assay.extract.ocr import OcrLine
 
 TESTS = Path(__file__).resolve().parent
 REPO = TESTS.parent
@@ -75,6 +80,35 @@ def perfect_extraction(spec) -> Extraction:
     )
 
 
+def absent_extraction() -> Extraction:
+    """What a reader that found nothing returns: all five fields absent."""
+
+    def f() -> ExtractedField:
+        return ExtractedField(verbatim=None, found=False, value=None)
+
+    return Extraction(
+        brand_name=f(),
+        class_type=f(),
+        alcohol_content=f(),
+        net_contents=f(),
+        government_warning=f(),
+    )
+
+
+class AbsentExtractor:
+    """A reader that finds nothing on any image — for scenarios that are not
+    about the vision channel."""
+
+    def extract(self, image: bytes) -> Extraction:
+        return absent_extraction()
+
+
+def perfect_extractor(spec, image: bytes) -> FixtureExtractor:
+    """A reader that knows exactly ``image`` and answers with ``spec``'s
+    painted ground truth."""
+    return FixtureExtractor({fixture_key(image): perfect_extraction(spec)})
+
+
 def application_for(spec) -> Application:
     """The application filed for this label (differs from the painted brand on
     the brand-mismatch fixtures, by design)."""
@@ -96,3 +130,17 @@ def mandated_warning() -> str:
         and r.match.field == "government_warning"
         and r.match.reference
     )
+
+
+@lru_cache(maxsize=1)
+def _known_good_ocr_lines() -> tuple[OcrLine, ...]:
+    from label_assay.extract.ocr import read_lines
+
+    return tuple(read_lines(fixture_path(known_good_compliant()).read_bytes()))
+
+
+def fixture_ocr_lines() -> list[OcrLine]:
+    """The real OCR read of the known-good compliant fixture, inferred once per
+    process and cached: the lines are frozen dataclasses held as a tuple, and
+    every caller gets its own fresh list."""
+    return list(_known_good_ocr_lines())

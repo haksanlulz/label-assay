@@ -10,7 +10,6 @@ from __future__ import annotations
 import hashlib
 import importlib.resources as resources
 from functools import lru_cache
-from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field
@@ -27,7 +26,6 @@ class Match(BaseModel):
     strategy: str
     field: str | None = None       # the extraction field this rule checks
     reference: str | None = None   # statutory text, for verbatim comparisons
-    params: dict[str, Any] = Field(default_factory=dict)
 
 
 class Rule(BaseModel):
@@ -38,7 +36,6 @@ class Rule(BaseModel):
     title: str = Field(min_length=1)
     citation: str = Field(min_length=1)  # required: an uncited rule cannot load
     beverage_classes: list[str]
-    severity: str = "fail"
     description: str
     match: Match
 

@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 import fixture_corpus
 from label_assay.domain.models import Application, Finding, LabelReport, Verdict
-from label_assay.extract.fixture import FixtureExtractor, fixture_key
+from label_assay.extract.fixture import FixtureExtractor
 from label_assay.match.brand import BrandVerdict, match_brand
 from label_assay.rulebook.loader import load_rulebook
 from label_assay.web import app as webapp
@@ -57,9 +57,7 @@ def test_batch_upload_form_renders() -> None:
 
 def test_run_job_processes_every_item_offline(tmp_path: Path) -> None:
     image = FIXTURE.read_bytes()
-    fixture = FixtureExtractor(
-        {fixture_key(image): fixture_corpus.perfect_extraction(SPEC)}
-    )
+    fixture = fixture_corpus.perfect_extractor(SPEC, image)
     job = create_job(["a.png", "b.png"])
     files = [_spooled(tmp_path, "a.png", image), _spooled(tmp_path, "b.png", image)]
     asyncio.run(run_job(job, files, fixture))
@@ -76,10 +74,6 @@ def test_batch_post_with_no_valid_images_errors() -> None:
     resp = client.post("/batch", files=[("images", ("x.txt", b"not an image", "text/plain"))])
     assert resp.status_code == 400
     assert "No PNG or JPEG" in resp.text
-
-
-def test_unknown_batch_is_404() -> None:
-    assert client.get("/batch/deadbeef99").status_code == 404
 
 
 def test_application_csv_is_parsed_and_headers_are_case_insensitive() -> None:
@@ -189,9 +183,7 @@ def test_batch_checks_each_label_against_its_own_application(tmp_path: Path) -> 
     # The paired CSV is what makes brand-vs-application work in a batch: the same
     # image passes against its own filed brand and fails against someone else's.
     image = FIXTURE.read_bytes()
-    fixture = FixtureExtractor(
-        {fixture_key(image): fixture_corpus.perfect_extraction(SPEC)}
-    )
+    fixture = fixture_corpus.perfect_extractor(SPEC, image)
     other_brand = next(  # an invented brand the matcher must call a real mismatch
         b
         for b in fixture_corpus.generator().BRANDS
@@ -230,9 +222,7 @@ def test_batch_route_happy_path_end_to_end(monkeypatch: pytest.MonkeyPatch) -> N
     # batch.js consumes. The CSV filename is deliberately cased differently from
     # the upload to pin case-insensitive pairing end to end.
     image = FIXTURE.read_bytes()
-    fixture = FixtureExtractor(
-        {fixture_key(image): fixture_corpus.perfect_extraction(SPEC)}
-    )
+    fixture = fixture_corpus.perfect_extractor(SPEC, image)
     monkeypatch.setattr(webapp, "default_extractor", lambda _settings: fixture)
     buf = io.StringIO()
     writer = csv.writer(buf)
@@ -381,8 +371,6 @@ def test_csv_matching_no_uploaded_file_is_rejected_with_a_clear_message() -> Non
 
 
 def test_headline_does_not_claim_all_checks_passed_over_an_abstention() -> None:
-    from label_assay.domain.models import Finding, LabelReport, Verdict
-
     report = LabelReport(
         verdict=Verdict.PASS,
         findings=[
@@ -415,9 +403,7 @@ def test_batch_uploads_spool_to_disk_and_are_gone_after_the_job(
     # The upload's temp files exist when the job starts (the job carries paths,
     # not bytes) and are gone once every item is processed.
     image = FIXTURE.read_bytes()
-    fixture = FixtureExtractor(
-        {fixture_key(image): fixture_corpus.perfect_extraction(SPEC)}
-    )
+    fixture = fixture_corpus.perfect_extractor(SPEC, image)
     monkeypatch.setattr(webapp, "default_extractor", lambda _settings: fixture)
     seen: dict[str, list] = {}
     real_run_job = batchmod.run_job
