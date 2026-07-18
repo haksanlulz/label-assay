@@ -33,4 +33,6 @@ RUN uv sync --frozen --no-dev
 EXPOSE 8080
 # --no-sync: use the environment already built above; don't re-resolve at boot
 # (that removed installed packages and slowed cold start).
-CMD ["uv", "run", "--no-sync", "uvicorn", "label_assay.web.app:app", "--host", "0.0.0.0", "--port", "8080"]
+# --no-server-header: don't advertise the server family ("Server: uvicorn") to
+# every client; HF's edge proxy passes the banner through unchanged.
+CMD ["uv", "run", "--no-sync", "uvicorn", "label_assay.web.app:app", "--host", "0.0.0.0", "--port", "8080", "--no-server-header"]

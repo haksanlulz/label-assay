@@ -50,6 +50,16 @@ There is deliberately no repository port, storage port, or notifier port. No sta
 
 A compliance tool must never fail a label it merely could not read. The third state is a domain decision, not a UI one: legibility ("can we read it?") and compliance ("does what we read satisfy the rule?") are orthogonal axes, and a failure is only ever issued on positively-read evidence.
 
+## Data flow and privacy
+
+What leaves the box, and what stays.
+
+**Leaves the box:** the uploaded label image, and only the image. Each check base64-encodes the raster and sends it to Anthropic's Claude API (the hosted vision model in `extract/haiku.py`) to transcribe the printed text. The vision adapter is blind by construction — the application data and the OCR read are never sent — and no other field, filename, or file is transmitted. The second read (RapidOCR) runs locally and sends nothing. The single-label and batch upload forms state this at the point of upload.
+
+**Stays local, briefly:** the OCR pass, the deterministic verification, and the rendered result. Nothing is persisted. Single-label checks are held in memory only for the request, and the result page returns the image to the browser as a downscaled `data:` URI rather than a stored copy. Batch uploads are spooled to named temp files for the life of the job and deleted as each label is processed, with a sweep for jobs that end early. No image, extraction, or verdict is written to a database or a log — server logs record failures with field locations and error types, but the model-input values (the transcribed label text) are stripped from validation errors at the extractor before they can reach a log (`extract/haiku.py`), and the unauthenticated `/health` endpoint reports a degraded OCR subsystem without the underlying exception detail.
+
+**Provider terms:** the label artwork in scope is public COLA-registry material with no personal data, so the disclosure risk is low. Anthropic's handling of API inputs is governed by its own commercial terms, not by this project; review Anthropic's commercial and data-usage terms (anthropic.com/legal) before sending any non-public content. The outbound dependency is not structural: the extractor port (ADR-0004) exists precisely so a local or in-tenant vision model can replace the hosted API without other code changes, which is the production path for an environment that cannot egress label images at all.
+
 ## Trade-offs and limitations
 
 - **Cost is estimated, not metered.** The daily spend guard bounds the public instance using a conservative per-label estimate rather than actual token usage. The provider-side workspace spend cap is the real ceiling. A failed reader call does not refund its budget reservation and a batch has no failure breaker, so a provider outage can exhaust the app-side daily budget with almost nothing actually spent at the provider; the next day's reset clears it, and metering real usage from the API response would remove the estimate entirely. Startup additionally reserves one label's estimate (~$0.005) for the warm extraction that pre-pays the provider's connection and model cold start; the warm-up skips quietly when no key is configured or the budget is exhausted.

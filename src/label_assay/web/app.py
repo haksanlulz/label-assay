@@ -142,6 +142,39 @@ app = FastAPI(title="LabelAssay", version=__version__, lifespan=_lifespan)
 app.mount("/static", StaticFiles(directory=str(_WEB / "static")), name="static")
 
 
+# Response hardening, applied to every route. The single-label flow ships zero
+# client JavaScript and every asset is same-origin, so the policy stays strict:
+# no inline script or style is required (the one inline style lives in app.css),
+# the batch page's own /static/batch.js and its /batch/{id}/data fetch are
+# same-origin, and the result page's collapsible preview rides back as a data:
+# image — the only non-'self' source the policy allows. nosniff is what keeps a
+# reflected filename in the /batch/{id}/data JSON from being sniffed as markup.
+# HSTS carries no `preload` deliberately: this runs on a shared *.hf.space host,
+# so preloading the registrable domain is not ours to claim; the host serves
+# HTTPS only, so the app-emitted header is honored end to end (and is simply
+# ignored over local plain-HTTP docker compose).
+_SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; img-src 'self' data:; style-src 'self'; "
+        "script-src 'self'; object-src 'none'; base-uri 'none'; "
+        "frame-ancestors 'none'; form-action 'self'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Strict-Transport-Security": "max-age=31536000",
+}
+
+
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    response = await call_next(request)
+    for name, value in _SECURITY_HEADERS.items():
+        response.headers[name] = value
+    return response
+
+
 def _ctx(extra: dict) -> dict:
     return {"version": __version__, **extra}
 
@@ -215,8 +248,12 @@ def _ocr_status() -> str:
         _OCR_READY = "ready"
         return _OCR_READY
     except Exception as exc:
+        # The full exception (its type, message, and any filesystem paths it
+        # names) stays in the server log; /health is unauthenticated, so the
+        # public payload carries only a generic "failed" — the status is enough
+        # for an uptime check or a reviewer to see the subsystem is degraded.
         logger.warning("OCR readiness probe failed", exc_info=exc)
-        return f"failed: {type(exc).__name__}: {exc}"[:160]
+        return "failed"
 
 
 @app.get("/health")
@@ -519,10 +556,14 @@ def batch_csv(job_id: str) -> Response:
     writer = csv.writer(buffer)
     writer.writerow(["filename", "status", "verdict", "detail", *rule_ids])
     for item in job.items:
-        writer.writerow(
-            [item.filename, item.status, item.verdict or "", item.detail or ""]
-            + [item.rule_verdicts.get(rule_id, "") for rule_id in rule_ids]
-        )
+        # Every data cell is neutralized, not just the filename: a finding's
+        # detail can echo filed application text, and uniform treatment keeps a
+        # later contract change from quietly reintroducing an unescaped cell. The
+        # header row is fixed literals plus repo-owned rule ids, so it is not a
+        # sink. See batch.neutralize_csv_cell for the CWE-1236 rationale.
+        row = [item.filename, item.status, item.verdict or "", item.detail or ""]
+        row += [item.rule_verdicts.get(rule_id, "") for rule_id in rule_ids]
+        writer.writerow([batchmod.neutralize_csv_cell(cell) for cell in row])
     return Response(
         buffer.getvalue(),
         media_type="text/csv",

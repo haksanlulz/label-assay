@@ -16,7 +16,15 @@
   function statusOf(item) {
     return item.status === "error" ? "error" : (item.verdict || "pending");
   }
-  function badgeClass(status) { return status === "error" ? "not_evaluable" : status; }
+  // The result value is written into a class attribute via innerHTML, so it must
+  // be one of a fixed set — never an arbitrary string. Every real status already
+  // maps into this set; clamping guarantees no value can break out of the
+  // attribute even if the server contract ever drifts.
+  var BADGE_CLASSES = ["pass", "needs_review", "fail", "not_evaluable", "pending"];
+  function badgeClass(status) {
+    var cls = status === "error" ? "not_evaluable" : status;
+    return BADGE_CLASSES.indexOf(cls) === -1 ? "not_evaluable" : cls;
+  }
   function matches(status) { return filter === "all" || status === filter; }
   function esc(s) { var d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
 

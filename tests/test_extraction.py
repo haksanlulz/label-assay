@@ -64,6 +64,42 @@ def test_haiku_extract_takes_only_an_image_and_uses_a_constant_prompt() -> None:
     assert params == ["self", "image"]
 
 
+def test_haiku_malformed_tool_payload_does_not_leak_the_transcription() -> None:
+    # A malformed tool payload is possible even under tool_choice (the API forces
+    # tool *use*, not a schema-valid input). Pydantic's ValidationError repr
+    # embeds the offending input — here the transcribed label text — so the
+    # extractor must re-raise without it, or service.py's logger.exception would
+    # write the transcription to the server log on a schema drift.
+    from label_assay.extract.haiku import HaikuExtractor
+
+    secret = "STONE'S THROW SMALL BATCH BOURBON"
+    malformed = {
+        # 'found' is required and omitted -> ValidationError whose input is `secret`.
+        "brand_name": {"verbatim": secret, "value": secret},
+        "class_type": {"verbatim": None, "found": False, "value": None},
+        "alcohol_content": {"verbatim": None, "found": False, "value": None},
+        "net_contents": {"verbatim": None, "found": False, "value": None},
+        "government_warning": {"verbatim": None, "found": False, "value": None},
+    }
+
+    class _Block:
+        type = "tool_use"
+        input = malformed
+
+    class _FakeMessages:
+        def create(self, **_kwargs):
+            return type("_Resp", (), {"content": [_Block()]})()
+
+    extractor = HaikuExtractor(api_key="test-key")
+    extractor._client = type("_FakeClient", (), {"messages": _FakeMessages()})()
+
+    with pytest.raises(RuntimeError) as excinfo:
+        extractor.extract(b"\x89PNG\r\n\x1a\n" + b"\x00" * 16)
+    message = str(excinfo.value)
+    assert secret not in message  # the transcription never rides the error
+    assert "brand_name" in message  # the schema location is safe to surface
+
+
 def test_ocr_reads_a_fixture_label() -> None:
     from label_assay.extract.ocr import read_lines
 

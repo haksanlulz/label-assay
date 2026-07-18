@@ -17,6 +17,7 @@ from __future__ import annotations
 import base64
 
 import anthropic
+from pydantic import ValidationError
 
 from label_assay.extract.base import Extraction
 
@@ -91,5 +92,22 @@ class HaikuExtractor:
         )
         for block in response.content:
             if block.type == "tool_use":
-                return Extraction.model_validate(block.input)
+                try:
+                    return Extraction.model_validate(block.input)
+                except ValidationError as exc:
+                    # A malformed tool payload is possible even under tool_choice
+                    # (the API forces tool *use*, not a schema-valid input). The
+                    # ValidationError repr embeds the offending input values —
+                    # here, the transcribed label text — so re-raise with only
+                    # the field locations and error types. That is enough to
+                    # diagnose a schema drift without the transcription reaching
+                    # the log. `from None` drops the original so its repr cannot
+                    # ride along in the traceback.
+                    where = "; ".join(
+                        ".".join(str(part) for part in err["loc"]) + f" ({err['type']})"
+                        for err in exc.errors()
+                    )
+                    raise RuntimeError(
+                        f"model returned a non-conforming extraction: {where}"
+                    ) from None
         raise RuntimeError("model did not return the expected tool call")
