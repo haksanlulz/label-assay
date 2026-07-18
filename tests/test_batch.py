@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import csv
-import hashlib
 import io
 import tempfile
 import time
@@ -16,7 +15,7 @@ from fastapi.testclient import TestClient
 
 import fixture_corpus
 from label_assay.domain.models import Application, Finding, LabelReport, Verdict
-from label_assay.extract.fixture import FixtureExtractor
+from label_assay.extract.fixture import FixtureExtractor, fixture_key
 from label_assay.match.brand import BrandVerdict, match_brand
 from label_assay.rulebook.loader import load_rulebook
 from label_assay.web import app as webapp
@@ -55,7 +54,7 @@ def test_batch_upload_form_renders() -> None:
 def test_run_job_processes_every_item_offline(tmp_path: Path) -> None:
     image = FIXTURE.read_bytes()
     fixture = FixtureExtractor(
-        {hashlib.sha256(image).hexdigest(): fixture_corpus.perfect_extraction(SPEC)}
+        {fixture_key(image): fixture_corpus.perfect_extraction(SPEC)}
     )
     job = create_job(["a.png", "b.png"])
     files = [_spooled(tmp_path, "a.png", image), _spooled(tmp_path, "b.png", image)]
@@ -187,7 +186,7 @@ def test_batch_checks_each_label_against_its_own_application(tmp_path: Path) -> 
     # image passes against its own filed brand and fails against someone else's.
     image = FIXTURE.read_bytes()
     fixture = FixtureExtractor(
-        {hashlib.sha256(image).hexdigest(): fixture_corpus.perfect_extraction(SPEC)}
+        {fixture_key(image): fixture_corpus.perfect_extraction(SPEC)}
     )
     other_brand = next(  # an invented brand the matcher must call a real mismatch
         b
@@ -228,7 +227,7 @@ def test_batch_route_happy_path_end_to_end(monkeypatch: pytest.MonkeyPatch) -> N
     # the upload to pin case-insensitive pairing end to end.
     image = FIXTURE.read_bytes()
     fixture = FixtureExtractor(
-        {hashlib.sha256(image).hexdigest(): fixture_corpus.perfect_extraction(SPEC)}
+        {fixture_key(image): fixture_corpus.perfect_extraction(SPEC)}
     )
     monkeypatch.setattr(webapp, "default_extractor", lambda _settings: fixture)
     buf = io.StringIO()
@@ -406,7 +405,7 @@ def test_batch_uploads_spool_to_disk_and_are_gone_after_the_job(
     # not bytes) and are gone once every item is processed.
     image = FIXTURE.read_bytes()
     fixture = FixtureExtractor(
-        {hashlib.sha256(image).hexdigest(): fixture_corpus.perfect_extraction(SPEC)}
+        {fixture_key(image): fixture_corpus.perfect_extraction(SPEC)}
     )
     monkeypatch.setattr(webapp, "default_extractor", lambda _settings: fixture)
     seen: dict[str, list] = {}

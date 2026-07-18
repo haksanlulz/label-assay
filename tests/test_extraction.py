@@ -7,11 +7,12 @@ stays green in CI without a key while still exercising the real path locally.
 
 from __future__ import annotations
 
-import hashlib
 import inspect
+import io
 import re
 
 import pytest
+from PIL import Image
 
 import fixture_corpus
 from label_assay.config import get_settings
@@ -40,11 +41,17 @@ def _extraction() -> Extraction:
     )
 
 
-def test_fixture_extractor_replays_by_hash() -> None:
-    from label_assay.extract.fixture import FixtureExtractor
+def _solid_png(color: tuple[int, int, int]) -> bytes:
+    buffer = io.BytesIO()
+    Image.new("RGB", (4, 4), color).save(buffer, format="PNG")
+    return buffer.getvalue()
 
-    img = b"pretend-image-bytes"
-    fixtures = {hashlib.sha256(img).hexdigest(): _extraction()}
+
+def test_fixture_extractor_replays_by_pixel_content() -> None:
+    from label_assay.extract.fixture import FixtureExtractor, fixture_key
+
+    img = _solid_png((10, 20, 30))
+    fixtures = {fixture_key(img): _extraction()}
     assert FixtureExtractor(fixtures).extract(img) == _extraction()
 
 
@@ -52,7 +59,28 @@ def test_fixture_extractor_raises_on_unknown_image() -> None:
     from label_assay.extract.fixture import FixtureExtractor
 
     with pytest.raises(KeyError):
-        FixtureExtractor({}).extract(b"unknown")
+        FixtureExtractor({}).extract(_solid_png((250, 250, 250)))
+
+
+def test_fixture_key_survives_the_vision_reencode() -> None:
+    # The service hands the extractor a fresh PNG encode (downscale_for_vision),
+    # never the upload's own bytes — and two zlib builds can emit different PNG
+    # streams for the same pixels, so a key over encoded bytes registered from
+    # an upload missed the re-encode on another platform. The pixel key must
+    # resolve both the pipeline's re-encode and a byte-distinct encode of the
+    # same raster; the second leg fails under byte keying on every platform.
+    from label_assay.extract.fixture import FixtureExtractor, fixture_key
+    from label_assay.extract.images import downscale_for_vision
+
+    upload = _fixture_bytes()
+    extractor = FixtureExtractor({fixture_key(upload): _extraction()})
+    assert extractor.extract(downscale_for_vision(upload)) == _extraction()
+
+    buffer = io.BytesIO()
+    Image.open(io.BytesIO(upload)).save(buffer, format="PNG", compress_level=1)
+    variant = buffer.getvalue()
+    assert variant != upload  # same pixels, different bytes
+    assert extractor.extract(variant) == _extraction()
 
 
 def test_haiku_extract_takes_only_an_image_and_uses_a_constant_prompt() -> None:

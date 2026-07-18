@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import hashlib
 import io
 import re
 import time
@@ -21,7 +20,7 @@ from PIL import Image
 import fixture_corpus
 from label_assay.config import Settings
 from label_assay.extract.base import ExtractedField, Extraction
-from label_assay.extract.fixture import FixtureExtractor
+from label_assay.extract.fixture import FixtureExtractor, fixture_key
 from label_assay.web import app as webapp
 from label_assay.web.service import ExtractionUnavailable
 from synthetic_images import bomb_png
@@ -121,7 +120,7 @@ def test_check_shows_clean_error_when_reader_unavailable(monkeypatch: pytest.Mon
 def test_check_happy_path_renders_a_cited_verdict(monkeypatch: pytest.MonkeyPatch) -> None:
     image = FIXTURE.read_bytes()
     fixture = FixtureExtractor(
-        {hashlib.sha256(image).hexdigest(): fixture_corpus.perfect_extraction(SPEC)}
+        {fixture_key(image): fixture_corpus.perfect_extraction(SPEC)}
     )
     monkeypatch.setattr(webapp, "default_extractor", lambda _settings: fixture)
 
@@ -145,7 +144,7 @@ def test_fail_page_renders_plain_language_badges_and_the_diff(
     spec = next(s for s in fixture_corpus.corpus_specs() if s.defect == "warning_altered_text")
     image = fixture_corpus.fixture_path(spec).read_bytes()
     fixture = FixtureExtractor(
-        {hashlib.sha256(image).hexdigest(): fixture_corpus.perfect_extraction(spec)}
+        {fixture_key(image): fixture_corpus.perfect_extraction(spec)}
     )
     monkeypatch.setattr(webapp, "default_extractor", lambda _settings: fixture)
 
