@@ -2,10 +2,15 @@
 # (a movable tag can be repointed after an upstream compromise). Pinning freezes
 # the version, so Dependabot is what keeps it maintained: it opens a PR when a
 # pinned action publishes a new release, updating the SHA and the trailing
-# version comment together.
+# version comment together. The Dockerfile's base image is pinned by digest for
+# the same reason; the docker entry maintains that digest as the tag moves.
 version: 2
 updates:
   - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
     directory: "/"
     schedule:
       interval: weekly

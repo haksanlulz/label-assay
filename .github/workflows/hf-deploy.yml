@@ -26,6 +26,13 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq libgl1 libglib2.0-0 libgomp1 libxcb1 libsm6 libxext6 libxrender1
       - name: Install dependencies
         run: uv sync
+      - name: Audit dependencies for known vulnerabilities
+        # Audits the lock export rather than the environment (uv venvs carry no
+        # pip, which pip-audit's environment mode drives). A finding fails this
+        # job, and the deploy job does not run without it.
+        run: |
+          uv export --no-emit-project --format requirements-txt -o requirements-audit.txt
+          uvx pip-audit -r requirements-audit.txt --disable-pip
       - name: Run the test suite
         run: |
           set +e
