@@ -1,7 +1,10 @@
-# uv + Python base. The Python package layer is reproducible from the committed
-# lockfile (uv sync --frozen); the base tag itself tracks upstream uv/Python/
-# Debian patch releases.
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+# uv + Python base, pinned by digest so the tag cannot be repointed under the
+# build — the same reasoning as the workflows' action SHA pins. The Python
+# package layer is reproducible from the committed lockfile (uv sync --frozen).
+# The tag stays in the ref as the human-readable name (python3.12-bookworm-slim,
+# tracking upstream uv/Python/Debian patch releases); the digest is what the
+# build resolves, and Dependabot's docker entry keeps it current.
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58
 
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy

@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import csv
 import io
+import re
 import tempfile
 import time
 from pathlib import Path
@@ -45,9 +46,12 @@ def test_batch_upload_form_renders() -> None:
     resp = client.get("/batch")
     assert resp.status_code == 200
     assert "many labels" in resp.text.lower()
-    # The retry-sideways checkbox ships checked; unchecking is the opt-out.
-    assert 'name="recover_rotation"' in resp.text
-    assert "checked" in resp.text
+    # The retry-sideways checkbox ships checked; unchecking is the opt-out. The
+    # attribute is asserted on the checkbox tag itself: the page's prose also
+    # says "checked", so a whole-page substring cannot pin the default.
+    checkbox = re.search(r'<input[^>]*name="recover_rotation"[^>]*>', resp.text)
+    assert checkbox is not None
+    assert re.search(r"\bchecked\b", checkbox.group(0))
     assert "Retry sideways reads" in resp.text
 
 

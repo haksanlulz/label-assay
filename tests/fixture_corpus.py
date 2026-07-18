@@ -83,13 +83,16 @@ def application_for(spec) -> Application:
 
 def mandated_warning() -> str:
     """The 27 CFR 16.21 reference text, read from the rulebook (its single
-    owner). For stubbed OCR reads: a stub that returns no warning text triggers
-    the service's rotation retry, so scenarios that are not about the retry
-    stub a read containing this text instead of an empty read."""
+    owner) with the same rule selection the service applies, so the two cannot
+    drift apart. For stubbed OCR reads: a stub that returns no warning text
+    triggers the service's rotation retry, so scenarios that are not about the
+    retry stub a read containing this text instead of an empty read."""
     from label_assay.rulebook.loader import load_rulebook
 
     return next(
         r.match.reference
         for r in load_rulebook().rules
-        if r.match.strategy == "verbatim" and r.match.reference
+        if r.match.strategy == "verbatim"
+        and r.match.field == "government_warning"
+        and r.match.reference
     )
