@@ -58,11 +58,11 @@ _ROTATION_CHOICES = {"0": 0, "90": 90, "180": 180, "270": 270}
 _VERDICT_COPY = {
     Verdict.PASS: ("Compliant", "This label passed every automated check below."),
     Verdict.NEEDS_REVIEW: (
-        "Needs your review",
+        "Needs Your Review",
         "I couldn't verify everything automatically. Check the items marked for review below.",
     ),
     Verdict.FAIL: (
-        "Needs correction",
+        "Needs Correction",
         "At least one finding below needs correction.",
     ),
 }

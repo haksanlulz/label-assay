@@ -11,20 +11,20 @@ Approach, tools, and assumptions. Decision records for the contested forks are i
 - Usable by a non-technical reviewer.
 - No hard dependency on an outbound cloud ML endpoint.
 
-## Non-goals (deliberately out of scope)
+## Non-Goals (Deliberately out of Scope)
 
 Each of these is a scoping decision, not an omission.
 
 - **Type size, characters per inch, contrasting background.** Regulated in millimetres (27 CFR 16.22(b), 5.53, 7.53). A flat image carries no DPI or physical-scale reference, so these are *unverifiable from the artifact*. They are reported as not evaluable with the citation, rather than guessed. TTB Form 5100.31 itself states TTB does not routinely review for them.
 - **"Same field of vision" placement** (27 CFR 5.63(a)) — defined geometrically (40% of a cylinder's circumference); a flat image cannot express it.
-- **Arbitrary skew, glare, perspective correction.** Orientation left this bucket, because a lossless right-angle transform fixes it exactly — but the two paths pay for it differently, because their latency contracts differ. EXIF orientation is always applied, once, at the bounded decode (`extract/images.py`), so a phone photo whose pixels are stored sideways reads upright in every consumer: OCR, the vision copy, the preview. Beyond EXIF, the interactive path takes an explicit rotation from the operator — a plain select on the form ("Label image is rotated: no / 90° clockwise / 180° / 90° counter-clockwise") — and transposes the raster once at the top of the check, so the vision copy, OCR, and the result page's echoed image all see the same corrected raster; there is no automatic search, and interactive latency is unchanged (the measured 3.4–4.6 s stands). The batch path, where nobody waits on any one label, instead offers a bounded automatic retry, on by default and switched off by a checkbox on the upload form: when the upright OCR read does not contain the mandated warning, the label is re-read rotated 90, 180, and 270 degrees, stopping at the first rotation where the warning appears and merging that pass's lines, marked, into the read — real registry labels print the warning sideways along an edge. The cost: at most three extra OCR passes per label whose warning was not found upright, and the vision call is never retried (the model reads rotated text natively). A heading recovered by the retry is located but not measured; the bold check abstains to review rather than crop the upright image with a rotated-frame box. Two honest limits: the two sideways-warning registry composites still abstain, because they are tall multi-panel scans and OCR's internal downscale (see Trade-offs) loses the fine print at any rotation; and everything short of a right-angle transform — skew, perspective, glare — remains out of scope for the reasons this bullet always gave. Most COLA label images are flat print artwork, but real filings do include bottle photography — one of the eleven real-registry labels in `tests/fixtures/cola/` is a pair of bottle photographs with curved label text. The honest behavior there is abstention (unreadable fields go to review), not a half-built correction pipeline; if photographic input became the norm, the extractor port (ADR-0004) is where dewarping lands.
+- **Arbitrary skew, glare, perspective correction.** Orientation left this bucket, because a lossless right-angle transform fixes it exactly — but the two paths pay for it differently, because their latency contracts differ. EXIF orientation is always applied, once, at the bounded decode (`extract/images.py`), so a phone photo whose pixels are stored sideways reads upright in every consumer: OCR, the vision copy, the preview. Beyond EXIF, the interactive path takes an explicit rotation from the operator — a plain select on the form ("Label image is rotated: no / 90° clockwise / 180° / 90° counter-clockwise") — and transposes the raster once at the top of the check, so the vision copy, OCR, and the result page's echoed image all see the same corrected raster; there is no automatic search, and interactive latency is unchanged (the measured 3.4–4.6 s stands). The batch path, where nobody waits on any one label, instead offers a bounded automatic retry, on by default and switched off by a checkbox on the upload form: when the upright OCR read does not contain the mandated warning, the label is re-read rotated 90, 180, and 270 degrees, stopping at the first rotation where the warning appears and merging that pass's lines, marked, into the read — real registry labels print the warning sideways along an edge. The cost: at most three extra OCR passes per label whose warning was not found upright, and the vision call is never retried (the model reads rotated text natively). A heading recovered by the retry is located but not measured; the bold check abstains to review rather than crop the upright image with a rotated-frame box. Two honest limits: the two sideways-warning registry composites still abstain, because they are tall multi-panel scans and OCR's internal downscale (see Trade-Offs and Limitations) loses the fine print at any rotation; and everything short of a right-angle transform — skew, perspective, glare — remains out of scope for the reasons this bullet always gave. Most COLA label images are flat print artwork, but real filings do include bottle photography — one of the eleven real-registry labels in `tests/fixtures/cola/` is a pair of bottle photographs with curved label text. The honest behavior there is abstention (unreadable fields go to review), not a half-built correction pipeline; if photographic input became the norm, the extractor port (ADR-0004) is where dewarping lands.
 - **Alcohol content versus the application.** TTB Form 5100.31 has *no* alcohol-content field, so there is nothing on the application to compare against. Alcohol content is therefore checked for internal consistency (proof = 2 × ABV, 27 CFR 5.1) instead. The CFR's ±0.3 percentage-point tolerance is a **label-versus-laboratory** allowance — applying it to a document comparison would forgive a real data-entry discrepancy, which is why it is not used that way here.
 - **Net contents verification, and class/type comparison.** Both fields are extracted — the reader quotes them, and they are available at the extractor port — but no rule consumes either for a verdict. A net-contents check is a standards-of-fill question that needs the authorized-container data in 27 CFR part 5 subpart E, and no verification rule for it shipped, so the field is read and echoed on the result page for the reviewer's reference, never judged. Class/type routes which rules apply to a label; it is never compared against the filed class/type. Stated so an extracted field is not mistaken for a checked one.
 - **Bottler name and address, and country of origin.** These sit in the spec's background list of common label elements, not among its example fields or named checks, and are neither extracted nor checked: the extraction schema (`extract/base.py`) is where such a field would land, and the registry records behind the real-label corpus carry origin as filed if a check is ever built.
 - **Brand matching for batch labels with no filed application row.** A batch upload may omit `applications.csv`, or a label may have no matching row; there is nothing filed to compare against, so the brand match is reported not evaluable rather than forced. With the CSV (`filename, brand_name, class_type`, optionally `fanciful_name`), each label in a batch is checked against its own filed application row — the same check set as the single-label path.
 - **COLA system integration**, and **persisting anything sensitive** — nothing is stored. Single-label checks are processed in memory; batch uploads are spooled to temp files only for the life of the job, deleted as each label is processed and swept when a job ends early. The single-label result page's collapsible image preview keeps that posture: the image round-trips inside the response itself as a downscaled `data:` URI, never retained server-side. Batch results deliberately do not retain or echo images — per-item temp files are deleted at processing time, and retaining 300 images per job would break the memory and storage posture.
 
-## How it works
+## How It Works
 
 1. **Read.** A vision model (Claude Haiku) transcribes the label into a fixed schema. It is blind by construction: it receives only the image, never the application data and never the OCR output, so it cannot "find" an expected answer. The schema forces it to quote the printed text before committing to a value, and to mark a field absent rather than fill a required slot.
 2. **Read again, independently.** A local OCR pass (RapidOCR) reads the same image offline, with per-line confidence. In a batch — on by default, off by a checkbox — when the upright read does not contain the mandated warning, it is retried with the image rotated 90, 180, and 270 degrees (at most three extra passes, paid only in that miss case) and the first rotation that reads the warning is merged into the result. The single-label path never searches: the operator states the rotation on the form and the image is straightened once before either reader sees it.
@@ -32,7 +32,7 @@ Each of these is a scoping decision, not an omission.
 4. **Gate.** Where OCR cannot corroborate the model's quoted text, that finding is held for review — never passed or failed. Absence of OCR evidence is never treated as evidence of absence: an unreadable image singles out no field. For the mandated warning the bar is strict: a pass stands only when the OCR read contains the statutory text itself, because a vision model can recite that paragraph over a label that prints something else.
 5. **Report.** Worst finding wins: any failure fails; else any review needs review; compliant only when at least one check actually passed — zero findings, or nothing but abstentions, is held for review.
 
-### Rules as data
+### Rules as Data
 
 Every TTB rule lives in `rulebook/rules/*.yaml` with a **required** `citation` field — an uncited rule fails to load, so every finding carries its citation by construction. Code knows *strategies* (`verbatim`, `brand_match`, `abv_consistency`, `warning_bold`), never individual rules. `tests/test_ssot.py` greps the source and fails if statutory text is hardcoded anywhere outside the rulebook.
 
@@ -40,17 +40,17 @@ The rulebook is YAML, not a database: for a regulation, git history *is* the aud
 
 Resisted: a condition DSL inside YAML. That is an interpreter to defend. Rules use closed-vocabulary predicate fields instead.
 
-### One port, and the ones not built
+### One Port, and the Ones Not Built
 
 The extractor is a `Protocol` with adapters: the hosted vision model, a fixture replay for deterministic tests, and room for a local or in-tenant endpoint. This is the *one* abstraction a stated requirement justifies — the client's firewall blocked the prior vendor's cloud ML endpoint (ADR-0004).
 
 There is deliberately no repository port, storage port, or notifier port. No stated second implementation, no port.
 
-### Three states, not two
+### Three States, Not Two
 
 A compliance tool must never fail a label it merely could not read. The third state is a domain decision, not a UI one: legibility ("can we read it?") and compliance ("does what we read satisfy the rule?") are orthogonal axes, and a failure is only ever issued on positively-read evidence.
 
-## Data flow and privacy
+## Data Flow and Privacy
 
 What leaves the box, and what stays.
 
@@ -60,7 +60,7 @@ What leaves the box, and what stays.
 
 **Provider terms:** the label artwork in scope is public COLA-registry material with no personal data, so the disclosure risk is low. Anthropic's handling of API inputs is governed by its own commercial terms, not by this project; review Anthropic's commercial and data-usage terms (anthropic.com/legal) before sending any non-public content. The outbound dependency is not structural: the extractor port (ADR-0004) exists precisely so a local or in-tenant vision model can replace the hosted API without other code changes, which is the production path for an environment that cannot egress label images at all.
 
-## Trade-offs and limitations
+## Trade-Offs and Limitations
 
 - **Cost is estimated, not metered.** The daily spend guard bounds the public instance using a conservative per-label estimate rather than actual token usage. The provider-side workspace spend cap is the real ceiling. A failed reader call does not refund its budget reservation and a batch has no failure breaker, so a provider outage can exhaust the app-side daily budget with almost nothing actually spent at the provider; the next day's reset clears it, and metering real usage from the API response would remove the estimate entirely. Startup additionally reserves one label's estimate (~$0.005) for the warm extraction that pre-pays the provider's connection and model cold start; the warm-up skips quietly when no key is configured or the budget is exhausted.
 - **Reader failures are not differentiated.** Every reader failure renders the same try-again message; a revoked key or a bad model id looks transient to the user, and distinguishing provider error classes (auth, not-found, rate-limit) behind the extractor port is a production step.
@@ -109,11 +109,11 @@ Framed against the NIST AI Risk Management Framework 1.0 (govern / map / measure
 
 Built to WCAG 2.1 AA to be Section 508-ready; see [ACCESSIBILITY.md](ACCESSIBILITY.md). The single-label flow is server-rendered and works with JavaScript disabled. This is also why a dashboard framework was not used: Streamlit and Gradio have no 508 conformance story.
 
-## AI assistance
+## AI Assistance
 
 Built with AI assistance (Claude). The working rule was command and verification, not delegation:
 
-- Every regulatory value — the verbatim warning, tolerances, class minimums, standards of fill — was verified against the primary source (eCFR XML, govinfo, 27 U.S.C. § 215), not taken from the model. Model-supplied regulatory claims were wrong at least once in ways that would have shipped a fail-open bug (see the alcohol-content tolerance note under Non-goals).
+- Every regulatory value — the verbatim warning, tolerances, class minimums, standards of fill — was verified against the primary source (eCFR XML, govinfo, 27 U.S.C. § 215), not taken from the model. Model-supplied regulatory claims were wrong at least once in ways that would have shipped a fail-open bug (see the alcohol-content tolerance note under Non-Goals).
 - Tests were written alongside the code they cover and caught real defects before commit, including an over-aggressive suffix strip and a non-idempotent normalization ordering.
 - All but three commits carry an `Assisted-by:` trailer, following the kernel/Fedora convention.
 

@@ -33,7 +33,7 @@ client = TestClient(webapp.app)
 def test_index_renders_the_form() -> None:
     resp = client.get("/")
     assert resp.status_code == 200
-    assert "Check a label" in resp.text
+    assert "Check a Label" in resp.text
     assert 'action="/check"' in resp.text
     assert 'name="fanciful_name"' in resp.text  # the optional fanciful-name input
     # The rotation control is a plain select — the zero-JS invariant holds on
@@ -114,7 +114,7 @@ def test_check_shows_clean_error_when_reader_unavailable(monkeypatch: pytest.Mon
         data={"brand_name": "X", "class_type": "Y"},
     )
     assert resp.status_code == 503  # a monitor must not read this failure as success
-    assert "Couldn't check the label" in resp.text
+    assert "Couldn't Check the Label" in resp.text
 
 
 def test_check_happy_path_renders_a_cited_verdict(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -163,7 +163,7 @@ def test_fail_page_renders_plain_language_badges_and_the_diff(
         data={"brand_name": spec.filed_brand, "class_type": spec.class_type},
     )
     assert resp.status_code == 200
-    assert "Needs correction" in resp.text
+    assert "Needs Correction" in resp.text
     # Badges use the same plain-language labels as the batch table, never the
     # raw enum vocabulary.
     assert 'badge--fail">Needs correction<' in resp.text
@@ -226,7 +226,7 @@ def test_result_page_reads_back_what_the_reader_returned(monkeypatch: pytest.Mon
     # the findings, not here).
     resp = _post_check_with(monkeypatch, _read_extraction())
     assert resp.status_code == 200
-    assert "What was read from the label" in resp.text
+    assert "What Was Read From the Label" in resp.text
     assert "&ldquo;Old Tom Gin&rdquo;" in resp.text
     assert "&ldquo;London Dry Gin&rdquo;" in resp.text
     assert "&ldquo;45% ALC./VOL. (90 PROOF)&rdquo;" in resp.text
@@ -304,7 +304,7 @@ def test_preview_encode_failure_never_costs_the_verdict(
     monkeypatch.setattr(webapp, "preview_jpeg", boom)
     resp = _post_check_with(monkeypatch, _read_extraction())
     assert resp.status_code == 200
-    assert "What was read from the label" in resp.text  # the verdict page rendered
+    assert "What Was Read From the Label" in resp.text  # the verdict page rendered
     assert "<details" not in resp.text
     assert "Show the label image you uploaded" not in resp.text
     assert "data:image/jpeg" not in resp.text
