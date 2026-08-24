@@ -10,7 +10,7 @@ from label_assay.text.numbers import AlcoholContent, parse_alcohol_content
 
 
 def test_parses_abv_and_proof_from_sample_label() -> None:
-    # The spec's sample label: "45% Alc./Vol. (90 Proof)".
+    # Sample label text: "45% Alc./Vol. (90 Proof)".
     ac = parse_alcohol_content("45% Alc./Vol. (90 Proof)")
     assert ac is not None
     assert ac.abv == Decimal("45")

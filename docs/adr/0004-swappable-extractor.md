@@ -8,9 +8,9 @@ Accepted
 
 ## Context
 
-A reviewer network blocks outbound traffic to many domains. That is not a hypothetical: it is why a tool can go unused — half its features didn't work because the firewall blocked its ML endpoints, and the tool was abandoned. Any design that hard-wires a specific cloud vision endpoint repeats that failure.
+A compliance reviewer's network may not be able to reach an arbitrary public ML endpoint. Restricted egress is common in regulated environments, and a tool that hard-wires one cloud vision endpoint simply stops working there.
 
-The environment is a restricted one. A production deployment would plausibly need an in-tenant endpoint or an on-premises model rather than a public API.
+A production deployment in such an environment would plausibly need an in-tenant endpoint or an on-premises model rather than a public API.
 
 ## Decision
 
@@ -24,6 +24,6 @@ This is the *one* abstraction a stated requirement justifies. There is deliberat
 
 The model backend is a swap, not a rewrite. Tests run offline and deterministically against the fixture adapter, so the suite needs no API key.
 
-The OCR pass is local and needs no network at all, so the deterministic half of the system keeps working when the endpoint does not — which is the stated failure mode. When the reader is unreachable, the app says so plainly rather than returning a stack trace.
+The OCR pass is local and needs no network at all, so the deterministic half of the system keeps working when the endpoint does not. When the reader is unreachable, the app says so plainly rather than returning a stack trace.
 
 The cost is one layer of indirection at the boundary, and a schema that both adapters must satisfy.

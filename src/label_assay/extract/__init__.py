@@ -7,8 +7,8 @@ real confidence signal later (a model handed the expected answer would just echo
 it back).
 
 The port is a Protocol so an adapter never imports the core to subclass it. This
-is the one seam the requirements justify — a restricted network blocked the
-earlier tool's cloud ML endpoint, so the backend must be swappable: a hosted
-vision model for the deployed instance, a local OCR or in-tenant endpoint
-for their environment, a fixture replay for tests.
+is the one seam the requirements justify: a regulated environment may not be able
+to reach a public ML endpoint at all, so the backend must be swappable. A hosted
+vision model for the deployed instance, a local OCR or in-tenant endpoint for a
+restricted network, a fixture replay for tests.
 """

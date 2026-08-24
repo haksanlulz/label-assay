@@ -141,7 +141,19 @@ async def _lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="LabelAssay", version=__version__, lifespan=_lifespan)
+# The interactive docs are off. /check is unauthenticated and spends real money
+# per call, so a "Try it out" button on a public deployment is a standing invitation
+# to drain the daily budget. The budget guard bounds the cost; it is not an
+# authorization mechanism and was never meant to be one. The README documents every
+# route, so nothing is lost but the button.
+app = FastAPI(
+    title="LabelAssay",
+    version=__version__,
+    lifespan=_lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 app.mount("/static", StaticFiles(directory=str(_WEB / "static")), name="static")
 
 

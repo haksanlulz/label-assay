@@ -50,7 +50,7 @@ instance**.
 
 | Invariant | Scan | Status |
 |---|---|---|
-| The deciding layer never calls a model | ADR-0002 + `verify/engine.py` is pure by construction | 🟡 documented and true, but no AST scan enforces it (`civic-host` has one — portable) |
+| The deciding layer never calls a model | ADR-0002 + `verify/engine.py` is pure by construction | 🟡 documented and true, but no AST scan enforces it (a sibling project has one — portable) |
 | Rules live in data | `rulebook/rules/*.yaml` + ADR-0003 | ✅ structural |
 | A model reciting the warning cannot pass an altered label | independent OCR must contain the statute | ✅ the legibility gate |
 | Deployed rulebook == tree rulebook | `verify_deploy.py` | ✅ |
@@ -83,14 +83,14 @@ in the workspace CLAUDE.md; `verify_deploy.py` is the rung they produced.)*
    comparison. The README states the target and openly says whether the instance
    clears it "depends on its CPU budget," so this is the project's own stated
    uncertainty with no rung on it. It matters because slowness is the failure
-   that already happened once: the earlier tool took 30–40s and reviewers went
+   that already happened once: a 30 to 40 second tool went unused and reviewers went
    back to checking by eye. Measured 2026-07-29 at **3.2s on the instance** —
    inside target today, which is exactly when a threshold is cheap to add.
 2. **§1 and §5 are unratified.** §1 is transcribed from the README; §5 is empty.
    The operator ratified the workspace's §1 by interview the same day, so the
    pattern exists — this one just has not been run.
 3. **Purity is documented, not scanned.** ADR-0002 says the deciding layer never
-   calls a model and that is true today. `civic-host` enforces the same property
+   calls a model and that is true today. A sibling project enforces the same property
    with an AST scan that fails the suite on a network or model import; it would
    port here in minutes.
 4. **Cold start is unprobed.** HF Spaces sleep. `uptime.yml` every 6 hours keeps

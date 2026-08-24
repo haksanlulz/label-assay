@@ -10,7 +10,7 @@ Accepted
 
 The obvious build is one call: hand a frontier vision model the label and the application data and ask "is this compliant?" It is less code and reads as the modern approach.
 
-Two things rule it out. First, latency: output tokens dominate a vision call, and a model asked to reason about compliance emits far more of them than one asked to transcribe. The 5-second target is a stated kill criterion — an earlier tool's 30–40 seconds is why reviewers went back to checking by eye. Second, and more seriously, a model's failure mode here is confident and invisible: vision models score near-perfectly on canonical images and poorly on altered ones, which is exactly the population a compliance tool exists to catch.
+Two things rule it out. First, latency: output tokens dominate a vision call, and a model asked to reason about compliance emits far more of them than one asked to transcribe. The 5-second target is a stated kill criterion: at 30 to 40 seconds a reviewer goes back to checking by eye. Second, and more seriously, a model's failure mode here is confident and invisible: vision models score near-perfectly on canonical images and poorly on altered ones, which is exactly the population a compliance tool exists to catch.
 
 ## Decision
 

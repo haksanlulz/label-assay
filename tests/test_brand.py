@@ -6,7 +6,7 @@ from label_assay.match.brand import BrandVerdict, match_brand
 
 
 def test_stones_throw_is_a_match() -> None:
-    # The driving example from the requirements.
+    # The driving example for brand matching.
     assert match_brand("STONE'S THROW", "Stone's Throw").verdict == BrandVerdict.MATCH
 
 
