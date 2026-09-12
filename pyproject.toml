@@ -52,3 +52,8 @@ filterwarnings = [
     # this exact message so real warnings still surface.
     "ignore:Using `httpx` with `starlette.testclient` is deprecated:Warning",
 ]
+addopts = "--strict-markers"
+markers = [
+    "live: reaches the Anthropic API with a configured key; skips cleanly without one",
+    "slow: over 5 s on the reference machine (real OCR over the committed corpus)",
+]

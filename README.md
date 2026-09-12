@@ -60,11 +60,26 @@ With Docker:
 docker compose up             # http://localhost:8080
 ```
 
-Tests:
+## Testing
+
+Offline suite (measured 2026-09-11, Windows, Python 3.14.4):
 
 ```
-uv run pytest                 # live-API tests skip cleanly without a key
+uv run python -m pytest                              # 267 passed, 3 skipped, about 35 to 40 s
+uv run python -m pytest -m "not slow and not live"   # fast tier: 265 tests
+uv run python -m pytest -m live                      # 3 tests that call the Anthropic API; skip without ANTHROPIC_API_KEY
+uv run python -m pytest -m slow                      # 2 tests over 5 s: real OCR over the committed corpus
 ```
+
+Markers are registered in `pyproject.toml` under `--strict-markers`. The 3 `live` tests are the only ones that reach the network; everything else runs against the committed fixtures and stubbed extractors.
+
+Size on the same date: app 2,924 lines (`find src -name '*.py' -not -path '*/__pycache__/*' | xargs wc -l`) plus 1,128 in `tools/`; tests 4,642 lines (`find tests -maxdepth 1 -name '*.py' | xargs wc -l`); 270 tests collected.
+
+By layer: text and number parsing (`test_normalize`, `test_numbers`); warning and brand matching and the bold check on rendered pixels (`test_warning`, `test_brand`, `test_bold`); the verdict engine, rulebook data, and OCR scheduling (`test_engine`, `test_ssot`, `test_priority`); the FastAPI routes, batch jobs, spend guard, upload guards, and stylesheet contrast through `TestClient` (`test_web`, `test_batch`, `test_service`, `test_budget`, `test_contrast`). The synthetic corpus generator is checked against the engine itself (`test_make_labels`) and the 11 real COLA labels pin the no-false-positive direction (`test_cola_corpus`, `test_bold`).
+
+Mutation probe, 2026-09-11: flipping `AlcoholContent.proof_matches_abv` in `src/label_assay/text/numbers.py` from `==` to `!=` failed `tests/test_numbers.py::test_parses_abv_and_proof_from_sample_label`, `::test_inconsistent_proof_is_flagged`, and `::test_marketing_percent_is_not_truncated_into_an_abv`, and broke collection of 7 modules (`test_batch`, `test_bold`, `test_engine`, `test_extraction`, `test_rotation`, `test_service`, `test_web`) because the corpus builder they import asserts proof consistency at build time. The file was restored and is byte-identical to HEAD.
+
+Wiring audit, same date: no `assert_called` or `assert_awaited` anywhere; 4 tests record calls on hand-rolled stubs (7 assertions against the recorders), 0 pruned. Each guards a contract (nothing is spent on a rejected upload or a decompression bomb; the startup warm fires exactly once against the real budget at background priority). Policy: assert behavior and payloads, never that a function was called.
 
 ## Deploying
 

@@ -159,6 +159,7 @@ def test_beverage_class_inference() -> None:
     assert infer_beverage_class("India Pale Ale") == "malt"
 
 
+@pytest.mark.live
 @pytest.mark.skipif(not get_settings().anthropic_api_key, reason="needs ANTHROPIC_API_KEY")
 def test_full_pipeline_image_to_verdict() -> None:
     import anthropic
@@ -333,6 +334,7 @@ def test_field_support_penalizes_a_quote_longer_than_the_ocr_read() -> None:
     assert field_support(reference, truncated_read) < 0.95
 
 
+@pytest.mark.live
 @pytest.mark.skipif(not get_settings().anthropic_api_key, reason="needs ANTHROPIC_API_KEY")
 def test_altered_warning_labels_are_never_passed_live() -> None:
     # End to end with the real model: whether it transcribes the altered text

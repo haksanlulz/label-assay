@@ -129,6 +129,7 @@ def test_ocr_reads_a_fixture_label() -> None:
     assert "governmentwarning" in squashed  # the statutory heading is legible
 
 
+@pytest.mark.live
 @pytest.mark.skipif(not get_settings().anthropic_api_key, reason="needs ANTHROPIC_API_KEY")
 def test_haiku_extracts_expected_fields_from_fixture_label() -> None:
     import anthropic

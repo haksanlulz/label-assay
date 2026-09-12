@@ -55,6 +55,7 @@ def test_batch_upload_form_renders() -> None:
     assert "Retry sideways reads" in resp.text
 
 
+@pytest.mark.slow
 def test_run_job_processes_every_item_offline(tmp_path: Path) -> None:
     image = FIXTURE.read_bytes()
     fixture = fixture_corpus.perfect_extractor(SPEC, image)

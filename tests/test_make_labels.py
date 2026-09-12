@@ -142,6 +142,7 @@ def test_not_bold_labels_fail_the_bold_check_on_their_rendered_pixels(corpus_dir
         )
 
 
+@pytest.mark.slow
 def test_compliant_own_line_headings_are_cleared_cross_line_never_failed() -> None:
     from label_assay.extract.ocr import read_lines
 
