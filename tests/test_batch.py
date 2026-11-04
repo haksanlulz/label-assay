@@ -335,7 +335,7 @@ def test_batch_route_happy_path_end_to_end(monkeypatch: pytest.MonkeyPatch) -> N
     assert data["csv_rows"] == 1
     assert data["csv_unmatched"] == 1  # B.PNG has no application row
     by_name = {i["filename"]: i for i in data["items"]}
-    assert set(by_name["a.png"]) == {"filename", "status", "verdict", "detail"}
+    assert set(by_name["a.png"]) == {"filename", "status", "verdict", "detail", "report_url"}
     assert by_name["a.png"]["status"] == "done"
     assert by_name["a.png"]["verdict"] == "pass"  # paired via A.PNG despite the case
     assert by_name["a.png"]["detail"] == "All automated checks passed."
@@ -627,6 +627,110 @@ def _report_with(verdicts: dict[str, Verdict]) -> LabelReport:
     ]
     overall = Verdict.FAIL if Verdict.FAIL in {f.verdict for f in findings} else Verdict.PASS
     return LabelReport(verdict=overall, findings=findings, rulebook_version="test")
+
+
+def _finished_report_job():
+    report = _report_with({"health_warning_verbatim": Verdict.FAIL})
+    finding = next(f for f in report.findings if f.rule_id == "health_warning_verbatim")
+    finding.detail = "The warning has a changed word."
+    finding.diff = [("replace", "pregnancy", "gestation")]
+    job = create_job(['café <script>alert(1)</script>.png', "unreadable.png"])
+    job.items[0].status = "done"
+    job.items[0].verdict = report.verdict.value
+    job.items[0].detail = finding.detail
+    job.items[0].report = report
+    job.items[1].status = "error"
+    job.items[1].detail = "Could not process this file."
+    return job, report
+
+
+def test_batch_full_report_survives_worker_and_temp_file_cleanup(monkeypatch, tmp_path):
+    report = _report_with({"health_warning_verbatim": Verdict.FAIL})
+    monkeypatch.setattr(batchmod, "check_label", lambda *_a, **_kw: CheckResult(
+        report=report, extraction=fixture_corpus.perfect_extraction(SPEC), image=b"image"
+    ))
+    files = [_spooled(tmp_path, "bad.png", b"image")]
+    job = create_job(["bad.png"])
+    asyncio.run(run_job(job, files, FixtureExtractor({})))
+    assert job.items[0].status == "done"
+    assert job.items[0].report == report
+    assert not files[0][1].exists()
+    assert "image" not in vars(job.items[0])
+    assert "extraction" not in vars(job.items[0])
+
+
+def test_batch_item_findings_page_has_evidence_and_safe_filename():
+    job, report = _finished_report_job()
+    response = client.get(f"/batch/{job.id}/items/0")
+    assert response.status_code == 200
+    assert "Needs Correction" in response.text
+    assert "café &lt;script&gt;" in response.text
+    assert "<script>alert(1)</script>" not in response.text
+    assert f'href="/batch/{job.id}"' in response.text
+    assert "Back to batch" in response.text
+    assert "Rulebook test" in response.text
+    for finding in report.findings:
+        assert finding.title in response.text
+        assert finding.citation in response.text
+    assert "The warning has a changed word." in response.text
+    assert "pregnancy" in response.text and "gestation" in response.text
+    assert "What Was Read From the Label" not in response.text
+    assert "data:image" not in response.text
+
+
+@pytest.mark.parametrize("suffix", ["missing/items/0", "{job}/items/-1", "{job}/items/9"])
+def test_batch_item_missing_or_invalid_index_is_not_found(suffix):
+    job = create_job(["x.png"])
+    assert client.get("/batch/" + suffix.format(job=job.id)).status_code == 404
+
+
+def test_batch_item_pending_and_error_are_explicit():
+    job = create_job(["pending.png", "error.png"])
+    job.items[1].status, job.items[1].detail = "error", "Could not read the image."
+    pending = client.get(f"/batch/{job.id}/items/0")
+    assert pending.status_code == 409
+    assert "still being checked" in pending.text
+    error = client.get(f"/batch/{job.id}/items/1")
+    assert error.status_code == 422
+    assert "Could not read the image." in error.text
+
+
+def test_batch_polling_links_to_reports_without_serializing_findings():
+    job, _ = _finished_report_job()
+    data = client.get(f"/batch/{job.id}/data").json()
+    assert data["items"][0]["report_url"] == f"/batch/{job.id}/items/0"
+    assert data["items"][1]["report_url"] is None
+    assert all("report" not in item and "findings" not in item for item in data["items"])
+
+
+def test_batch_json_export_keeps_full_evidence_and_errors():
+    job, report = _finished_report_job()
+    job.csv_rows, job.csv_unmatched = 1, 1
+    response = client.get(f"/batch/{job.id}/export.json")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    assert "attachment;" in response.headers["content-disposition"]
+    assert f"{job.id}.json" in response.headers["content-disposition"]
+    data = response.json()
+    assert data["schema_version"] == 1
+    assert data["app_version"] == webapp.__version__
+    assert data["job_id"] == job.id
+    assert data["total"] == data["done"] == 2
+    assert data["finished"] is True
+    assert data["csv_rows"] == data["csv_unmatched"] == 1
+    assert data["items"][0]["filename"] == job.items[0].filename
+    assert data["items"][0]["report"] == report.model_dump(mode="json")
+    assert data["items"][1]["status"] == "error"
+    assert data["items"][1]["report"] is None
+    assert "extraction" not in response.text and "data:image" not in response.text
+
+
+def test_batch_json_export_waits_for_completion_and_handles_expired_job():
+    job = create_job(["pending.png"])
+    response = client.get(f"/batch/{job.id}/export.json")
+    assert response.status_code == 409
+    assert "still running" in response.text
+    assert client.get("/batch/missing/export.json").status_code == 404
 
 
 def test_csv_export_carries_the_per_rule_grid_for_a_mixed_batch(

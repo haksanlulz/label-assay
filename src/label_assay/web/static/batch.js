@@ -42,7 +42,7 @@
     summaryEl.textContent = parts.join(" · ");
 
     rows.innerHTML = "";
-    data.items.forEach(function (item) {
+    data.items.forEach(function (item, index) {
       var status = statusOf(item);
       var label = item.status === "pending" ? "Working…" : (LABELS[status] || status);
       var tr = document.createElement("tr");
@@ -52,6 +52,15 @@
         "<td>" + esc(item.filename) + "</td>" +
         '<td><span class="badge badge--' + badgeClass(status) + '">' + esc(label) + "</span></td>" +
         "<td>" + esc(item.detail) + "</td>";
+      if (item.report_url) {
+        var link = document.createElement("a");
+        // Build the local route from the job and row, never an uploaded filename.
+        link.href = "/batch/" + encodeURIComponent(jobId) + "/items/" + index;
+        link.textContent = "View findings";
+        link.setAttribute("aria-label", "View findings for " + item.filename);
+        tr.cells[2].appendChild(document.createElement("br"));
+        tr.cells[2].appendChild(link);
+      }
       rows.appendChild(tr);
     });
   }

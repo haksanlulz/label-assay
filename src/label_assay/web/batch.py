@@ -95,6 +95,9 @@ class BatchItem:
     # carrying it would grow every poll for no reader. Empty on error rows and
     # for rules that produced no finding.
     rule_verdicts: dict[str, str] = field(default_factory=dict)
+    # Evidence for the detail page and full export; no image or extraction.
+    # Shares the job store's bounded retention and is omitted from polling JSON.
+    report: LabelReport | None = None
 
 
 @dataclass
@@ -341,6 +344,7 @@ async def run_job(
                 item.verdict = report.verdict.value
                 item.detail = _headline(report)
                 item.rule_verdicts = {f.rule_id: f.verdict.value for f in report.findings}
+                item.report = report
                 item.status = "done"
             except ExtractionUnavailable as exc:
                 # Expected degradation (no key, budget, reader down) — but the

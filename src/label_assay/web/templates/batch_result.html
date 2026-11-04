@@ -6,7 +6,7 @@
 
 <p id="progress" class="lead" aria-live="polite">Starting&hellip;</p>
 <noscript><p>This table renders with JavaScript. The batch runs on the server either way;
-once it finishes, the Export CSV link below works without scripts.</p></noscript>
+once it finishes, the export links below work without scripts.</p></noscript>
 <p id="summary" class="summary" aria-live="polite"></p>
 
 <div class="batch-controls">
@@ -16,8 +16,14 @@ once it finishes, the Export CSV link below works without scripts.</p></noscript
     <button type="button" class="chip" data-filter="needs_review" aria-pressed="false">Needs review</button>
     <button type="button" class="chip" data-filter="pass" aria-pressed="false">Compliant</button>
   </div>
-  <a class="csv-link" href="/batch/{{ job_id }}/export.csv">Export CSV</a>
+  <div class="filters" role="group" aria-label="Download results">
+    <a class="csv-link" href="/batch/{{ job_id }}/export.csv">Export CSV</a>
+    <a class="csv-link" href="/batch/{{ job_id }}/export.json">Full report (JSON)</a>
+  </div>
 </div>
+<p class="hint">Open a label's findings for the evidence behind its result. The full report includes
+every finding, citation, and text difference, and is available once the batch finishes.
+Download it to keep a copy; older batches expire.</p>
 
 <table class="results">
   <thead><tr><th scope="col">File</th><th scope="col">Result</th><th scope="col">Detail</th></tr></thead>

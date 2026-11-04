@@ -73,6 +73,12 @@ to be used.)*
 
 ## §6 Escape log
 
+### 2026-11-04 — Inspect and export complete batch findings (gpt-6-astra)
+
+Batch rows exposed only a headline and per-rule CSV verdicts, leaving the evidence behind an individual result inaccessible without another upload. Finished items now retain their `LabelReport` in the existing bounded in-memory job store. Each row links to the shared findings renderer, including citations, text differences, filename, and the rulebook version actually used. A completed batch can be downloaded as a versioned JSON report, including error rows; unfinished exports return 409. Polling remains lightweight and contains only a detail-page URL. Neither images nor full extractions are retained. Filenames stay escaped; item indices, expired jobs, pending items, and errors have explicit responses.
+
+Six feature tests failed on the prior code; three missing/index controls already passed. Final: **288 tests passed, including all three live vision tests**, and `ruff check .` passed. Through the restarted localhost server and browser upload form, synthetic labels 001 and 008 produced one compliant result and one correction. Filtering, the per-label correction page, its heading-case difference and CFR citations, the return link, and the new JSON download all worked. The downloaded file was parsed and verified to contain two four-finding reports and their original rulebook version. The existing styles were reused; export controls were grouped together. No rulebook edit, push, or deployment.
+
 ### 2026-11-03 — Ambiguous application pairing and incomplete-check disclosure (gpt-6-astra)
 
 CSV rows sharing a normalized filename silently overwrote one another, and duplicate headers or replacement-decoded UTF-8 could change the filed brand before comparison. The importer now rejects duplicate filename rows, duplicate normalized columns, invalid UTF-8, and extra unquoted cells. Duplicate uploaded names are rejected before work starts; rejected batches clean up their spooled files. A single-label PASS containing NOT_EVALUABLE findings now renders "Checks Incomplete" in the review color and counts the unchecked findings. Rulebook data and engine verdicts are unchanged.

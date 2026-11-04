@@ -267,9 +267,12 @@ def _preview_data_uri(image: bytes) -> str | None:
 def _report_page(
     request: Request,
     report: LabelReport,
-    extraction: Extraction,
+    extraction: Extraction | None,
     elapsed: float | None = None,
     preview: str | None = None,
+    filename: str | None = None,
+    back_url: str = "/",
+    back_label: str = "Check another label",
 ) -> HTMLResponse:
     heading, summary = _VERDICT_COPY.get(report.verdict, ("Result", ""))
     display_verdict = report.verdict
@@ -293,8 +296,13 @@ def _report_page(
                 "display_verdict": display_verdict,
                 "elapsed": elapsed,
                 "extraction": extraction,
-                "read_fields": [(label, getattr(extraction, name)) for name, label in _READ_FIELDS],
+                "read_fields": [
+                    (label, getattr(extraction, name)) for name, label in _READ_FIELDS
+                ] if extraction is not None else [],
                 "preview": preview,
+                "filename": filename,
+                "back_url": back_url,
+                "back_label": back_label,
             }
         ),
     )
@@ -630,10 +638,70 @@ def batch_data(job_id: str) -> JSONResponse:
             "csv_rows": job.csv_rows,
             "csv_unmatched": job.csv_unmatched,
             "items": [
-                {"filename": i.filename, "status": i.status, "verdict": i.verdict, "detail": i.detail}
-                for i in job.items
+                {
+                    "filename": i.filename,
+                    "status": i.status,
+                    "verdict": i.verdict,
+                    "detail": i.detail,
+                    "report_url": f"/batch/{job.id}/items/{index}"
+                    if i.status == "done" and i.report is not None else None,
+                }
+                for index, i in enumerate(job.items)
             ],
         }
+    )
+
+
+@app.get("/batch/{job_id}/items/{item_index}", response_class=HTMLResponse)
+def batch_item(request: Request, job_id: str, item_index: int) -> HTMLResponse:
+    job = batchmod.get_job(job_id)
+    if job is None or not 0 <= item_index < job.total:
+        return _error_page(request, "That batch result was not found or has expired.", 404)
+    item = job.items[item_index]
+    if item.status == "pending":
+        return _error_page(request, "That label is still being checked. Return to the batch shortly.", 409)
+    if item.status == "error":
+        return _error_page(request, item.detail or "Could not process this file.", 422)
+    if item.report is None:
+        return _error_page(request, "The full report for that label is unavailable.", 404)
+    return _report_page(
+        request, item.report, extraction=None, filename=item.filename,
+        back_url=f"/batch/{job.id}", back_label="Back to batch",
+    )
+
+
+@app.get("/batch/{job_id}/export.json")
+def batch_json(job_id: str) -> JSONResponse:
+    job = batchmod.get_job(job_id)
+    if job is None:
+        return JSONResponse({"error": "batch not found or expired"}, status_code=404)
+    if not job.finished:
+        return JSONResponse(
+            {"error": "This batch is still running. Download the report when it finishes."},
+            status_code=409,
+        )
+    return JSONResponse(
+        {
+            "schema_version": 1,
+            "app_version": __version__,
+            "job_id": job.id,
+            "total": job.total,
+            "done": job.done,
+            "finished": job.finished,
+            "csv_rows": job.csv_rows,
+            "csv_unmatched": job.csv_unmatched,
+            "items": [
+                {
+                    "filename": item.filename,
+                    "status": item.status,
+                    "verdict": item.verdict,
+                    "detail": item.detail,
+                    "report": item.report.model_dump(mode="json") if item.report else None,
+                }
+                for item in job.items
+            ],
+        },
+        headers={"Content-Disposition": f'attachment; filename="label-assay-{job.id}.json"'},
     )
 
 

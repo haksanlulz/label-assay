@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Result &middot; LabelAssay{% endblock %}
 {% block main %}
-<a class="back" href="/">&larr; Check another label</a>
+<a class="back" href="{{ back_url }}">&larr; {{ back_label }}</a>
+{% if filename %}<p class="lead">{{ filename }}</p>{% endif %}
 
 <div class="alert alert--{{ display_verdict.value }}">
   <h1 class="alert__heading">{{ heading }}</h1>
@@ -10,6 +11,7 @@
 </div>
 
 <h2>Findings</h2>
+<p class="hint">Rulebook {{ report.rulebook_version }}</p>
 <ul class="findings">
   {% for f in report.findings %}
   <li class="finding finding--{{ f.verdict.value }}">
