@@ -127,6 +127,78 @@ def test_application_csv_pairing_is_case_and_path_insensitive() -> None:
     assert batchmod.pairing_key("scans\\Label1.PNG") in applications
 
 
+@pytest.mark.parametrize("second_name", ["a.png", "A.PNG", "scans/a.png"])
+def test_application_csv_rejects_ambiguous_filename_rows(second_name: str) -> None:
+    raw = (
+        "filename,brand_name,class_type\na.png,First Brand,Gin\n"
+        f"{second_name},Other Brand,Whiskey\n"
+    ).encode()
+    with pytest.raises(ApplicationCSVError, match="same filename"):
+        parse_application_csv(raw)
+
+
+def test_application_csv_rejects_duplicate_normalized_columns() -> None:
+    raw = b"filename,brand_name, Brand_Name \na.png,First Brand,Other Brand\n"
+    with pytest.raises(ApplicationCSVError, match="Duplicate column"):
+        parse_application_csv(raw)
+
+
+def test_application_csv_rejects_invalid_utf8_in_application_data() -> None:
+    raw = b"filename,brand_name,class_type\na.png,Ren\xe9,Gin\n"
+    with pytest.raises(ApplicationCSVError, match="UTF-8"):
+        parse_application_csv(raw)
+
+
+def test_application_csv_rejects_unquoted_extra_cells() -> None:
+    raw = b"filename,brand_name,class_type\na.png,Brand, Inc.,Gin\n"
+    with pytest.raises(ApplicationCSVError, match="more cells"):
+        parse_application_csv(raw)
+
+
+def test_rejected_ambiguous_csv_cleans_uploads_without_starting_a_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(webapp, "default_extractor", lambda _settings: FixtureExtractor({}))
+    monkeypatch.setattr(batchmod, "run_job", _noop_run_job)
+    before_files = _spool_leftovers()
+    before_jobs = set(batchmod._JOBS)
+    raw = b"filename,brand_name\na.png,First Brand\nA.PNG,Other Brand\n"
+    resp = client.post(
+        "/batch",
+        files=[
+            ("images", ("a.png", _tiny_png(), "image/png")),
+            ("applications", ("apps.csv", raw, "text/csv")),
+        ],
+        follow_redirects=False,
+    )
+    assert resp.status_code == 415
+    assert "same filename" in resp.text
+    assert set(batchmod._JOBS) == before_jobs
+    assert _spool_leftovers() <= before_files
+
+
+def test_duplicate_uploaded_names_cannot_share_one_application(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(webapp, "default_extractor", lambda _settings: FixtureExtractor({}))
+    monkeypatch.setattr(batchmod, "run_job", _noop_run_job)
+    before_files = _spool_leftovers()
+    before_jobs = set(batchmod._JOBS)
+    resp = client.post(
+        "/batch",
+        files=[
+            ("images", ("a.png", _tiny_png(), "image/png")),
+            ("images", ("A.PNG", _tiny_png(), "image/png")),
+            ("applications", ("apps.csv", b"filename,brand_name\na.png,Brand\n", "text/csv")),
+        ],
+        follow_redirects=False,
+    )
+    assert resp.status_code == 400
+    assert "same filename" in resp.text
+    assert set(batchmod._JOBS) == before_jobs
+    assert _spool_leftovers() <= before_files
+
+
 def test_application_csv_rejects_binary_content_with_a_typed_error() -> None:
     # A PNG or spreadsheet picked into the CSV field must raise the typed error
     # (rendered as a clean page), not leak csv.Error into a 500.

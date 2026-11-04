@@ -73,8 +73,11 @@ to be used.)*
 
 ## §6 Escape log
 
-*(Empty here. The founding 4/4 live-only bugs predate this file and are recorded
-in the workspace CLAUDE.md; `verify_deploy.py` is the rung they produced.)*
+### 2026-11-03 — Ambiguous application pairing and incomplete-check disclosure (gpt-6-astra)
+
+CSV rows sharing a normalized filename silently overwrote one another, and duplicate headers or replacement-decoded UTF-8 could change the filed brand before comparison. The importer now rejects duplicate filename rows, duplicate normalized columns, invalid UTF-8, and extra unquoted cells. Duplicate uploaded names are rejected before work starts; rejected batches clean up their spooled files. A single-label PASS containing NOT_EVALUABLE findings now renders "Checks Incomplete" in the review color and counts the unchecked findings. Rulebook data and engine verdicts are unchanged.
+
+Nine new regressions failed before the fixes (the rendering test's initial fixture-construction error was corrected before its red assertion was measured). Final: **279 passed, including all three live vision tests**, and `ruff check .` passed. Through the actual localhost server, `verify_deploy.py --base-url http://127.0.0.1:8790` passed in 4.0 seconds, the browser displayed the incomplete-check result from a real vision/OCR read, three malformed batch requests returned the expected 400/415, and a valid batch completed with a matched application and CSV export. These are local-channel checks; production was not deployed or claimed to contain the changes.
 
 ## Known gaps, ranked by blast radius
 

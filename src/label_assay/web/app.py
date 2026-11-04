@@ -272,6 +272,16 @@ def _report_page(
     preview: str | None = None,
 ) -> HTMLResponse:
     heading, summary = _VERDICT_COPY.get(report.verdict, ("Result", ""))
+    display_verdict = report.verdict
+    unchecked = sum(f.verdict == Verdict.NOT_EVALUABLE for f in report.findings)
+    if report.verdict == Verdict.PASS and unchecked:
+        heading = "Checks Incomplete"
+        noun = "check" if unchecked == 1 else "checks"
+        summary = (
+            f"The checks that ran passed, but {unchecked} {noun} could not be evaluated. "
+            "Review the unchecked findings below."
+        )
+        display_verdict = Verdict.NEEDS_REVIEW
     return _TEMPLATES.TemplateResponse(
         request,
         "result.html",
@@ -280,6 +290,7 @@ def _report_page(
                 "report": report,
                 "heading": heading,
                 "summary": summary,
+                "display_verdict": display_verdict,
                 "elapsed": elapsed,
                 "extraction": extraction,
                 "read_fields": [(label, getattr(extraction, name)) for name, label in _READ_FIELDS],
@@ -542,6 +553,13 @@ async def batch_create(
                 csv_rows = len(application_map)
 
         uploaded_keys = {batchmod.pairing_key(name) for name, _ in files}
+        if len(uploaded_keys) != len(files):
+            return reject(
+                "Two uploaded images use the same filename after ignoring folders and "
+                "capitalization. Rename them and update the applications CSV to give "
+                "each image a unique filename.",
+                400,
+            )
         if application_map and not uploaded_keys & set(application_map):
             # A CSV that matches nothing is a mistake (wrong column, wrong export),
             # not a smaller batch; running anyway would abstain on every brand check

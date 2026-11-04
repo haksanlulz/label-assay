@@ -191,7 +191,12 @@ def parse_application_csv(data: bytes) -> dict[str, Application]:
     and abstain on every brand comparison with no hint why. A row without a
     filename is skipped rather than failing the whole batch.
     """
-    text = data.decode("utf-8-sig", errors="replace")
+    try:
+        text = data.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise ApplicationCSVError(
+            f"{_NOT_A_CSV} Save the applications file as CSV UTF-8 and try again."
+        ) from exc
     reader = csv.DictReader(io.StringIO(text))
     applications: dict[str, Application] = {}
     # Binary content (an image or spreadsheet picked into the CSV field) makes
@@ -205,6 +210,14 @@ def parse_application_csv(data: bytes) -> dict[str, Application]:
         # a CSV with the wrong columns — say so instead of "no filename column".
         if any("�" in name or any(ord(ch) < 32 for ch in name) for name in header):
             raise ApplicationCSVError(_NOT_A_CSV)
+        seen_columns: set[str] = set()
+        for name in header:
+            if name and name in seen_columns:
+                raise ApplicationCSVError(
+                    f"Duplicate column '{name}' in the applications CSV. Keep one column "
+                    "for each field; column names ignore capitalization and outer spaces."
+                )
+            seen_columns.add(name)
         reader.fieldnames = header
         if "filename" not in header:
             raise ApplicationCSVError(
@@ -213,10 +226,22 @@ def parse_application_csv(data: bytes) -> dict[str, Application]:
             )
 
         for row in reader:
+            if None in row:
+                raise ApplicationCSVError(
+                    f"CSV line {reader.line_num} has more cells than the header. "
+                    "Put fields containing commas in double quotes."
+                )
             filename = (row.get("filename") or "").strip()
             if not filename:
                 continue
-            applications[pairing_key(filename)] = Application(
+            key = pairing_key(filename)
+            if key in applications:
+                raise ApplicationCSVError(
+                    f"CSV line {reader.line_num} uses the same filename '{filename}' "
+                    "as another row. Keep one application row per image; filename "
+                    "matching ignores folders and capitalization."
+                )
+            applications[key] = Application(
                 brand_name=(row.get("brand_name") or "").strip(),
                 class_type=(row.get("class_type") or "").strip(),
                 # Optional column: an absent header and an empty cell both mean

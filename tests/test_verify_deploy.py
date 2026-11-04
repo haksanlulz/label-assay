@@ -81,7 +81,7 @@ def test_result_page_parser_anchor_exists_in_the_template() -> None:
     # The verifier reads the verdict out of the alert block; if the template
     # renames that class, the parser goes blind and this catches it.
     template = RESULT_TEMPLATE.read_text(encoding="utf-8")
-    assert 'class="alert alert--{{ report.verdict.value }}"' in template
+    assert 'class="alert alert--{{ display_verdict.value }}"' in template
     assert "Checked in" in template
 
 

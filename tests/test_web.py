@@ -172,6 +172,42 @@ def test_check_happy_path_renders_a_cited_verdict(monkeypatch: pytest.MonkeyPatc
     assert "Checked in" in resp.text  # the measured time of the check is shown
 
 
+def test_single_result_discloses_checks_that_could_not_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from label_assay.domain.models import Finding, LabelReport, Verdict
+    from label_assay.web.service import CheckResult
+
+    image = FIXTURE.read_bytes()
+    fixture = fixture_corpus.perfect_extractor(SPEC, image)
+    extraction = fixture.extract(image)
+    report = LabelReport(
+        verdict=Verdict.PASS,
+        rulebook_version="test",
+        findings=[
+            Finding(rule_id="checked", title="Checked", citation="test",
+                    verdict=Verdict.PASS, detail="Matched."),
+            Finding(rule_id="unavailable", title="Unavailable", citation="test",
+                    verdict=Verdict.NOT_EVALUABLE, detail="The bold check is unavailable."),
+        ],
+    )
+    monkeypatch.setattr(webapp, "default_extractor", lambda _settings: fixture)
+    monkeypatch.setattr(webapp, "check_label", lambda *_args, **_kwargs: CheckResult(
+        extraction=extraction, report=report, image=image,
+    ))
+    resp = client.post(
+        "/check",
+        files={"image": (SPEC.filename, image, "image/png")},
+        data={"brand_name": SPEC.filed_brand, "class_type": SPEC.class_type},
+    )
+    assert resp.status_code == 200
+    assert "Checks Incomplete" in resp.text
+    assert 'class="alert alert--needs_review"' in resp.text
+    assert "1 check could not be evaluated" in resp.text
+    assert "passed every automated check" not in resp.text
+    assert 'badge--not_evaluable">Not checked<' in resp.text
+
+
 def test_fail_page_renders_plain_language_badges_and_the_diff(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

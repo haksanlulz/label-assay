@@ -3,7 +3,7 @@
 {% block main %}
 <a class="back" href="/">&larr; Check another label</a>
 
-<div class="alert alert--{{ report.verdict.value }}">
+<div class="alert alert--{{ display_verdict.value }}">
   <h1 class="alert__heading">{{ heading }}</h1>
   <p>{{ summary }}</p>
   {% if elapsed is not none %}<p class="alert__meta">Checked in {{ "%.1f"|format(elapsed) }}&nbsp;s.</p>{% endif %}
