@@ -10,8 +10,8 @@
 <div class="alert alert--info"><p>These are saved automated findings, not proof of regulatory approval. Confirm both reports describe revisions of the same product and used the intended application details. A removed or uncheckable rule is never counted as resolved.</p></div>
 {% if not comparison.same_rulebook %}<div class="alert alert--needs_review"><h2>Rulebook changed</h2><p>Differences may come from changed rules, not corrected artwork. Recheck both revisions with the same rulebook before attributing improvements to the label.</p></div>{% endif %}
 {% if comparison.coverage_changed %}<p class="alert alert--needs_review">Check coverage changed. Review new, removed and uncheckable findings below.</p>{% endif %}
-<table class="results"><thead><tr><th>Report</th><th>Check time</th><th>Rulebook</th><th>Saved verdict</th></tr></thead><tbody>
-{% for name, saved in [('Earlier', comparison.before), ('Corrected', comparison.after)] %}<tr><th>{{ name }}</th><td>{{ saved.checked_at or 'Not recorded' }}</td><td>{{ saved.report.rulebook_version }}</td><td>{{ verdict_label[saved.report.verdict] }}</td></tr>{% endfor %}
+<table class="results comparison-metadata"><thead><tr><th>Report</th><th>Check time</th><th>Rulebook</th><th>Saved verdict</th></tr></thead><tbody>
+{% for name, saved in [('Earlier', comparison.before), ('Corrected', comparison.after)] %}<tr><th scope="row">{{ name }}</th><td data-label="Check time">{{ saved.checked_at or 'Not recorded' }}</td><td data-label="Rulebook">{{ saved.report.rulebook_version }}</td><td data-label="Saved verdict">{{ verdict_label[saved.report.verdict] }}</td></tr>{% endfor %}
 </tbody></table>
 <h2>Finding changes</h2><p>{% for change, count in comparison.counts.items() %}{{ count }} {{ change|lower }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
 {% for row in comparison.rows %}<section class="finding"><h3>{{ row.title }}</h3><p><strong>{{ row.change }}</strong> · {{ row.rule_id }}</p>

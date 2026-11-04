@@ -147,14 +147,30 @@ table.results th { font-size: 0.85rem; color: var(--muted); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
-fieldset { border: 1px solid var(--border); margin: 1.5rem 0; padding: 1rem; }
+fieldset { min-width: 0; border: 1px solid var(--border); margin: 1.5rem 0; padding: 1rem; }
 fieldset select { width: 100%; max-width: 100%; padding: .65rem; }
 .finding, table.results td { overflow-wrap: anywhere; }
+main.container { overflow-wrap: anywhere; }
+@media screen and (max-width: 600px) {
+  .batch-results, .batch-results tbody, .batch-results tr, .batch-results td { display: block; }
+  .batch-results thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .batch-results tr { border: 1px solid var(--border); border-radius: .25rem; margin-bottom: 1rem; padding: .5rem; }
+  .batch-results tr[hidden] { display: none; }
+  .batch-results td { border: 0; padding: .35rem; }
+  .batch-results td:first-child { font-weight: 600; }
+  .badge { white-space: normal; }
+  .comparison-metadata, .comparison-metadata tbody, .comparison-metadata tr,
+  .comparison-metadata td, .comparison-metadata tbody th { display: block; }
+  .comparison-metadata thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .comparison-metadata tr { margin-bottom: 1rem; }
+  .comparison-metadata td::before { content: attr(data-label) ": "; font-weight: 600; }
+}
 @media print {
   body { background: white; color: black; font-size: 10pt; }
   .container { max-width: none; padding: 0; }
   .no-print, .back, button, .label-preview, .site-header .site-tag { display: none !important; }
-  .site-header { border-bottom: 1px solid #aaa; margin-bottom: 1rem; }
+  .site-header { background: white; color: #111; border-bottom: 1px solid #aaa; margin-bottom: 1rem; }
+  .site-header .site-title { color: #111; }
   .finding { break-inside: avoid; border-color: #aaa; }
   h1, h2, h3, h4 { break-after: avoid; }
   .print-label { break-before: page; }

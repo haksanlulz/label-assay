@@ -73,6 +73,10 @@ to be used.)*
 
 ## §6 Escape log
 
+### 2026-11-04 — Browser, mobile and PDF verification (gpt-6-astra)
+
+Phone-width results overflowed the page; cards now fit, and the initial card style's override of hidden filtered rows was caught and corrected. Browser assertions verified review queue, compliant and uncheckable filters, detail navigation, same-product JSON import, responsive revision metadata and single/batch/comparison HTML downloads. Final desktop table layout is retained. Single-result JSON was parsed with its four findings. PDF review caught faint print-header text; it now prints dark on white. User explicitly authorized headless Chromium after Windows native print-control failures. All three LabelAssay report PDFs (1/4/3 pages) were rendered and visually inspected, with no missing report words or out-of-bounds text. These are local PDF-engine checks, not a claim that the native Save As dialog worked. Final full suite: **293 passed in 56.30s**, including live vision; focused report suite: 100 passed; ruff passed. Wheel/source archive rebuilt and final CSS/templates byte-checked against the wheel. No rulebook change, push or deployment.
+
 ### 2026-11-04 — Review queue, revision comparison and print evidence (gpt-6-astra)
 
 The batch table could group PASS-with-uncheckable findings under compliant; the review category now preserves incomplete checks, with separate queue, uncheckable and unreadable filters. Check times persist with completed reports. Printable single/batch reports and saved-JSON comparisons preserve citations and coverage; removed/uncheckable rules are never resolved, and changed rulebooks require review. Five comparison regressions plus updated HTTP contract checks: 293 tests passed, including live vision tests; ruff passed. A real local batch checked the original title-case warning and a corrected rendering of the same synthetic product: fail → pass, while an application-less third label stayed incomplete. Browser upload comparison and queue filters were exercised. No rulebook change or deployment.

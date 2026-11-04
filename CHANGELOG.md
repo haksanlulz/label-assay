@@ -8,5 +8,6 @@
 - Individual results export comparison-ready JSON; standalone HTML reports preserve styling without scripts or uploaded-image previews.
 - Revision comparisons distinguish resolved findings from removed/uncheckable rules and warn about rulebook and coverage changes.
 - Includes preceding local extraction, warning and batch-upload correctness fixes.
+- Mobile batch results become readable cards while preserving filters; revision metadata stacks on narrow screens and file inputs stay within the form. Printed headers use high-contrast text.
 
 Rulebook data is unchanged. This candidate has not been deployed or published.
