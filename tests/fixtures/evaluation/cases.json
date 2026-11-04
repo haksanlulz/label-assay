@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "rulebook_version": "d0550ba69224",
+  "scope": "Synthetic text and supplied OCR evidence; no vision accuracy or boldness measurement.",
+  "cases": [
+    {
+      "id": "matching-text",
+      "input": {
+        "brand": "Example Spirits",
+        "application_brand": "Example Spirits",
+        "alcohol": "40% ALC/VOL (80 PROOF)",
+        "warning": "reference",
+        "ocr": "none"
+      },
+      "expected": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "not_evaluable",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      },
+      "verdict": "pass"
+    },
+    {
+      "id": "wrong-brand",
+      "input": {
+        "brand": "Different Distillery",
+        "application_brand": "Example Spirits",
+        "alcohol": "40% ALC/VOL (80 PROOF)",
+        "warning": "reference",
+        "ocr": "none"
+      },
+      "expected": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "not_evaluable",
+        "brand_name_matches_application": "fail",
+        "alcohol_content_internally_consistent": "pass"
+      },
+      "verdict": "fail"
+    },
+    {
+      "id": "missing-brand",
+      "input": {
+        "brand": null,
+        "application_brand": "Example Spirits",
+        "alcohol": "40% ALC/VOL (80 PROOF)",
+        "warning": "reference",
+        "ocr": "none"
+      },
+      "expected": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "not_evaluable",
+        "brand_name_matches_application": "needs_review",
+        "alcohol_content_internally_consistent": "pass"
+      },
+      "verdict": "needs_review"
+    },
+    {
+      "id": "no-filed-brand",
+      "input": {
+        "brand": "Example Spirits",
+        "application_brand": "",
+        "alcohol": "40% ALC/VOL (80 PROOF)",
+        "warning": "reference",
+        "ocr": "none"
+      },
+      "expected": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "not_evaluable",
+        "brand_name_matches_application": "not_evaluable",
+        "alcohol_content_internally_consistent": "pass"
+      },
+      "verdict": "pass"
+    },
+    {
+      "id": "proof-disagrees",
+      "input": {
+        "brand": "Example Spirits",
+        "application_brand": "Example Spirits",
+        "alcohol": "40% ALC/VOL (70 PROOF)",
+        "warning": "reference",
+        "ocr": "none"
+      },
+      "expected": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "not_evaluable",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "fail"
+      },
+      "verdict": "fail"
+    },
+    {
+      "id": "missing-alcohol",
+      "input": {
+        "brand": "Example Spirits",
+        "application_brand": "Example Spirits",
+        "alcohol": null,
+        "warning": "reference",
+        "ocr": "none"
+      },
+      "expected": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "not_evaluable",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "needs_review"
+      },
+      "verdict": "needs_review"
+    },
+    {
+      "id": "lowercase-heading",
+      "input": {
+        "brand": "Example Spirits",
+        "application_brand": "Example Spirits",
+        "alcohol": "40% ALC/VOL (80 PROOF)",
+        "warning": "lowercase_heading",
+        "ocr": "none"
+      },
+      "expected": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "not_evaluable",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      },
+      "verdict": "fail"
+    },
+    {
+      "id": "altered-warning",
+      "input": {
+        "brand": "Example Spirits",
+        "application_brand": "Example Spirits",
+        "alcohol": "40% ALC/VOL (80 PROOF)",
+        "warning": "altered",
+        "ocr": "none"
+      },
+      "expected": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "not_evaluable",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      },
+      "verdict": "fail"
+    },
+    {
+      "id": "missing-warning",
+      "input": {
+        "brand": "Example Spirits",
+        "application_brand": "Example Spirits",
+        "alcohol": "40% ALC/VOL (80 PROOF)",
+        "warning": "missing",
+        "ocr": "none"
+      },
+      "expected": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "not_evaluable",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      },
+      "verdict": "needs_review"
+    },
+    {
+      "id": "independent-ocr-match",
+      "input": {
+        "brand": "Example Spirits",
+        "application_brand": "Example Spirits",
+        "alcohol": "40% ALC/VOL (80 PROOF)",
+        "warning": "reference",
+        "ocr": "match"
+      },
+      "expected": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "not_evaluable",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      },
+      "verdict": "pass"
+    },
+    {
+      "id": "recited-warning",
+      "input": {
+        "brand": "Example Spirits",
+        "application_brand": "Example Spirits",
+        "alcohol": "40% ALC/VOL (80 PROOF)",
+        "warning": "reference",
+        "ocr": "contradict_warning"
+      },
+      "expected": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "not_evaluable",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      },
+      "verdict": "needs_review"
+    },
+    {
+      "id": "unconfirmed-brand",
+      "input": {
+        "brand": "Example Spirits",
+        "application_brand": "Example Spirits",
+        "alcohol": "40% ALC/VOL (80 PROOF)",
+        "warning": "reference",
+        "ocr": "contradict_brand"
+      },
+      "expected": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "not_evaluable",
+        "brand_name_matches_application": "needs_review",
+        "alcohol_content_internally_consistent": "pass"
+      },
+      "verdict": "needs_review"
+    }
+  ]
+}

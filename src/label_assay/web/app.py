@@ -37,6 +37,7 @@ from label_assay.rulebook.loader import load_rulebook
 from label_assay.web import batch as batchmod
 from label_assay.web.budget import DailyBudget
 from label_assay.web.comparison import compare_reports, read_saved_report
+from label_assay.web.review import router as review_router
 from label_assay.web.service import ExtractionUnavailable, check_label, default_extractor
 
 logger = logging.getLogger(__name__)
@@ -157,6 +158,7 @@ app = FastAPI(
     openapi_url=None,
 )
 app.mount("/static", StaticFiles(directory=str(_WEB / "static")), name="static")
+app.include_router(review_router)
 
 
 # Headroom over the largest legitimate request — the 1.6 GB batch total plus

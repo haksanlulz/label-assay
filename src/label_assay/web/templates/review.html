@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Record a review · LabelAssay{% endblock %}
+{% block main %}
+<h1>Record a human review</h1>
+<p class="lead">Keep your decisions alongside the automated evidence.</p>
+{% if error %}<p class="alert alert--fail" role="alert">{{ error }}</p>{% endif %}
+{% if not source %}
+<p>Save a full-report JSON file from a single check or batch, then select its completed label row here. This step makes no AI call and does not recheck the artwork. Reports are used as supplied; their origin is not authenticated.</p>
+<form action="/review/load" method="post" enctype="multipart/form-data">
+  <fieldset><legend>Saved automated report</legend>
+    <label for="report-file">Full report JSON</label><input id="report-file" name="report_file" type="file" accept=".json,application/json" required data-report-select="report-index">
+    <label for="report-index">Label row</label><select id="report-index" name="report_index"><option value="0">First label (row 0)</option></select>
+  </fieldset>
+  <p class="hint">Maximum 5 MB. With JavaScript disabled, the first label in the file is selected.</p>
+  <p id="report-error" role="alert" tabindex="-1"></p>
+  <button type="submit">Open for review</button>
+</form>
+{% else %}
+<p><strong>{{ source.filename }}</strong><br>Checked: {{ source.checked_at or 'Not recorded' }}<br>Rulebook: {{ source.report.rulebook_version }}</p>
+<p>Automated overall verdict: <strong>{{ source.report.verdict.value|replace('_', ' ') }}</strong>. Your decisions will not change it. Consult the original artwork and supporting evidence before recording a decision.</p>
+<form action="/review/export" method="post">
+  <input type="hidden" name="source_json" value="{{ source_json }}">
+  <label for="reviewer">Reviewer name or reference</label><input id="reviewer" name="reviewer" type="text" required maxlength="120" value="{{ values.get('reviewer', '') }}">
+  {% for finding in source.report.findings %}
+  {% set index = loop.index0 %}
+  <fieldset>
+    <legend>{{ finding.title }}</legend>
+    <p><strong>Automated finding: {{ finding.verdict.value|replace('_', ' ') }}</strong><br>{{ finding.citation }}</p>
+    <p>{{ finding.detail }}</p>
+    {% if finding.diff %}<details><summary>Recorded text differences</summary><ul>{% for operation, expected, actual in finding.diff %}<li>{{ operation }}: expected “{{ expected }}”; found “{{ actual }}”</li>{% endfor %}</ul></details>{% endif %}
+    <label for="decision-{{ index }}">Your decision</label>
+    <select id="decision-{{ index }}" name="decision_{{ index }}">{% for key, label in choices.items() %}<option value="{{ key }}"{% if values.get('decision_' ~ index, 'pending') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+    <label for="note-{{ index }}">Evidence or follow-up (optional)</label><textarea id="note-{{ index }}" name="note_{{ index }}" rows="3" maxlength="2000">{{ values.get('note_' ~ index, '') }}</textarea>
+  </fieldset>
+  {% endfor %}
+  <label for="notes">Overall notes (optional)</label><textarea id="notes" name="notes" rows="3" maxlength="4000">{{ values.get('notes', '') }}</textarea>
+  <p class="hint">Pending decisions remain explicitly incomplete. “Complete” means every finding has a human decision; it does not mean the label is approved. The download includes the original normalized report, its SHA-256 digest, your self-entered reference, decisions and the export time. The digest checks report consistency, not identity or authorship. The app keeps no review history; save the download.</p>
+  <button type="submit">Download review record (JSON)</button>
+</form>
+<p><a href="/review">Open another saved report</a></p>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/reports.js" defer></script>{% endblock %}

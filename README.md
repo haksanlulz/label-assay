@@ -63,6 +63,22 @@ At `/compare`, upload two full-report JSON exports (maximum 5 MB each), then sel
 
 This candidate is local only and has not been deployed to the hosted demo.
 
+### Record a human review
+
+At `/review`, open a completed row from a saved full-report JSON file (up to 5 MB). Read the original findings, then record a reviewer reference, per-finding decisions and supporting notes. Decisions start **Pending review**; other choices are **Agree with finding**, **Request correction** and **Escalate to a specialist**. The form works without JavaScript for the first label row.
+
+The JSON download embeds the unchanged normalized automated report and its SHA-256 digest, self-entered reviewer reference, UTC export time, notes and decisions. Pending findings make `complete` false. A complete review is not regulatory approval, and a human decision never replaces an automated verdict. Reports and reviewer identities are not authenticated; the digest checks report consistency, not authorship or deliberate tampering. No model is called and the app keeps no review history. Retain the downloaded file.
+
+Validate a downloaded record with `uv run python tools/verify_review.py path/to/label-assay-review.json`. Missing/duplicate decisions, unknown choices, inconsistent completion and a mismatched report digest return a nonzero exit. Canonical ownership: `domain/review.py`; stateless HTTP forms: `web/review.py`.
+
+### Reproducible offline evaluation
+
+`uv run python tools/evaluate_offline.py` checks the real rule engine against `tests/fixtures/evaluation/cases.json`: **12 synthetic text/OCR-evidence scenarios, 48 rule decisions**, pinned to a reviewed rulebook version. Each case specifies every expected per-rule and overall verdict. The gate rejects missing, duplicate or additional findings, changed verdicts and stale/incomplete baselines. Tests inject those faults and prove the gate fails.
+
+Results go to ignored `artifacts/evaluation/results.json` and `summary.md`, with a baseline digest, full findings and per-rule expected/actual matrices. The November 4 baseline gives 26 passes, 5 needs-review findings, 4 failures and 13 not-evaluable findings. Abstentions remain in the accounting. This measures rule-engine agreement on supplied evidence; it does **not** measure vision accuracy, image boldness, comprehensive regulatory coverage or production approval. The existing image/OCR and real COLA corpus tests cover separate concerns.
+
+`.github/workflows/offline-evaluation.yml` runs the focused gate on pull requests or manual dispatch and has no deployment job. It is a local workflow definition until published; no remote run is claimed. Review intended behavior before changing the manifest's expectations or rulebook version. A refused run replaces any previous green output with failure evidence.
+
 ## Run It
 
 ```
