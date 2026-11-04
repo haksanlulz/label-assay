@@ -47,6 +47,18 @@ Images are never retained. Single-label checks are processed in memory, and the 
 
 The label artwork in scope is public COLA-registry material with no personal data, so the disclosure risk is low. Anthropic's handling of API inputs is governed by its own commercial terms, not by this project; review Anthropic's commercial and data-usage terms (anthropic.com/legal) before sending any non-public content. The outbound dependency is swappable: the extractor port ([docs/adr/0004-swappable-extractor.md](docs/adr/0004-swappable-extractor.md)) exists so a local or in-tenant vision model can replace the hosted API by writing one adapter and changing the one-line selection in `web/service.py`. The compliance engine is untouched.
 
+## Review and Compare Saved Checks (0.2.0 local candidate)
+
+The batch **Review queue** includes corrections, human-review findings, unchecked rules and processing errors. Separate filters show **Uncheckable findings** and **Could not be read**. A label whose available checks passed but has an uncheckable finding appears as **Checks incomplete**, rather than under Compliant; underlying rule verdicts remain unchanged.
+
+Single-label reports and `/batch/{id}/print` provide printable evidence with check timestamps, rulebook versions, citations and limitations. Use browser Print to save a PDF. Older reports without timestamps say so explicitly. Finished JSON exports retain each label's `checked_at` alongside its full findings.
+
+Individual result pages also save comparison-ready JSON. Printable HTML downloads bundle their styling and omit scripts and uploaded-image previews, so the findings can be opened and printed in a regular browser when an embedded browser's print preview is unavailable.
+
+At `/compare`, upload two full-report JSON exports (maximum 5 MB each), then select the earlier and corrected label rows. The comparison shows resolved findings, remaining issues, new/removed checks, and uncheckable findings. A removed or uncheckable rule is never marked resolved; a changed rulebook warns that differences may come from rules instead of corrected artwork. Confirm both reports describe the same product and intended application details. Comparison does not call a model, recheck artwork, authenticate imported reports, or establish regulatory approval. Uploaded reports are compared in memory and not retained.
+
+This candidate is local only and has not been deployed to the hosted demo.
+
 ## Run It
 
 ```

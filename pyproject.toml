@@ -1,6 +1,6 @@
 [project]
 name = "label-assay"
-version = "0.1.0"
+version = "0.2.0"
 description = "Verifies alcohol beverage labels against TTB labeling requirements (27 CFR)."
 requires-python = ">=3.12"
 dependencies = [

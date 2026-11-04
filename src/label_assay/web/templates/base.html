@@ -11,6 +11,7 @@
     <div class="container">
       <a class="site-title" href="/">LabelAssay</a>
       <span class="site-tag">Alcohol Beverage Label Check &middot; 27 CFR</span>
+      <a class="no-print" href="/compare">Compare revisions</a>
     </div>
   </header>
   <main class="container">
@@ -20,5 +21,6 @@
     Advisory tool &mdash; a compliance specialist makes the final decision.
     {% if version %}<span aria-hidden="true">&middot;</span> v{{ version }}{% endif %}
   </footer>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

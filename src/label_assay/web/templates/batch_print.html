@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Printable batch report · LabelAssay{% endblock %}
+{% block main %}
+<a class="back no-print" href="/batch/{{ job.id }}">&larr; Back to batch</a><h1>LabelAssay batch report</h1>
+<p>{{ job.total }} labels · batch {{ job.id }}</p><button class="no-print" type="button" data-print>Print / save PDF</button>
+<button class="no-print" type="button" data-download-html>Download printable HTML</button>
+<p>Automated findings cover only the listed rules. Uncheckable findings and unreadable labels remain unresolved. This report is advisory, not a regulatory approval. Citations identify the basis of each saved check; verify current requirements independently.</p>
+{% for item in job.items %}<section class="print-label"><h2>{{ item.filename }}</h2><p>Checked: {{ item.checked_at or 'Not recorded in this older report' }}</p>
+{% if item.report %}<p>Rulebook {{ item.report.rulebook_version }} · {{ item.detail }}</p>
+{% for finding in item.report.findings %}<div class="finding"><h3>{{ finding.title }}</h3><p>{{ verdict_label[finding.verdict] }} · {{ finding.citation }}</p><p>{{ finding.detail }}</p>{% if finding.diff %}<ul>{% for op, expected, found in finding.diff %}<li>{{ op }}: expected “{{ expected }}”; found “{{ found }}”</li>{% endfor %}</ul>{% endif %}</div>{% endfor %}
+{% else %}<p>Could not be read: {{ item.detail }}. No findings are available.</p>{% endif %}</section>{% endfor %}
+{% endblock %}
+{% block scripts %}<script src="/static/reports.js" defer></script>{% endblock %}

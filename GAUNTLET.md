@@ -73,6 +73,10 @@ to be used.)*
 
 ## §6 Escape log
 
+### 2026-11-04 — Review queue, revision comparison and print evidence (gpt-6-astra)
+
+The batch table could group PASS-with-uncheckable findings under compliant; the review category now preserves incomplete checks, with separate queue, uncheckable and unreadable filters. Check times persist with completed reports. Printable single/batch reports and saved-JSON comparisons preserve citations and coverage; removed/uncheckable rules are never resolved, and changed rulebooks require review. Five comparison regressions plus updated HTTP contract checks: 293 tests passed, including live vision tests; ruff passed. A real local batch checked the original title-case warning and a corrected rendering of the same synthetic product: fail → pass, while an application-less third label stayed incomplete. Browser upload comparison and queue filters were exercised. No rulebook change or deployment.
+
 ### 2026-11-04 — Inspect and export complete batch findings (gpt-6-astra)
 
 Batch rows exposed only a headline and per-rule CSV verdicts, leaving the evidence behind an individual result inaccessible without another upload. Finished items now retain their `LabelReport` in the existing bounded in-memory job store. Each row links to the shared findings renderer, including citations, text differences, filename, and the rulebook version actually used. A completed batch can be downloaded as a versioned JSON report, including error rows; unfinished exports return 409. Polling remains lightweight and contains only a detail-page URL. Neither images nor full extractions are retained. Filenames stay escaped; item indices, expired jobs, pending items, and errors have explicit responses.

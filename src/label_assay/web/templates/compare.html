@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Compare revisions · LabelAssay{% endblock %}
+{% block main %}
+<a class="back" href="/batch">&larr; Check a batch</a>
+<h1>Compare a corrected label</h1>
+<p class="lead">See which findings changed between two saved checks.</p>
+<p>Check the earlier and corrected artwork, then use <strong>Save report for comparison (JSON)</strong> on each result, or download each batch's <strong>Full report (JSON)</strong>.
+Choose the matching label from each export below. Reports are compared as supplied; this does not recheck the image or verify that the two files describe the same product.</p>
+<form action="/compare" method="post" enctype="multipart/form-data">
+  <fieldset><legend>Earlier check</legend>
+    <label for="before-file">Full report JSON</label><input id="before-file" name="before_file" type="file" accept=".json,application/json" required data-report-select="before-index">
+    <label for="before-index">Label row</label><select id="before-index" name="before_index"><option value="0">First label (row 0)</option></select>
+  </fieldset>
+  <fieldset><legend>Corrected check</legend>
+    <label for="after-file">Full report JSON</label><input id="after-file" name="after_file" type="file" accept=".json,application/json" required data-report-select="after-index">
+    <label for="after-index">Label row</label><select id="after-index" name="after_index"><option value="0">First label (row 0)</option></select>
+  </fieldset>
+  <p class="hint">Maximum 5 MB per report. Older reports may have no check timestamp. With JavaScript disabled, the first label in each export is compared.</p>
+  <p id="report-error" role="status"></p><button type="submit">Compare findings</button>
+</form>
+{% endblock %}
+{% block scripts %}<script src="/static/reports.js" defer></script>{% endblock %}

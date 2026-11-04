@@ -335,7 +335,10 @@ def test_batch_route_happy_path_end_to_end(monkeypatch: pytest.MonkeyPatch) -> N
     assert data["csv_rows"] == 1
     assert data["csv_unmatched"] == 1  # B.PNG has no application row
     by_name = {i["filename"]: i for i in data["items"]}
-    assert set(by_name["a.png"]) == {"filename", "status", "verdict", "detail", "report_url"}
+    assert set(by_name["a.png"]) == {"filename", "status", "verdict", "detail", "report_url", "checked_at", "unchecked", "review_status"}
+    assert by_name["a.png"]["checked_at"]
+    assert by_name["B.PNG"]["unchecked"]
+    assert by_name["B.PNG"]["review_status"] != "pass"
     assert by_name["a.png"]["status"] == "done"
     assert by_name["a.png"]["verdict"] == "pass"  # paired via A.PNG despite the case
     assert by_name["a.png"]["detail"] == "All automated checks passed."

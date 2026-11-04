@@ -19,6 +19,7 @@ import os
 import tempfile
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request, UploadFile
@@ -35,6 +36,7 @@ from label_assay.extract.images import preview_jpeg
 from label_assay.rulebook.loader import load_rulebook
 from label_assay.web import batch as batchmod
 from label_assay.web.budget import DailyBudget
+from label_assay.web.comparison import compare_reports, read_saved_report
 from label_assay.web.service import ExtractionUnavailable, check_label, default_extractor
 
 logger = logging.getLogger(__name__)
@@ -273,6 +275,7 @@ def _report_page(
     filename: str | None = None,
     back_url: str = "/",
     back_label: str = "Check another label",
+    checked_at: str | None = None,
 ) -> HTMLResponse:
     heading, summary = _VERDICT_COPY.get(report.verdict, ("Result", ""))
     display_verdict = report.verdict
@@ -303,6 +306,11 @@ def _report_page(
                 "filename": filename,
                 "back_url": back_url,
                 "back_label": back_label,
+                "checked_at": checked_at,
+                "saved_report": {"schema_version": 1, "app_version": __version__, "items": [{
+                    "filename": filename or "single-label", "status": "done",
+                    "checked_at": checked_at, "report": report.model_dump(mode="json"),
+                }]},
             }
         ),
     )
@@ -424,7 +432,8 @@ async def check(
     # The preview echoes result.image, not the raw upload: when the operator
     # stated a rotation, what renders back is exactly the raster that was judged.
     preview = await asyncio.to_thread(_preview_data_uri, result.image)
-    return _report_page(request, result.report, result.extraction, elapsed=elapsed, preview=preview)
+    return _report_page(request, result.report, result.extraction, elapsed=elapsed, preview=preview, filename=image.filename,
+                        checked_at=datetime.now(timezone.utc).isoformat())
 
 
 @app.get("/batch", response_class=HTMLResponse)
@@ -633,6 +642,8 @@ def batch_data(job_id: str) -> JSONResponse:
             "total": job.total,
             "done": job.done,
             "summary": job.summary(),
+            "review_summary": {key: sum(i.review_status == key for i in job.items)
+                               for key in ("pass", "needs_review", "fail", "error", "not_evaluable")},
             # null when no CSV was uploaded; counts when one was, so the page
             # can say how much of it actually paired with the uploaded files.
             "csv_rows": job.csv_rows,
@@ -643,6 +654,9 @@ def batch_data(job_id: str) -> JSONResponse:
                     "status": i.status,
                     "verdict": i.verdict,
                     "detail": i.detail,
+                    "review_status": i.review_status,
+                    "unchecked": i.unchecked,
+                    "checked_at": i.checked_at,
                     "report_url": f"/batch/{job.id}/items/{index}"
                     if i.status == "done" and i.report is not None else None,
                 }
@@ -667,6 +681,7 @@ def batch_item(request: Request, job_id: str, item_index: int) -> HTMLResponse:
     return _report_page(
         request, item.report, extraction=None, filename=item.filename,
         back_url=f"/batch/{job.id}", back_label="Back to batch",
+        checked_at=item.checked_at,
     )
 
 
@@ -696,6 +711,7 @@ def batch_json(job_id: str) -> JSONResponse:
                     "status": item.status,
                     "verdict": item.verdict,
                     "detail": item.detail,
+                    "checked_at": item.checked_at,
                     "report": item.report.model_dump(mode="json") if item.report else None,
                 }
                 for item in job.items
@@ -703,6 +719,42 @@ def batch_json(job_id: str) -> JSONResponse:
         },
         headers={"Content-Disposition": f'attachment; filename="label-assay-{job.id}.json"'},
     )
+
+
+@app.get("/batch/{job_id}/print", response_class=HTMLResponse)
+def batch_print(request: Request, job_id: str) -> HTMLResponse:
+    job = batchmod.get_job(job_id)
+    if job is None:
+        return _error_page(request, "That batch was not found or has expired.", 404)
+    if not job.finished:
+        return _error_page(request, "The batch is still running. Print the report when it finishes.", 409)
+    return _TEMPLATES.TemplateResponse(request, "batch_print.html", _ctx({"job": job}))
+
+
+@app.get("/compare", response_class=HTMLResponse)
+def compare_form(request: Request) -> HTMLResponse:
+    return _TEMPLATES.TemplateResponse(request, "compare.html", _ctx({}))
+
+
+@app.post("/compare", response_class=HTMLResponse)
+async def compare_saved(request: Request, before_file: UploadFile, after_file: UploadFile,
+                        before_index: int = Form(0), after_index: int = Form(0)) -> HTMLResponse:
+    try:
+        saved = []
+        for upload, index in ((before_file, before_index), (after_file, after_index)):
+            content = await upload.read(_MAX_BYTES + 1)
+            if len(content) > _MAX_BYTES:
+                raise ValueError("Each saved report must be no larger than 5 MB.")
+            saved.append(read_saved_report(content, index))
+        comparison = compare_reports(*saved)
+    except ValueError as exc:
+        return _error_page(request, str(exc), 422)
+    finally:
+        await before_file.close()
+        await after_file.close()
+    return _TEMPLATES.TemplateResponse(request, "comparison.html", _ctx({
+        "comparison": comparison, "compared_at": datetime.now(timezone.utc).isoformat(),
+    }))
 
 
 @app.get("/batch/{job_id}/export.csv")

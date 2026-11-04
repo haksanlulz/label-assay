@@ -15,7 +15,7 @@
   };
 
   function statusOf(item) {
-    return item.status === "error" ? "error" : (item.verdict || "pending");
+    return item.review_status || (item.status === "error" ? "error" : (item.verdict || "pending"));
   }
   // The result value is written into a class attribute via innerHTML, so it must
   // be one of a fixed set — never an arbitrary string. Every real status already
@@ -26,16 +26,20 @@
     var cls = status === "error" ? "not_evaluable" : status;
     return BADGE_CLASSES.indexOf(cls) === -1 ? "not_evaluable" : cls;
   }
-  function matches(status) { return filter === "all" || status === filter; }
+  function matches(status, unchecked) {
+    return filter === "all" || status === filter || (filter === "unchecked" && unchecked) ||
+      (filter === "queue" && ["fail", "needs_review", "not_evaluable", "error"].indexOf(status) !== -1);
+  }
   function esc(s) { var d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
 
   function render(data) {
     progressEl.textContent = data.done < data.total
       ? "Checked " + data.done + " of " + data.total + "…"
       : "Done — checked " + data.total + ".";
-    var s = data.summary;
+    var s = data.review_summary || data.summary;
     var parts = [s.pass + " compliant", s.needs_review + " need review", s.fail + " need correction"];
     if (s.error) { parts.push(s.error + " could not be read"); }
+    if (s.not_evaluable) { parts.push(s.not_evaluable + " have incomplete checks"); }
     if (data.csv_rows !== null && data.csv_rows !== undefined && data.csv_unmatched > 0) {
       parts.push(data.csv_unmatched + " had no matching application row");
     }
@@ -47,7 +51,9 @@
       var label = item.status === "pending" ? "Working…" : (LABELS[status] || status);
       var tr = document.createElement("tr");
       tr.dataset.status = status;
-      tr.hidden = !matches(status);
+      tr.dataset.unchecked = item.unchecked ? "true" : "false";
+      tr.hidden = !matches(status, item.unchecked);
+      if (status === "not_evaluable" && item.verdict === "pass") { label = "Checks incomplete"; }
       tr.innerHTML =
         "<td>" + esc(item.filename) + "</td>" +
         '<td><span class="badge badge--' + badgeClass(status) + '">' + esc(label) + "</span></td>" +
@@ -90,7 +96,7 @@
         c.setAttribute("aria-pressed", c === btn ? "true" : "false");
       });
       Array.prototype.forEach.call(document.querySelectorAll("#rows tr"), function (tr) {
-        tr.hidden = !matches(tr.dataset.status);
+        tr.hidden = !matches(tr.dataset.status, tr.dataset.unchecked === "true");
       });
     });
   });

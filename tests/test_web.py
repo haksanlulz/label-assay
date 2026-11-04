@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import re
 import time
 from html.parser import HTMLParser
@@ -427,13 +428,20 @@ def test_preview_encode_failure_never_costs_the_verdict(
     assert "data:image/jpeg" not in resp.text
 
 
-def test_result_page_carries_no_client_script(monkeypatch: pytest.MonkeyPatch) -> None:
-    # The result page stays script-free: the submit guard belongs to the upload
-    # forms and batch.js to the batch pages; rendering a verdict needs neither,
-    # and the preview must not change that.
+def test_result_page_only_enhances_printing(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Findings remain server-rendered; the only enhancement opens browser print.
     resp = _post_check_with(monkeypatch, _read_extraction())
     assert resp.status_code == 200
-    assert "<script" not in resp.text.lower()
+    scripts = [attrs for tag, attrs, _ in _elements(resp.text) if tag == "script"]
+    assert [attrs.get("src") for attrs in scripts] == ["/static/reports.js"]
+    assert "data-print" in resp.text
+    from label_assay.web.comparison import read_saved_report
+    saved = next(attrs["data-save-report"] for tag, attrs, _ in _elements(resp.text) if "data-save-report" in attrs)
+    assert saved is not None
+    restored = read_saved_report(saved.encode(), 0)
+    assert restored["checked_at"]
+    assert restored["report"].findings
+    assert json.loads(saved)["app_version"] == webapp.__version__
 
 
 @pytest.mark.parametrize(

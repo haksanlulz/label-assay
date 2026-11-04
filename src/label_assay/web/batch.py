@@ -34,6 +34,7 @@ import uuid
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
 from label_assay.domain.models import Application, LabelReport, Verdict
@@ -98,6 +99,21 @@ class BatchItem:
     # Evidence for the detail page and full export; no image or extraction.
     # Shares the job store's bounded retention and is omitted from polling JSON.
     report: LabelReport | None = None
+    checked_at: str | None = None
+
+    @property
+    def unchecked(self) -> bool:
+        return any(f.verdict == Verdict.NOT_EVALUABLE for f in self.report.findings) if self.report else "not_evaluable" in self.rule_verdicts.values()
+
+    @property
+    def review_status(self) -> str:
+        if self.status == "error":
+            return "error"
+        if self.status == "pending":
+            return "pending"
+        if self.verdict == "pass" and self.unchecked:
+            return "not_evaluable"
+        return self.verdict or "not_evaluable"
 
 
 @dataclass
@@ -345,6 +361,7 @@ async def run_job(
                 item.detail = _headline(report)
                 item.rule_verdicts = {f.rule_id: f.verdict.value for f in report.findings}
                 item.report = report
+                item.checked_at = datetime.now(timezone.utc).isoformat()
                 item.status = "done"
             except ExtractionUnavailable as exc:
                 # Expected degradation (no key, budget, reader down) — but the

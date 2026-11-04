@@ -12,13 +12,18 @@ once it finishes, the export links below work without scripts.</p></noscript>
 <div class="batch-controls">
   <div class="filters" role="group" aria-label="Filter results">
     <button type="button" class="chip chip--on" data-filter="all" aria-pressed="true">All</button>
+    <button type="button" class="chip" data-filter="queue" aria-pressed="false">Review queue</button>
     <button type="button" class="chip" data-filter="fail" aria-pressed="false">Needs correction</button>
     <button type="button" class="chip" data-filter="needs_review" aria-pressed="false">Needs review</button>
     <button type="button" class="chip" data-filter="pass" aria-pressed="false">Compliant</button>
+    <button type="button" class="chip" data-filter="unchecked" aria-pressed="false">Uncheckable findings</button>
+    <button type="button" class="chip" data-filter="error" aria-pressed="false">Could not be read</button>
   </div>
   <div class="filters" role="group" aria-label="Download results">
     <a class="csv-link" href="/batch/{{ job_id }}/export.csv">Export CSV</a>
     <a class="csv-link" href="/batch/{{ job_id }}/export.json">Full report (JSON)</a>
+    <a class="csv-link" href="/batch/{{ job_id }}/print">Printable report</a>
+    <a class="csv-link" href="/compare">Compare a correction</a>
   </div>
 </div>
 <p class="hint">Open a label's findings for the evidence behind its result. The full report includes
