@@ -4,6 +4,10 @@ Checks alcohol beverage labels against TTB labeling requirements (27 CFR parts 5
 
 **Live:** https://haksanlulz-label-assay.hf.space
 
+**Local candidate updates:** keyboard skip links, announced batch-filter counts and per-file comparison errors accompany the review queue, saved revision comparisons and printable reports. These changes remain local until a separate release. The Civic Workbench `start-local.ps1` launcher can start both apps; point `LABEL_ASSAY_ROOT` at this checkout if it is not under `~/code/label-assay`.
+
+For repeatable UI checks, `uv run python tests/browser_server.py` serves the real app with three synthetic completed reports at `http://127.0.0.1:18790/batch/browser-fixture`. It disables reader warm-up and makes no AI calls. Civic Workbench's `npm run test:browser:all` owns the Chromium/Firefox/WebKit suite and automatically starts/stops this fixture. Its `npm run test:pdf` validates the resulting single-label, batch and revision PDFs alongside the civic reports. Physical devices, actual screen-reader speech and native print dialogs remain separate checks.
+
 ## Why It Works This Way
 
 AI does the reading. Plain Python does the deciding.

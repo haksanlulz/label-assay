@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
+  <a class="skip-link no-print" href="#main" tabindex="0">Skip to main content</a>
   <header class="site-header">
     <div class="container">
       <a class="site-title" href="/">LabelAssay</a>
@@ -14,7 +15,7 @@
       <a class="no-print" href="/compare">Compare revisions</a>
     </div>
   </header>
-  <main class="container">
+  <main id="main" class="container" tabindex="-1">
     {% block main %}{% endblock %}
   </main>
   <footer class="container site-footer">

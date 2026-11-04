@@ -16,7 +16,7 @@ Choose the matching label from each export below. Reports are compared as suppli
     <label for="after-index">Label row</label><select id="after-index" name="after_index"><option value="0">First label (row 0)</option></select>
   </fieldset>
   <p class="hint">Maximum 5 MB per report. Older reports may have no check timestamp. With JavaScript disabled, the first label in each export is compared.</p>
-  <p id="report-error" role="status"></p><button type="submit">Compare findings</button>
+  <p id="report-error" role="alert" tabindex="-1"></p><button type="submit">Compare findings</button>
 </form>
 {% endblock %}
 {% block scripts %}<script src="/static/reports.js" defer></script>{% endblock %}

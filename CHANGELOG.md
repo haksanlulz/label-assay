@@ -9,5 +9,7 @@
 - Revision comparisons distinguish resolved findings from removed/uncheckable rules and warn about rulebook and coverage changes.
 - Includes preceding local extraction, warning and batch-upload correctness fixes.
 - Mobile batch results become readable cards while preserving filters; revision metadata stacks on narrow screens and file inputs stay within the form. Printed headers use high-contrast text.
+- Keyboard skip links, announced review-filter counts, reduced-motion progress and focused upload errors. An invalid earlier report remains identified when the corrected report is valid. Compact print spacing prevents a footer-only page; the first batch label can share its introduction page.
+- `tests/browser_server.py` supplies synthetic completed reports to the local cross-browser regression suite without contacting an AI reader.
 
 Rulebook data is unchanged. This candidate has not been deployed or published.

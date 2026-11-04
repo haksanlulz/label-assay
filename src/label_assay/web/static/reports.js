@@ -31,11 +31,14 @@
     input.addEventListener("change", async function () {
       var select = document.getElementById(input.dataset.reportSelect);
       var error = document.getElementById("report-error");
+      var selectedFile = input.files[0];
+      input.setAttribute("aria-describedby", "report-error");
       select.replaceChildren();
       try {
         var file = input.files[0];
         if (!file || file.size > 5 * 1024 * 1024) { throw new Error("Choose a JSON report no larger than 5 MB."); }
         var data = JSON.parse(await file.text());
+        if (input.files[0] !== selectedFile) { return; }
         if (data.schema_version !== 1 || !Array.isArray(data.items)) { throw new Error("Choose a LabelAssay full-report JSON export."); }
         data.items.forEach(function (item, index) {
           if (item.status !== "done" || !item.report) { return; }
@@ -43,8 +46,17 @@
           option.textContent = item.filename + " (row " + index + ")"; select.append(option);
         });
         if (!select.options.length) { throw new Error("This export has no completed label reports."); }
-        error.textContent = ""; input.setCustomValidity("");
-      } catch (err) { error.textContent = err.message; input.setCustomValidity(err.message); }
+        input.setCustomValidity(""); input.removeAttribute("aria-invalid"); select.focus();
+      } catch (err) {
+        if (input.files[0] !== selectedFile) { return; }
+        input.setCustomValidity(err.message); input.setAttribute("aria-invalid", "true");
+      }
+      error.textContent = Array.from(document.querySelectorAll("[data-report-select]")).filter(function (field) {
+        return field.validity.customError;
+      }).map(function (field) {
+        return field.closest("fieldset").querySelector("legend").textContent + ": " + field.validationMessage;
+      }).join(" ");
+      if (input.validity.customError) { error.focus(); }
     });
   });
 })();

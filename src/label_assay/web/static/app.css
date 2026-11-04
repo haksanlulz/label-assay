@@ -147,6 +147,12 @@ table.results th { font-size: 0.85rem; color: var(--muted); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
+.skip-link { position: absolute; top: -100px; left: 1rem; z-index: 10; }
+.skip-link:focus { top: .5rem; padding: .75rem; background: white; color: var(--primary-dark); }
+#main:focus-visible, #report-error:focus-visible, summary:focus-visible { outline: .25rem solid #2491ff; outline-offset: 2px; }
+.chip:hover { color: white; }
+@media (prefers-reduced-motion: reduce) { form.is-busy .progress__fill { animation: none; width: 90%; } }
+
 fieldset { min-width: 0; border: 1px solid var(--border); margin: 1.5rem 0; padding: 1rem; }
 fieldset select { width: 100%; max-width: 100%; padding: .65rem; }
 .finding, table.results td { overflow-wrap: anywhere; }
@@ -174,5 +180,8 @@ main.container { overflow-wrap: anywhere; }
   .finding { break-inside: avoid; border-color: #aaa; }
   h1, h2, h3, h4 { break-after: avoid; }
   .print-label { break-before: page; }
+  .print-label:first-of-type { break-before: auto; }
+  main.container { padding-top: .75rem; padding-bottom: 0; }
+  .site-footer { margin-top: 1rem; padding-top: .5rem; padding-bottom: 0; font-size: 8pt; }
   a { color: black; }
 }

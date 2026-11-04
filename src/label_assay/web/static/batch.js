@@ -8,6 +8,13 @@
   var summaryEl = document.getElementById("summary");
   var progressEl = document.getElementById("progress");
   var filter = "all";
+  function announceFilter() {
+    var total = rows.querySelectorAll("tr").length;
+    var shown = rows.querySelectorAll("tr:not([hidden])").length;
+    var selected = document.querySelector('.chip[aria-pressed="true"]');
+    document.getElementById("filter-status").textContent =
+      selected.textContent + ": showing " + shown + " of " + total + " labels.";
+  }
 
   var LABELS = {
     pass: "Compliant", needs_review: "Needs review", fail: "Needs correction",
@@ -69,6 +76,7 @@
       }
       rows.appendChild(tr);
     });
+    announceFilter();
   }
 
   function poll() {
@@ -98,6 +106,7 @@
       Array.prototype.forEach.call(document.querySelectorAll("#rows tr"), function (tr) {
         tr.hidden = !matches(tr.dataset.status, tr.dataset.unchecked === "true");
       });
+      announceFilter();
     });
   });
 
