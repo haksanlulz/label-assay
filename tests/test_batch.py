@@ -8,6 +8,7 @@ import csv
 import io
 import re
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -287,6 +288,50 @@ async def _noop_run_job(
     # Stubbing run_job means taking over its ownership contract: once batch_create
     # hands the spooled files off, the runner is what deletes them.
     batchmod.discard_spooled(path for _name, path in files)
+
+
+def test_parser_accepts_1000_images_plus_applications_csv(monkeypatch) -> None:
+    monkeypatch.setattr(webapp, "default_extractor", lambda _settings: object())
+    monkeypatch.setattr(batchmod, "run_job", _noop_run_job)
+    uploads = [("images", (f"label-{index}.png", _tiny_png(), "image/png"))
+               for index in range(1000)]
+    uploads.append(("applications", ("applications.csv",
+        b"filename,brand_name,class_type\nlabel-0.png,Brand,Vodka\n", "text/csv")))
+    with TestClient(webapp.app) as c:
+        response = c.post("/batch", files=uploads, follow_redirects=False)
+        assert response.status_code == 303
+
+
+def test_cancelled_job_waits_for_worker_before_final_cleanup(monkeypatch, tmp_path) -> None:
+    started, finish, read = threading.Event(), threading.Event(), threading.Event()
+    files = [_spooled(tmp_path, "label.png", b"image")]
+
+    def worker(path, *_args):
+        started.set()
+        finish.wait(timeout=5)
+        assert path.read_bytes() == b"image"
+        read.set()
+        return _report_with({})
+
+    monkeypatch.setattr(batchmod, "_check_spooled", worker)
+
+    async def drive():
+        task = asyncio.create_task(run_job(create_job(["label.png"]), files, object()))
+        try:
+            assert await asyncio.to_thread(started.wait, 3)
+            task.cancel()
+            await asyncio.sleep(0.05)
+            assert not task.done()
+            assert files[0][1].exists()
+            finish.set()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            assert read.is_set()
+            assert not files[0][1].exists()
+        finally:
+            finish.set()
+
+    asyncio.run(drive())
 
 
 def test_batch_route_happy_path_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:

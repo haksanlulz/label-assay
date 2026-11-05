@@ -55,23 +55,23 @@ def test_wrong_brand_fails() -> None:
     )
 
 
-# --- the either-name brand check (a filing carries a brand and, optionally, a fanciful name) ---
+# --- a filing carries a brand and, optionally, a fanciful name ---
 
 
 def _brand_finding(report):
     return next(f for f in report.findings if f.rule_id == "brand_name_matches_application")
 
 
-def test_label_showing_the_filed_fanciful_name_passes_naming_the_fanciful_match() -> None:
+def test_fanciful_name_alone_cannot_clear_a_different_filed_brand() -> None:
     # The real registry pair (cola_24071001001099): the can leads with the filed
     # fanciful name YELLOW CARD PILS; the filed brand is EARTHBOUND BEER. A
-    # consistent filing must not fail the brand check.
+    # match to that name cannot prove the filed brand also appears.
     extraction = _compliant_extraction().model_copy(update={"brand_name": _f("yellow card pils")})
     application = Application(
         brand_name="Earthbound Beer", fanciful_name="YELLOW CARD PILS", class_type="BEER"
     )
     brand = _brand_finding(verify(extraction, application, load_rulebook()))
-    assert brand.verdict == Verdict.PASS
+    assert brand.verdict == Verdict.NEEDS_REVIEW
     assert "fanciful name" in brand.detail
 
 
@@ -218,6 +218,24 @@ def test_corroborating_ocr_leaves_the_pass_intact() -> None:
     assert report.verdict == Verdict.PASS
 
 
+def test_corroborated_quote_does_not_clear_a_different_brand_value() -> None:
+    extraction = _compliant_extraction().model_copy(update={
+        "brand_name": ExtractedField(verbatim="OTHER BRAND", value="OLD TOM DISTILLERY", found=True)
+    })
+    lines = _ocr_of_everything_but_brand() + [OcrLine("OTHER BRAND", 0.99)]
+    finding = _brand_finding(verify(extraction, _application(), load_rulebook(), ocr_lines=lines))
+    assert finding.verdict == Verdict.NEEDS_REVIEW
+
+
+def test_corroborated_brand_quote_cannot_be_shortened_to_a_pass() -> None:
+    extraction = _compliant_extraction().model_copy(update={
+        "brand_name": ExtractedField(verbatim="OLD CROW RESERVE", value="OLD CROW", found=True)
+    })
+    lines = _ocr_of_everything_but_brand() + [OcrLine("OLD CROW RESERVE", 0.99)]
+    finding = _brand_finding(verify(extraction, _application("OLD CROW"), load_rulebook(), ocr_lines=lines))
+    assert finding.verdict == Verdict.NEEDS_REVIEW
+
+
 def test_value_without_a_quote_does_not_bypass_the_gate() -> None:
     # A vision model that fills value while leaving verbatim null is asserting a
     # read it never quoted — the exact hallucination shape the gate exists for.
@@ -269,9 +287,43 @@ def test_zero_applicable_rules_is_a_review_never_a_pass() -> None:
     assert report.verdict == Verdict.NEEDS_REVIEW
 
 
-def test_dead_ocr_does_not_single_out_any_field() -> None:
-    # An unreadable image must not manufacture per-field failures.
-    assert unconfirmed_fields(_compliant_extraction(), [OcrLine("", 0.0)]) == set()
+def test_dead_ocr_holds_asserted_fields_for_review() -> None:
+    assert "alcohol_content" in unconfirmed_fields(_compliant_extraction(), [OcrLine("", 0.0)])
+    extraction = _compliant_extraction().model_copy(update={"alcohol_content": _f("45% 80 proof")})
+    report = verify(extraction, _application(), load_rulebook(), ocr_lines=[])
+    finding = next(f for f in report.findings if f.rule_id == "alcohol_content_internally_consistent")
+    assert finding.verdict == Verdict.NEEDS_REVIEW
+    # Explicitly omitted OCR remains available for engine-only callers.
+    report = verify(extraction, _application(), load_rulebook(), ocr_lines=None)
+    assert next(f for f in report.findings if f.rule_id == finding.rule_id).verdict == Verdict.FAIL
+
+
+@pytest.mark.parametrize(("extracted", "observed"), [
+    ("45% alc/vol 90 proof", "40% alc/vol 90 proof"),
+    ("45% alc/vol 80 proof", "45% alc/vol 90 proof"),
+    ("45% alc/vol 90 proof", "45 proof 90% alc/vol"),
+    ("40-45% alc/vol 90 proof", "45-40% alc/vol 90 proof"),
+])
+def test_numeric_disagreement_is_never_decisive(extracted, observed) -> None:
+    extraction = _compliant_extraction().model_copy(update={"alcohol_content": _f(extracted)})
+    lines = _ocr_of_everything_but_brand() + [OcrLine("OLD TOM DISTILLERY", .99)]
+    lines = [line for line in lines if "45%" not in line.text]
+    lines.append(OcrLine(observed, .99))
+    report = verify(extraction, _application(), load_rulebook(), ocr_lines=lines)
+    finding = next(f for f in report.findings if f.rule_id == "alcohol_content_internally_consistent")
+    assert finding.verdict == Verdict.NEEDS_REVIEW
+
+
+@pytest.mark.parametrize(("extracted", "expected"), [
+    ("45% alc/vol 90 proof", Verdict.PASS),
+    ("45% alc/vol 80 proof", Verdict.FAIL),
+])
+def test_confirmed_numeric_evidence_retains_decisive_verdict(extracted, expected) -> None:
+    extraction = _compliant_extraction().model_copy(update={"alcohol_content": _f(extracted)})
+    lines = [OcrLine("OLD TOM DISTILLERY " + extracted, .99)]
+    report = verify(extraction, _application(), load_rulebook(), ocr_lines=lines)
+    finding = next(f for f in report.findings if f.rule_id == "alcohol_content_internally_consistent")
+    assert finding.verdict == expected
 
 
 # --- the recitation defense (a model quoting the statute over a different label) ---
@@ -286,6 +338,32 @@ def _ocr_with_warning(warning: str) -> list[OcrLine]:
         OcrLine("750 mL", 0.95),
         OcrLine(warning, 0.95),
     ]
+
+
+def test_model_cannot_clear_capitals_ocr_reads_in_title_case() -> None:
+    reference = fixture_corpus.mandated_warning()
+    printed = reference.replace("GOVERNMENT WARNING", "Government Warning", 1)
+    report = verify(_compliant_extraction(), _application(), load_rulebook(),
+                    ocr_lines=_ocr_with_warning(printed))
+    warning = next(f for f in report.findings if f.rule_id == "health_warning_verbatim")
+    assert warning.verdict == Verdict.NEEDS_REVIEW
+
+
+def test_real_ocr_blocks_recited_capitals_on_title_case_fixture() -> None:
+    from label_assay.web.service import check_label
+
+    spec = next(spec for spec in fixture_corpus.corpus_specs() if spec.filename == "label_008.png")
+    extraction = fixture_corpus.perfect_extraction(spec).model_copy(
+        update={"government_warning": _f(fixture_corpus.mandated_warning())})
+
+    class Reader:
+        def extract(self, _image):
+            return extraction
+
+    report = check_label(fixture_corpus.fixture_path(spec).read_bytes(),
+                         fixture_corpus.application_for(spec), extractor=Reader()).report
+    warning = next(f for f in report.findings if f.rule_id == "health_warning_verbatim")
+    assert warning.verdict == Verdict.NEEDS_REVIEW
 
 
 def test_recited_warning_over_an_altered_label_is_held_for_review() -> None:

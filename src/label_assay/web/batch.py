@@ -337,17 +337,19 @@ async def run_job(
     # a sideways-printed warning), off for maximum throughput.
     semaphore = asyncio.Semaphore(_CONCURRENCY)
     applications = applications or {}
+    in_flight: set[asyncio.Future] = set()
 
     async def process(index: int, name: str, path: Path) -> None:
         async with semaphore:
             item = job.items[index]
+            future = None
             # An unmatched label still gets every label-internal check; only the
             # brand comparison abstains.
             application = applications.get(pairing_key(name), Application())
             try:
                 # The timing line's context is the same job id + item index the
                 # error records use — never the uploaded filename.
-                report = await asyncio.get_running_loop().run_in_executor(
+                future = asyncio.get_running_loop().run_in_executor(
                     _WORKERS,
                     _check_spooled,
                     path,
@@ -357,6 +359,14 @@ async def run_job(
                     recover_rotation,
                     f"Batch job {job.id} item {index}",
                 )
+                in_flight.add(future)
+                try:
+                    # Cancelling the asyncio task cannot stop its worker thread.
+                    # Keep the future observable so job cleanup can await it.
+                    report = await asyncio.shield(future)
+                finally:
+                    if future.done():
+                        in_flight.discard(future)
                 item.verdict = report.verdict.value
                 item.detail = _headline(report)
                 item.rule_verdicts = {f.rule_id: f.verdict.value for f in report.findings}
@@ -377,11 +387,18 @@ async def run_job(
                 logger.exception("Batch job %s item %d: unhandled error", job.id, index)
                 item.status, item.detail = "error", "Could not process this file."
             finally:
-                discard_spooled([path])
+                # A cancelled asyncio task cannot stop a worker that has yet
+                # to open this file. The outer cleanup waits for that worker.
+                if future is None or future.done():
+                    discard_spooled([path])
 
     try:
         await asyncio.gather(*(process(i, name, path) for i, (name, path) in enumerate(files)))
     finally:
         # Belt over the per-item braces: a cancelled job (shutdown mid-batch)
-        # must not strand hundreds of temp files on disk.
+        # must not strand hundreds of temp files on disk. Threads cannot be
+        # cancelled; wait for their file reads before the final cleanup and
+        # before releasing the job's admission slot.
+        if in_flight:
+            await asyncio.gather(*in_flight, return_exceptions=True)
         discard_spooled(path for _name, path in files)

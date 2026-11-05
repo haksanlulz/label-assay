@@ -10,7 +10,11 @@ from label_assay.web.app import app
 client = TestClient(app)
 
 
-def test_health_ok() -> None:
+def test_health_ok(monkeypatch) -> None:
+    import label_assay.web.app as webapp
+    from label_assay.config import Settings
+
+    monkeypatch.setattr(webapp, "get_settings", lambda: Settings(anthropic_api_key="test"))
     resp = client.get("/health")
     assert resp.status_code == 200
     body = resp.json()
@@ -18,8 +22,20 @@ def test_health_ok() -> None:
     # over a failed OCR probe is exactly the bug this test must catch.
     assert body["ocr"] == "ready"
     assert body["status"] == "ok"
-    assert body["ai_reader"] in {"configured", "not-configured"}
+    assert body["ai_reader"] == "configured"
     assert body["rulebook_rules"] >= 1
+
+
+def test_health_is_degraded_without_reader_but_offline_pages_remain_available(monkeypatch) -> None:
+    import label_assay.web.app as webapp
+    from label_assay.config import Settings
+
+    monkeypatch.setattr(webapp, "get_settings", lambda: Settings(anthropic_api_key=None))
+    monkeypatch.setattr(webapp, "_ocr_status", lambda: "ready")
+    body = client.get("/health").json()
+    assert body["status"] == "degraded"
+    assert body["ai_reader"] == "not-configured"
+    assert client.get("/review").status_code == 200
 
 
 def test_health_degrades_when_ocr_probe_fails(monkeypatch) -> None:

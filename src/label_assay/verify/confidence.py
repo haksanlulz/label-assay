@@ -4,15 +4,15 @@ The two channels fail in different ways: OCR errors are local and random, while 
 vision model's errors are coherent and prior-driven (it can reproduce a value it
 did not actually read). So per field we ask one cheap, high-signal question — does
 the model's quoted text actually appear in the OCR of the same image? — and when
-it does not, and OCR is otherwise alive, we refuse to PASS or FAIL that field: it
-goes to a human.
-
-Absence of OCR evidence is never treated as evidence of absence. If OCR could not
-read the label at all, no field is singled out; the caller decides what a
-globally illegible image means.
+it does not, we refuse to PASS or FAIL that field: it goes to a human. A supplied
+OCR read that cannot read anything also leaves asserted fields unconfirmed.
+Omitting OCR altogether is a separate engine-only mode used by offline callers.
 """
 
 from __future__ import annotations
+
+import re
+from decimal import Decimal
 
 from rapidfuzz import fuzz
 
@@ -22,6 +22,7 @@ from label_assay.text.normalize import squash as _squash
 
 _SUPPORT_FLOOR = 0.60  # below this, the model's quote is not corroborated by OCR
 _FIELDS = tuple(Extraction.model_fields)
+_NUMBER = re.compile(r"(?<![\d.])(\d+(?:\.\d+)?)(?![\d.])\s*(%|percent\b|proof\b)?", re.I)
 
 
 def ocr_is_alive(lines: list[OcrLine]) -> bool:
@@ -55,22 +56,59 @@ def corroborates_exactly(reference: str, ocr_lines: list[OcrLine]) -> bool:
     return bool(target) and target in _squash(" ".join(line.text for line in ocr_lines))
 
 
+def corroborates_heading_capitals(reference: str, ocr_lines: list[OcrLine]) -> bool:
+    """Confirm capitals on the heading attached to the corroborated statement."""
+    heading = "".join(ch for ch in reference.partition(":")[0] if ch.isalnum())
+    expected = "".join(ch for ch in reference if ch.isalnum()).casefold()
+    observed = "".join(ch for line in ocr_lines for ch in line.text if ch.isalnum())
+    return bool(heading) and any(
+        observed[index:index + len(heading)] == heading and
+        observed[index:index + len(expected)].casefold() == expected
+        for index in range(max(0, len(observed) - len(expected) + 1))
+    )
+
+
+def _numeric_evidence(asserted: str, ocr_text: str) -> bool:
+    """Require the ordered numeric values and any stated units to agree.
+
+    Fuzzy text similarity can consider 40%/90 proof and 45%/90 proof nearly
+    identical. Treat percent and proof as distinct units, and preserve order so
+    the endpoints of a range cannot be silently exchanged.
+    """
+    def tokens(text: str) -> list[tuple[Decimal, str]]:
+        result = []
+        for match in _NUMBER.finditer(text):
+            unit = (match.group(2) or "").casefold()
+            result.append((Decimal(match.group(1)), "%" if unit == "percent" else unit))
+        return result
+
+    expected, actual = tokens(asserted), tokens(ocr_text)
+    if not expected:
+        return True
+    for start in range(len(actual) - len(expected) + 1):
+        window = actual[start:start + len(expected)]
+        if all(number == seen and (not unit or unit == seen_unit)
+               for (number, unit), (seen, seen_unit) in zip(expected, window)):
+            return True
+    return False
+
+
 def unconfirmed_fields(extraction: Extraction, ocr_lines: list[OcrLine]) -> set[str]:
-    """Fields whose vision-quoted text the OCR does not corroborate (OCR alive).
+    """Fields whose vision assertions the supplied OCR does not corroborate.
     Findings from these fields must be held for review, never passed or failed."""
     if not ocr_is_alive(ocr_lines):
-        return set()  # can't corroborate anything; not a per-field failure
-    blob = _squash(" ".join(line.text for line in ocr_lines))
+        return {name for name in _FIELDS if (getattr(extraction, name).verbatim
+                                             or getattr(extraction, name).value)}
+    ocr_text = " ".join(line.text for line in ocr_lines)
+    blob = _squash(ocr_text)
     unconfirmed: set[str] = set()
     for name in _FIELDS:
         field = getattr(extraction, name)
-        # Corroborate what the matchers actually consume: the quote when the
-        # model gave one, else the value. A value asserted without a quote must
-        # not bypass the gate — that shape is the hallucination this module
-        # exists to catch, not an exemption from it.
-        asserted = field.verbatim or field.value
-        if not asserted:
-            continue  # nothing asserted to corroborate; absence is the engine's call
-        if field_support(asserted, blob) < _SUPPORT_FLOOR:
+        # Matchers may use either the quote or the cleaned value. Corroborating
+        # only the quote lets a contradictory value pass the brand matcher.
+        asserted = (field.verbatim, field.value)
+        if any(value and (field_support(value, blob) < _SUPPORT_FLOOR or
+                          (name == "alcohol_content" and not _numeric_evidence(value, ocr_text)))
+               for value in asserted):
             unconfirmed.add(name)
     return unconfirmed

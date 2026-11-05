@@ -714,10 +714,127 @@ def test_declared_body_at_the_ceiling_passes_through_to_the_app() -> None:
 
 
 def test_requests_without_content_length_are_not_refused_by_the_ceiling() -> None:
-    # No declared length means the ceiling abstains; the multipart caps and the
-    # batch total-bytes guard still bound what the body can deliver.
+    # Requests with no body do not need a declared length.
     resp = client.get("/health")
     assert resp.status_code == 200
+
+
+@pytest.mark.parametrize("declared", [None, "10"])
+def test_streamed_multipart_limit_closes_partial_files(monkeypatch, declared) -> None:
+    import httpx
+    import starlette.formparsers as formparsers
+
+    opened = []
+    original = formparsers.SpooledTemporaryFile
+
+    def track_file(*args, **kwargs):
+        file = original(*args, **kwargs)
+        opened.append(file)
+        return file
+
+    monkeypatch.setattr(formparsers, "SpooledTemporaryFile", track_file)
+    monkeypatch.setattr(webapp, "_MAX_OTHER_REQUEST_BYTES", 1024)
+
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield (b'--x\r\nContent-Disposition: form-data; name="image"; '
+                   b'filename="a.png"\r\nContent-Type: image/png\r\n\r\n')
+            yield b"a" * 600
+            yield b"b" * 600
+            yield b"\r\n--x--\r\n"
+
+    async def drive():
+        transport = httpx.ASGITransport(app=webapp.app)
+        headers = {"content-type": "multipart/form-data; boundary=x"}
+        if declared is not None:
+            headers["content-length"] = declared
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+            return await c.post("/check", headers=headers, content=Stream())
+
+    response = asyncio.run(drive())
+    assert response.status_code == 413
+    assert opened and all(file.closed for file in opened)
+
+
+def test_disconnect_closes_partial_multipart_file(monkeypatch) -> None:
+    import starlette.formparsers as formparsers
+
+    opened = []
+    original = formparsers.SpooledTemporaryFile
+
+    def track_file(*args, **kwargs):
+        file = original(*args, **kwargs)
+        opened.append(file)
+        return file
+
+    monkeypatch.setattr(formparsers, "SpooledTemporaryFile", track_file)
+
+    async def drive():
+        messages = iter([
+            {"type": "http.request", "body": (
+                b'--x\r\nContent-Disposition: form-data; name="image"; '
+                b'filename="a.png"\r\nContent-Type: image/png\r\n\r\nabc'
+            ), "more_body": True},
+            {"type": "http.disconnect"},
+        ])
+
+        async def receive():
+            return next(messages, {"type": "http.disconnect"})
+
+        async def send(_message):
+            pass
+
+        scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+                 "method": "POST", "scheme": "http", "path": "/check",
+                 "raw_path": b"/check", "query_string": b"", "root_path": "",
+                 "headers": [(b"content-type", b"multipart/form-data; boundary=x")],
+                 "server": ("test", 80), "client": ("test", 1)}
+        await webapp.app(scope, receive, send)
+
+    asyncio.run(drive())
+    assert opened and all(file.closed for file in opened)
+
+
+def test_compare_rejects_deep_json_without_server_error() -> None:
+    deeply_nested = b"[" * 30000 + b"]" * 30000
+    response = client.post("/compare", files={
+        "before_file": ("before.json", deeply_nested, "application/json"),
+        "after_file": ("after.json", b"{}", "application/json"),
+    })
+    assert response.status_code == 422
+
+
+def test_batch_admission_held_until_background_cleanup(monkeypatch) -> None:
+    import httpx
+
+    async def drive():
+        started, finish = asyncio.Event(), asyncio.Event()
+
+        async def runner(_job, files, *_args, **_kwargs):
+            started.set()
+            try:
+                await finish.wait()
+            finally:
+                webapp.batchmod.discard_spooled(path for _name, path in files)
+
+        monkeypatch.setattr(webapp, "default_extractor", lambda _settings: object())
+        monkeypatch.setattr(webapp.batchmod, "run_job", runner)
+        transport = httpx.ASGITransport(app=webapp.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+            payload = {"images": ("label.png", solid_png(16, 16), "image/png")}
+            first = await c.post("/batch", files=payload)
+            await started.wait()
+            second = await c.post("/batch", files=payload)
+            assert first.status_code == 303
+            assert second.status_code == 503
+            assert (await c.get("/review")).status_code == 200
+            finish.set()
+            await asyncio.gather(*list(webapp._BG_TASKS))
+            await asyncio.sleep(0)  # task callbacks release the retained lease
+            assert (await c.post("/batch", files=payload)).status_code == 303
+            await asyncio.gather(*list(webapp._BG_TASKS))
+
+    asyncio.run(drive())
 
 
 def test_batch_404_copy_states_the_retention_policy() -> None:

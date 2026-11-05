@@ -17,6 +17,7 @@ import io
 import logging
 import os
 import tempfile
+import threading
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -27,6 +28,8 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.formparsers import MultiPartException
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from label_assay import __version__
 from label_assay.config import get_settings
@@ -165,26 +168,45 @@ app.include_router(review_router)
 # multipart framing — so any declared body past it is a mistake or an attack,
 # refused before a byte of it streams.
 _MAX_REQUEST_BYTES = 1_700_000_000
+_MAX_OTHER_REQUEST_BYTES = 32 * 1024 * 1024
+_BATCH_UPLOAD_SLOT = threading.BoundedSemaphore(1)
+_OTHER_UPLOAD_SLOTS = threading.BoundedSemaphore(4)
 _TOO_LARGE_BODY = (
     b"That request is larger than this server accepts in one upload. "
     b"Split the batch and try again."
 )
 
 
+class _UploadLease:
+    """Keep the batch admission slot until both request and job have finished."""
+
+    def __init__(self, semaphore: threading.BoundedSemaphore) -> None:
+        self.semaphore = semaphore
+        self.references = 1
+
+    def retain(self) -> None:
+        self.references += 1
+
+    def release(self) -> None:
+        self.references -= 1
+        if self.references == 0:
+            self.semaphore.release()
+
+
 class _RequestSizeCeiling:
-    """Pure ASGI middleware (not BaseHTTPMiddleware): a request whose declared
-    Content-Length exceeds the ceiling is answered with a plain 413 before any
-    of the body is read, so an oversized declaration costs no spool and no
-    parse. A request without a Content-Length passes through — the multipart
-    parser's own per-part caps and the batch total-bytes guard still bound what
-    it can deliver."""
+    """Bound received bytes before multipart parsing, and limit concurrent spools."""
 
     def __init__(self, app: ASGIApp, max_bytes: int) -> None:
         self._app = app
         self._max_bytes = max_bytes
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] == "http" and self._declared_length(scope) > self._max_bytes:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        is_batch = scope.get("method") == "POST" and scope.get("path") == "/batch"
+        ceiling = self._max_bytes if is_batch else min(self._max_bytes, _MAX_OTHER_REQUEST_BYTES)
+        if self._declared_length(scope) > ceiling:
             await send(
                 {
                     "type": "http.response.start",
@@ -197,7 +219,57 @@ class _RequestSizeCeiling:
             )
             await send({"type": "http.response.body", "body": _TOO_LARGE_BODY})
             return
-        await self._app(scope, receive, send)
+        lease = None
+        if scope.get("method") == "POST":
+            slot = _BATCH_UPLOAD_SLOT if is_batch else _OTHER_UPLOAD_SLOTS
+            if not slot.acquire(blocking=False):
+                body = b"The server is busy processing uploads. Please try again shortly."
+                await send({"type": "http.response.start", "status": 503,
+                            "headers": [(b"content-type", b"text/plain; charset=utf-8"),
+                                        (b"retry-after", b"5")]})
+                await send({"type": "http.response.body", "body": body})
+                return
+            lease = _UploadLease(slot)
+            scope["label_assay.upload_lease"] = lease
+
+        received = 0
+        exceeded = False
+        error_body_sent = False
+
+        async def bounded_receive():
+            nonlocal received, exceeded
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                # MultiPartParser closes its partial files on this exception;
+                # its ordinary ClientDisconnect path does not do so explicitly.
+                raise MultiPartException("Upload disconnected")
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > ceiling:
+                    exceeded = True
+                    # Starlette closes partially spooled multipart files for this
+                    # exception; FastAPI turns it into a response below.
+                    raise MultiPartException("Request body too large")
+            return message
+
+        async def bounded_send(message):
+            nonlocal error_body_sent
+            if exceeded:
+                if message["type"] == "http.response.start":
+                    await send({"type": "http.response.start", "status": 413,
+                                "headers": [(b"content-type", b"text/plain; charset=utf-8"),
+                                            (b"content-length", str(len(_TOO_LARGE_BODY)).encode())]})
+                elif message["type"] == "http.response.body" and not error_body_sent:
+                    error_body_sent = True
+                    await send({"type": "http.response.body", "body": _TOO_LARGE_BODY})
+                return
+            await send(message)
+
+        try:
+            await self._app(scope, bounded_receive, bounded_send)
+        finally:
+            if lease is not None:
+                lease.release()
 
     @staticmethod
     def _declared_length(scope: Scope) -> int:
@@ -364,7 +436,7 @@ def health() -> dict[str, object]:
     ocr = _ocr_status()
     return {
         # The top-level status must not contradict the subsystem fields below.
-        "status": "ok" if ocr == "ready" else "degraded",
+        "status": "ok" if ocr == "ready" and settings.anthropic_api_key else "degraded",
         "version": __version__,
         "rulebook_version": rulebook.version,
         "rulebook_rules": len(rulebook.rules),
@@ -508,12 +580,22 @@ def _batch_task_done(task: asyncio.Task) -> None:
 
 
 @app.post("/batch")
-async def batch_create(
-    request: Request,
-    images: list[UploadFile],
-    applications: UploadFile | None = None,
-    recover_rotation: str | None = Form(None),
-):
+async def batch_create(request: Request):
+    # Starlette's default counts the optional CSV as one of its 1000 files.
+    # Parse explicitly so 1000 images plus that CSV fit the advertised limit.
+    async with request.form(max_files=batchmod.MAX_FILES + 1) as form:
+        images = form.getlist("images")
+        applications = form.get("applications")
+        recover_rotation = form.get("recover_rotation")
+        if (not images or any(not isinstance(image, StarletteUploadFile) for image in images)
+                or (applications is not None and not isinstance(applications, StarletteUploadFile))
+                or (recover_rotation is not None and not isinstance(recover_rotation, str))):
+            return _error_page(request, "Choose PNG or JPEG label images and an optional CSV.", 422)
+        return await _batch_create(request, images, applications, recover_rotation)
+
+
+async def _batch_create(request: Request, images: list[StarletteUploadFile],
+                        applications: StarletteUploadFile | None, recover_rotation: str | None):
     # The retry-sideways checkbox: checked by default on the form, and a
     # checked box is the only thing a browser sends — absence means unchecked.
     retry_sideways = recover_rotation is not None
@@ -609,13 +691,31 @@ async def batch_create(
     if csv_rows is not None:
         job.csv_rows = csv_rows
         job.csv_unmatched = sum(1 for key in uploaded_keys if key not in application_map)
-    task = asyncio.create_task(
-        batchmod.run_job(
-            job, files, extractor, _BUDGET, application_map, recover_rotation=retry_sideways
+    lease = request.scope.get("label_assay.upload_lease")
+    if lease is not None:
+        lease.retain()
+    try:
+        task = asyncio.create_task(
+            batchmod.run_job(
+                job, files, extractor, _BUDGET, application_map, recover_rotation=retry_sideways
+            )
         )
-    )
+    except BaseException:
+        if lease is not None:
+            lease.release()
+        batchmod.discard_spooled(path for _name, path in files)
+        raise
     _BG_TASKS.add(task)
     task.add_done_callback(_batch_task_done)
+
+    def release_batch(_task: asyncio.Task) -> None:
+        # Also covers cancellation before run_job starts, when its own finally
+        # block has not had a chance to take ownership of the files.
+        batchmod.discard_spooled(path for _name, path in files)
+        if lease is not None:
+            lease.release()
+
+    task.add_done_callback(release_batch)
     return RedirectResponse(f"/batch/{job.id}", status_code=303)
 
 
@@ -749,7 +849,7 @@ async def compare_saved(request: Request, before_file: UploadFile, after_file: U
                 raise ValueError("Each saved report must be no larger than 5 MB.")
             saved.append(read_saved_report(content, index))
         comparison = compare_reports(*saved)
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:
         return _error_page(request, str(exc), 422)
     finally:
         await before_file.close()

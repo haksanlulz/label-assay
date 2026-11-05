@@ -29,7 +29,10 @@ from label_assay.match.brand import BrandVerdict, match_brand
 from label_assay.match.warning import WarningVerdict, compare_warning
 from label_assay.rulebook.loader import Rule, Rulebook
 from label_assay.text.numbers import parse_alcohol_content
-from label_assay.verify.confidence import corroborates_exactly, unconfirmed_fields
+from label_assay.text.normalize import canon_brand
+from label_assay.verify.confidence import (
+    corroborates_exactly, corroborates_heading_capitals, unconfirmed_fields,
+)
 
 
 @dataclass(frozen=True)
@@ -80,14 +83,20 @@ def _match_warning_verbatim(rule: Rule, ctx: VerifyContext) -> Finding:
     # gate scores that near-perfect. A PASS on this field therefore also requires
     # the independent OCR read to contain the reference itself; anything less is
     # a human's call.
-    if verdict is Verdict.PASS and ctx.ocr_lines is not None and not corroborates_exactly(reference, ctx.ocr_lines):
-        return _finding(
-            rule,
-            Verdict.NEEDS_REVIEW,
-            "The reader's transcription matches the mandated warning, but an "
-            "independent scan of the image did not confirm the statement "
-            "word-for-word, so a person should verify it.",
-        )
+    if verdict is Verdict.PASS and ctx.ocr_lines is not None:
+        if not corroborates_exactly(reference, ctx.ocr_lines):
+            return _finding(
+                rule, Verdict.NEEDS_REVIEW,
+                "The reader's transcription matches the mandated warning, but an "
+                "independent scan of the image did not confirm the statement "
+                "word-for-word, so a person should verify it.",
+            )
+        if not corroborates_heading_capitals(reference, ctx.ocr_lines):
+            return _finding(
+                rule, Verdict.NEEDS_REVIEW,
+                "The independent scan did not confirm the warning heading's required "
+                "capital letters, so a person should verify them.",
+            )
     return _finding(rule, verdict, result.detail, result.diff)
 
 
@@ -102,25 +111,33 @@ def _match_brand(rule: Rule, ctx: VerifyContext) -> Finding:
     application = ctx.application
     if not application.brand_name:
         return _finding(rule, Verdict.NOT_EVALUABLE, "No application brand name was provided to compare against.")
-    label_value = getattr(ctx.extraction, rule.match.field).value
+    field = getattr(ctx.extraction, rule.match.field)
+    label_value = field.value
+    if field.verbatim and field.value and canon_brand(field.verbatim) != canon_brand(field.value):
+        return _finding(
+            rule, Verdict.NEEDS_REVIEW,
+            "The reader's quoted brand and cleaned brand differ; a person should "
+            "check the label against the filed brand name.",
+        )
     brand = match_brand(label_value, application.brand_name)
     if not application.fanciful_name:
         return _finding(rule, _BRAND_VERDICTS[brand.verdict], brand.detail)
 
     # A filing carries a brand name and, optionally, a fanciful name (both are
     # items on Form 5100.31), and real labels often display the fanciful name
-    # most prominently. The label read is therefore judged against both filed
-    # names and the better outcome stands; match_brand itself stays a pure
-    # two-string compare, so the either-name orchestration lives here.
+    # most prominently. A match to the fanciful name alone is useful context,
+    # but cannot establish that the required brand also appears on the label.
     fanciful = match_brand(label_value, application.fanciful_name)
-    if BrandVerdict.MATCH in (brand.verdict, fanciful.verdict):
-        which, filed = (
-            ("brand name", application.brand_name)
-            if brand.verdict is BrandVerdict.MATCH
-            else ("fanciful name", application.fanciful_name)
-        )
+    if brand.verdict is BrandVerdict.MATCH:
         return _finding(
-            rule, Verdict.PASS, f"The label matches the filed {which} ({filed!r}) after normalization."
+            rule, Verdict.PASS,
+            f"The label matches the filed brand name ({application.brand_name!r}) after normalization."
+        )
+    if fanciful.verdict is BrandVerdict.MATCH:
+        return _finding(
+            rule, Verdict.NEEDS_REVIEW,
+            "The label read matches the filed fanciful name, but the required brand name "
+            "was not confirmed. Check the label for the filed brand name.",
         )
     if brand.verdict is BrandVerdict.REVIEW:
         return _finding(rule, Verdict.NEEDS_REVIEW, brand.detail)

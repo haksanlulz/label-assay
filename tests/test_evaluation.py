@@ -13,9 +13,9 @@ MANIFEST = Path(__file__).parent / "fixtures/evaluation/cases.json"
 def test_committed_expectations_cover_every_rule_and_preserve_abstentions():
     result = evaluate(load_manifest(MANIFEST))
     assert result["passed"], result["errors"]
-    assert result["cases"] == 12
-    assert result["decisions"] == 48
-    assert result["actual_counts"]["not_evaluable"] >= 12
+    assert result["cases"] == 14
+    assert result["decisions"] == 56
+    assert result["actual_counts"]["not_evaluable"] >= 14
     assert result["actual_counts"]["needs_review"] > 0
     assert len(result["confusion_by_rule"]) == 4
 

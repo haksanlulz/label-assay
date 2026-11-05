@@ -273,6 +273,52 @@
       }
     },
     {
+      "id": "recited-heading-capitals",
+      "input": {
+        "brand": "Example Spirits",
+        "application_brand": "Example Spirits",
+        "alcohol": "40% ALC/VOL (80 PROOF)",
+        "warning": "reference",
+        "ocr": "contradict_heading"
+      },
+      "expected": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "not_evaluable",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      },
+      "verdict": "needs_review",
+      "expected_evidence": {
+        "health_warning_verbatim": {
+          "detail": "The independent scan did not confirm the warning heading's required capital letters, so a person should verify them.",
+          "diff": []
+        }
+      }
+    },
+    {
+      "id": "unconfirmed-alcohol-value",
+      "input": {
+        "brand": "Example Spirits",
+        "application_brand": "Example Spirits",
+        "alcohol": "45% ALC/VOL (90 PROOF)",
+        "warning": "reference",
+        "ocr": "contradict_alcohol"
+      },
+      "expected": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "not_evaluable",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "needs_review"
+      },
+      "verdict": "needs_review",
+      "expected_evidence": {
+        "alcohol_content_internally_consistent": {
+          "detail": "The stated alcohol content is internally consistent. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+          "diff": []
+        }
+      }
+    },
+    {
       "id": "unconfirmed-brand",
       "input": {
         "brand": "Example Spirits",

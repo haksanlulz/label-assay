@@ -25,7 +25,8 @@ class _Input(_Strict):
     application_brand: str
     alcohol: str | None
     warning: Literal["reference", "lowercase_heading", "altered", "missing"]
-    ocr: Literal["none", "match", "contradict_warning", "contradict_brand"]
+    ocr: Literal["none", "match", "contradict_warning", "contradict_brand",
+                 "contradict_heading", "contradict_alcohol"]
 
 
 class _Evidence(_Strict):
@@ -77,6 +78,10 @@ def _inputs(case: _Input, reference: str):
             texts[-1] = altered
         if case.ocr == "contradict_brand":
             texts[0] = "ZXQ Holdings"
+        if case.ocr == "contradict_heading":
+            texts[-1] = reference.replace(heading, heading.title(), 1)
+        if case.ocr == "contradict_alcohol":
+            texts[2] = "40% ALC/VOL (90 PROOF)"
         lines = [OcrLine(text=text, confidence=0.99) for text in texts if text]
     return extraction, Application(brand_name=case.application_brand, class_type="Vodka"), lines
 
