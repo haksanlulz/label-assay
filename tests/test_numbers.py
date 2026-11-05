@@ -66,3 +66,40 @@ def test_leading_dot_decimal_is_not_misread_as_ten_times_itself() -> None:
 def test_impossible_abv_is_rejected_at_construction() -> None:
     with pytest.raises(ValueError):
         AlcoholContent(abv=Decimal("150"))
+
+
+@pytest.mark.parametrize("text", [
+    "40% ALC/VOL (80 PROOF) (100 PROOF)",
+    "40% ALC/VOL (80 PROOF) / 45% ALC/VOL (90 PROOF)",
+    "ALCOHOL 40 PERCENT / ALCOHOL 45 PERCENT (80 PROOF)",
+    "40% ALC/VOL (1080 PROOF)",
+    "40% ALC/VOL (999 PROOF)",
+    "40% ALC/VOL (80 PROOF) (1O0 PROOF)",
+    "40% ALC/VOL (PROOF 80)",
+    "40% ALC/VOL (-80 PROOF)",
+    "40% ALC/VOL (.80 PROOF)",
+    "40% ALC/VOL 100% ALC/VOL 80 PROOF",
+    "40% ALC/VOL 999% ALC/VOL 80 PROOF",
+    "40% ALC/VOL ALCOHOL 999 PERCENT 80 PROOF",
+    "-40% ALC/VOL 80 PROOF",
+    "40% ALC/VOL 80PROOF80",
+    "40% ALC/VOL 4O% ALC/VOL 80 PROOF",
+    "40% ALC/VOL 1OO% ABV 80 PROOF",
+    "40% ALC/VOL ALCOHOL 4O PERCENT 80 PROOF",
+])
+def test_conflicting_or_unreadable_claims_are_not_silently_dropped(text: str) -> None:
+    assert parse_alcohol_content(text) is None
+
+
+@pytest.mark.parametrize("text", [
+    "40% ALC/VOL (80 PROOF) / 40.0% ALC/VOL (80.0 PROOF)",
+    "TEQUILA 100% DE AGAVE 40% ALC./VOL. (80 PROOF)",
+    "40% ALC/VOL (80PROOF)",
+    "40% ALC/VOL (80 PROOF), waterproof label",
+])
+def test_equivalent_repeated_and_existing_legitimate_values_remain_parseable(text: str) -> None:
+    content = parse_alcohol_content(text)
+    assert content is not None
+    assert content.abv == Decimal("40")
+    assert content.proof == Decimal("80")
+    assert content.proof_matches_abv is True

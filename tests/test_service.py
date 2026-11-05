@@ -109,3 +109,35 @@ def test_undecodable_bytes_get_a_clean_message() -> None:
     junk = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64  # magic passes, header does not parse
     with pytest.raises(ExtractionUnavailable, match="could not be read as an image"):
         check_label(junk, Application(), extractor=_StubExtractor())
+
+
+@pytest.mark.parametrize(("alcohol", "expected"), [
+    ("40% ALC/VOL (80 PROOF)", "pass"),
+    ("40% ALC/VOL (80 PROOF) (100 PROOF)", "needs_review"),
+    ("40% ALC/VOL (80 PROOF) (1080 PROOF)", "needs_review"),
+])
+def test_real_ocr_cannot_clear_conflicting_or_unreadable_proof_claims(
+    tmp_path, alcohol: str, expected: str,
+) -> None:
+    from dataclasses import replace
+    import re
+
+    from label_assay.extract.ocr import read_lines
+
+    spec = replace(SPEC, alcohol_text=alcohol)
+    image = fixture_corpus.generator().render(spec, tmp_path).read_bytes()
+    # A faithful controlled vision read includes every painted alcohol claim.
+    # Verify real OCR sees them too; this is not a hidden-print omission test.
+    observed = " ".join(line.text for line in read_lines(image))
+    for proof in re.findall(r"(\d+) PROOF", alcohol):
+        assert re.search(rf"{proof}\s*proof", observed, re.IGNORECASE), observed
+
+    class Reader:
+        def extract(self, _image):
+            return fixture_corpus.perfect_extraction(spec)
+
+    report = check_label(image, fixture_corpus.application_for(spec), extractor=Reader()).report
+    finding = next(f for f in report.findings
+                   if f.rule_id == "alcohol_content_internally_consistent")
+    assert finding.verdict == expected
+    assert report.verdict == expected

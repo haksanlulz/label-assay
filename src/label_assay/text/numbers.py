@@ -13,10 +13,20 @@ from decimal import Decimal, InvalidOperation
 # "45% Alc./Vol.", "13.5% ALC BY VOL", "5.5% alc/vol". The lookbehind keeps a
 # longer digit run from matching by truncation: without it, the "00%" inside
 # "TEQUILA 100% AGAVE" parses as ABV 0 and the real "40%" is never reached.
-_ABV_PCT = re.compile(r"(?<![\d.])(?P<abv>\d{1,2}(?:\.\d+)?)\s*%")
+_ABV_PCT = re.compile(r"(?<![\d.])(?P<abv>[+-]?\d{1,2}(?:\.\d+)?)\s*%")
+# Longer percentages are normally marketing ("100% DE AGAVE"), but an explicit
+# alcohol unit makes even an out-of-range number a claim we must not discard.
+_ABV_EXPLICIT_PCT = re.compile(
+    r"(?<![\d.])(?P<abv>[+-]?\d+(?:\.\d+)?)\s*%\s*(?:alc(?:ohol)?\b|abv\b)",
+    re.IGNORECASE,
+)
+_ABV_EXPLICIT_MARKER = re.compile(r"%\s*(?:alc(?:ohol)?\b|abv\b)", re.IGNORECASE)
 # "ALCOHOL 40 PERCENT BY VOLUME" (no percent sign)
-_ABV_WORD = re.compile(r"alc(?:ohol)?\.?\s*(?P<abv>\d{1,2}(?:\.\d+)?)\s*percent", re.IGNORECASE)
-_PROOF = re.compile(r"(?<![\d.])(?P<proof>\d{1,3}(?:\.\d+)?)\s*proof", re.IGNORECASE)
+_ABV_WORD = re.compile(r"alc(?:ohol)?\.?\s*(?P<abv>[+-]?\d+(?:\.\d+)?)\s*percent", re.IGNORECASE)
+_ABV_WORD_MARKER = re.compile(r"alc(?:ohol)?\.?\s*\S+?\s*percent\b", re.IGNORECASE)
+_PROOF = re.compile(r"(?<![\d.+-])(?P<proof>\d{1,3}(?:\.\d+)?)\s*proof\b", re.IGNORECASE)
+# Permit joined OCR such as "80PROOF", but not ordinary words such as waterproof.
+_PROOF_MARKER = re.compile(r"(?<![a-z])proof(?![a-z])", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -39,24 +49,42 @@ class AlcoholContent:
 
 def parse_alcohol_content(text: str | None) -> AlcoholContent | None:
     """Extract ABV (and proof, if present) from a label's alcohol-content string.
-    Returns None when no alcohol content is stated or the value is impossible."""
+    Returns None when no alcohol content is stated, values conflict, or a proof
+    claim cannot be parsed. Repeating an equivalent value is not a conflict.
+    This checks the supplied field, not statements omitted by the readers."""
     if not text:
         return None
-    m = _ABV_PCT.search(text) or _ABV_WORD.search(text)
-    if not m:
+    explicit = list(_ABV_EXPLICIT_PCT.finditer(text))
+    words = list(_ABV_WORD.finditer(text))
+    if (len(explicit) != len(_ABV_EXPLICIT_MARKER.findall(text)) or
+            len(words) != len(_ABV_WORD_MARKER.findall(text))):
+        return None  # e.g. "4O% ALC/VOL" must not disappear beside a valid claim
+    matches = [*_ABV_PCT.finditer(text), *explicit, *words]
+    if not matches:
         return None
     try:
-        abv = Decimal(m.group("abv"))
+        abvs = {Decimal(match.group("abv")) for match in matches}
     except InvalidOperation:
         return None
+    if len(abvs) != 1:
+        return None
+    abv = abvs.pop()
 
     proof: Decimal | None = None
-    pm = _PROOF.search(text)
-    if pm:
+    proof_matches = list(_PROOF.finditer(text))
+    if len(proof_matches) != len(_PROOF_MARKER.findall(text)):
+        # A present but unreadable proof is not the same as no proof stated.
+        return None
+    if proof_matches:
         try:
-            proof = Decimal(pm.group("proof"))
+            proofs = {Decimal(match.group("proof")) for match in proof_matches}
         except InvalidOperation:
-            proof = None
+            return None
+        if len(proofs) != 1:
+            return None
+        proof = proofs.pop()
+        if not Decimal(0) <= proof <= Decimal(200):
+            return None
 
     try:
         return AlcoholContent(abv=abv, proof=proof)
