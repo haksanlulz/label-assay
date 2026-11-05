@@ -1,3 +1,9 @@
+### 2026-11-05 — Portable review byte limits (gpt-6.1-sol)
+
+Fixed a boundary defect for large imported reports: the web form could download a valid review larger than the verifier's former 8 MiB ceiling. Current four-rule engine reports do not normally approach this boundary. Review serialization and loading now share a 32 MiB encoded-record limit, sufficient for the accepted 5 MiB source plus all permitted notes with UTF-8 or ordinary ASCII JSON escaping. The CLI reads at most that limit plus one byte; export checks its final encoded bytes. Decision text is preserved. URL-encoded form parsing now allows percent-escape overhead while retaining the decoded 5 MiB source limit.
+
+Regression proof imports a near-5-MiB Unicode source with 500 findings, exports maximum-length per-finding and overall notes through HTTP, checks every original finding/note, and runs the real verifier CLI against both UTF-8 and ASCII-escaped records. Oversized CLI input remains rejected. Focused review/evaluation tests: 35 passed; adjacent web/comparison tests: 41 passed; Ruff passed. Existing schema versions, report digests, reviewer identity limitations and stateless operation are unchanged. No push or deployment.
+
 ### 2026-11-05 — Preserve review provenance and evaluation failure evidence (gpt-6.1-terra)
 
 Version 2 review records bind the declared app version (or explicit unknown) into the source digest; existing version 1 records retain their original schema and digest validation. Comparisons flag blank rulebook identifiers as unknown; missing identifiers remain invalid imports. Unexpected offline evaluation exceptions replace prior passing artifacts with refusal evidence when the output directory is writable. Added one independent boldness-abstention evidence expectation; evidence assertions remain selective.

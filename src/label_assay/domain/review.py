@@ -19,6 +19,13 @@ from label_assay.domain.models import Finding, LabelReport
 CHOICES = {"pending": "Pending review", "agree": "Agree with finding",
            "request_correction": "Request correction", "escalate": "Escalate to a specialist"}
 
+MAX_REVIEW_SOURCE_BYTES = 5 * 1024 * 1024
+# The source can expand threefold when non-ASCII UTF-8 is JSON-escaped.
+# 500 notes of 2,000 characters can add 12 MB as escaped surrogate pairs,
+# plus repeated rule IDs, overall notes and metadata. Keep both encodings
+# portable without truncating reviewer text; bound the actual encoded file.
+MAX_REVIEW_RECORD_BYTES = 32 * 1024 * 1024
+
 
 class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -109,3 +116,20 @@ def make_review(source: dict, reviewer: str, decisions: list[dict], notes: str) 
 
 def validate_review(value: dict) -> ReviewRecordV1 | ReviewRecord:
     return _REVIEW_ADAPTER.validate_python(value)
+
+
+def _check_record_size(content: bytes) -> None:
+    if len(content) > MAX_REVIEW_RECORD_BYTES:
+        raise ValueError("Review record exceeds 32 MiB.")
+
+
+def dump_review(record: ReviewRecordV1 | ReviewRecord) -> bytes:
+    content = json.dumps(record.model_dump(mode="json"), ensure_ascii=False,
+                         allow_nan=False, separators=(",", ":")).encode("utf-8")
+    _check_record_size(content)
+    return content
+
+
+def load_review(content: bytes) -> ReviewRecordV1 | ReviewRecord:
+    _check_record_size(content)
+    return validate_review(json.loads(content))

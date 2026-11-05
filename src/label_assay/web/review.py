@@ -2,16 +2,20 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from label_assay import __version__
-from label_assay.domain.review import CHOICES, ReviewSource, make_review
+from label_assay.domain.review import (
+    CHOICES, MAX_REVIEW_SOURCE_BYTES, ReviewSource, dump_review, make_review,
+)
 from label_assay.web.comparison import read_saved_report
 
 router = APIRouter()
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
-_MAX_BYTES = 5 * 1024 * 1024
+_MAX_BYTES = MAX_REVIEW_SOURCE_BYTES
+# URL-encoded form fields count percent escapes and the field name before decoding.
+_MAX_FORM_PART_BYTES = 3 * _MAX_BYTES + len("source_json")
 
 
 def page(request, *, source=None, values=None, error=None, status=200):
@@ -48,7 +52,8 @@ async def review_load(request: Request, report_file: UploadFile, report_index: i
 async def review_export(request: Request):
     source, values = None, {}
     try:
-        async with request.form(max_files=0, max_fields=1003, max_part_size=_MAX_BYTES) as form:
+        async with request.form(max_files=0, max_fields=1003,
+                                max_part_size=_MAX_FORM_PART_BYTES) as form:
             values = dict(form)
             if len(form.multi_items()) != len(values) or any(not isinstance(v, str) for v in values.values()):
                 raise ValueError("Duplicate or invalid form fields.")
@@ -67,7 +72,7 @@ async def review_export(request: Request):
                 raise ValueError("Missing or unexpected form fields.")
             record = make_review(source.model_dump(mode="json"), values["reviewer"],
                                  decisions, values["notes"])
-        return JSONResponse(record.model_dump(mode="json"), headers={
+        return Response(dump_review(record), media_type="application/json", headers={
             "Content-Disposition": 'attachment; filename="label-assay-review.json"',
             "Cache-Control": "no-store",
         })

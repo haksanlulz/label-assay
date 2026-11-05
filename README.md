@@ -71,6 +71,8 @@ Version 2 review downloads embed the normalized automated report, declared app v
 
 Validate a downloaded record with `uv run python tools/verify_review.py path/to/label-assay-review.json`. Missing/duplicate decisions, unknown choices, inconsistent completion and a mismatched report digest return a nonzero exit. Canonical ownership: `domain/review.py`; stateless HTTP forms: `web/review.py`.
 
+Review downloads and the verifier share a 32 MiB encoded-record limit. This accommodates a 5 MiB source plus all permitted notes, including Unicode and JSON escape expansion, without truncation. The verifier reads at most the limit plus one byte; formatting or padding that takes an external file beyond the limit is rejected.
+
 ### Reproducible offline evaluation
 
 `uv run python tools/evaluate_offline.py` checks the real rule engine against `tests/fixtures/evaluation/cases.json`: **12 synthetic text/OCR-evidence scenarios, 48 rule decisions**, pinned to a reviewed rulebook version. Each case specifies every expected per-rule and overall verdict. The gate rejects missing, duplicate or additional findings, changed verdicts and stale/incomplete baselines. Tests inject those faults and prove the gate fails.

@@ -116,3 +116,69 @@ def test_web_review_retains_export_version(source):
     assert record["schema_version"] == 2
     assert record["source_report"]["app_version"] == "0.2.0"
     validate_review(record)
+
+
+def test_large_unicode_http_download_verifies_in_both_json_encodings(source, tmp_path):
+    """Accepted source and max-length notes remain portable without losing text."""
+    from html import unescape
+    from pathlib import Path
+    import re
+    import subprocess
+    import sys
+
+    from label_assay.domain.review import MAX_REVIEW_RECORD_BYTES, MAX_REVIEW_SOURCE_BYTES
+
+    source["report"]["findings"] = [
+        {**source["report"]["findings"][0], "rule_id": f"rule-{index}",
+         "detail": "\U0001f600" * 2560}
+        for index in range(500)
+    ]
+    export = {"schema_version": 1, "items": [{"status": "done", **source}]}
+    uploaded = json.dumps(export, ensure_ascii=False).encode("utf-8")
+    assert MAX_REVIEW_SOURCE_BYTES * 0.98 < len(uploaded) <= MAX_REVIEW_SOURCE_BYTES
+    client = TestClient(app)
+    loaded = client.post("/review/load", files={"report_file": ("report.json", uploaded)})
+    assert loaded.status_code == 200
+    hidden = unescape(re.search(r'name="source_json" value="([^"]*)"', loaded.text).group(1))
+    # Include surrogate-pair expansion, JSON control escapes and a full overall note.
+    note = "\U0001f600" * 1998 + "\x00\n"
+    form = {"source_json": hidden, "reviewer": "Reviewer", "notes": "\x00" * 4000}
+    for index in range(500):
+        form.update({f"decision_{index}": "agree", f"note_{index}": note})
+    response = client.post("/review/export", data=form)
+    assert response.status_code == 200
+    assert 8 * 1024 * 1024 < len(response.content) <= MAX_REVIEW_RECORD_BYTES
+    record = response.json()
+    assert record["source_report"]["report"]["findings"] == source["report"]["findings"]
+    assert all(decision["note"] == note for decision in record["decisions"])
+    assert record["notes"] == form["notes"]
+    runner = Path(__file__).parents[1] / "tools/verify_review.py"
+    for name, content in [
+        ("utf8", response.content),
+        ("escaped", json.dumps(record, ensure_ascii=True).encode("utf-8")),
+    ]:
+        assert len(content) <= MAX_REVIEW_RECORD_BYTES
+        path = tmp_path / f"{name}.json"
+        path.write_bytes(content)
+        verified = subprocess.run([sys.executable, str(runner), str(path)],
+                                  capture_output=True, text=True)
+        assert verified.returncode == 0, verified.stderr
+        assert "500 decisions; complete" in verified.stdout
+
+
+def test_verifier_refuses_files_beyond_shared_byte_limit(tmp_path):
+    from pathlib import Path
+    import subprocess
+    import sys
+
+    from label_assay.domain.review import MAX_REVIEW_RECORD_BYTES
+
+    path = tmp_path / "oversize.json"
+    with path.open("wb") as stream:
+        stream.seek(MAX_REVIEW_RECORD_BYTES)
+        stream.write(b" ")
+    runner = Path(__file__).parents[1] / "tools/verify_review.py"
+    verified = subprocess.run([sys.executable, str(runner), str(path)],
+                              capture_output=True, text=True)
+    assert verified.returncode == 1
+    assert "exceeds 32 MiB" in verified.stderr
