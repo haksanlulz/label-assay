@@ -15,15 +15,16 @@ def saved(verdict, version="v1", rule="warning"):
                 Finding(rule_id=rule, title="Warning", citation="27 CFR", verdict=verdict, detail="Evidence")])}
 
 
-def export(item):
-    return json.dumps({"schema_version": 1, "items": [{**item, "status": "done", "report": item["report"].model_dump(mode="json")}]}).encode()
+def export(item, app_version=None):
+    return json.dumps({"schema_version": 1, "app_version": app_version, "items": [
+        {**item, "status": "done", "report": item["report"].model_dump(mode="json")}]}).encode()
 
 
-def test_only_same_rulebook_resolves_and_removed_rule_never_resolves():
-    assert compare_reports(saved(Verdict.FAIL), saved(Verdict.PASS))["rows"][0]["change"] == "Resolved in this check"
+def test_pass_transition_is_neutral_and_removed_rule_is_not_a_pass():
+    assert compare_reports(saved(Verdict.FAIL), saved(Verdict.PASS))["rows"][0]["change"] == "Now passes in this check"
     changed = compare_reports(saved(Verdict.FAIL), saved(Verdict.PASS, "v2"))
     assert not changed["same_rulebook"]
-    assert "Resolved in this check" not in changed["counts"]
+    assert changed["software_versions"] == "unknown"
     removed = compare_reports(saved(Verdict.FAIL), saved(Verdict.PASS, rule="other"))
     assert removed["coverage_changed"]
     assert removed["rows"][0]["change"] == "No longer checked"
@@ -51,13 +52,35 @@ def test_comparison_http_preserves_evidence_and_escapes_upload_content():
     before, after = saved(Verdict.FAIL), saved(Verdict.PASS)
     before["filename"] = '<script>alert("x")</script>'
     response = TestClient(app).post("/compare", files={
-        "before_file": ("old.json", export(before), "application/json"),
-        "after_file": ("new.json", export(after), "application/json"),
+        "before_file": ("old.json", export(before, "0.2.0"), "application/json"),
+        "after_file": ("new.json", export(after, "0.2.0"), "application/json"),
     })
     assert response.status_code == 200
-    assert "Resolved in this check" in response.text
+    assert "Now passes in this check" in response.text
+    assert "Software version unknown" not in response.text
     assert "2026-11-04T00:00:00Z" in response.text and "27 CFR" in response.text
     assert '&lt;script&gt;' in response.text and '<script>alert' not in response.text
+
+
+def test_different_or_missing_app_versions_do_not_imply_equivalent_checking_software():
+    old = read_saved_report(export(saved(Verdict.FAIL), "0.1.0"), 0)
+    new = read_saved_report(export(saved(Verdict.PASS), "0.2.0"), 0)
+    comparison = compare_reports(old, new)
+    assert comparison["same_rulebook"]
+    assert comparison["software_versions"] == "different_declared"
+    assert comparison["rows"][0]["change"] == "Now passes in this check"
+    client = TestClient(app)
+    different = client.post("/compare", files={
+        "before_file": ("old.json", export(saved(Verdict.FAIL), "0.1.0")),
+        "after_file": ("new.json", export(saved(Verdict.PASS), "0.2.0")),
+    })
+    assert "Software version labels differ" in different.text
+    older = client.post("/compare", files={
+        "before_file": ("old.json", export(saved(Verdict.FAIL))),
+        "after_file": ("new.json", export(saved(Verdict.PASS), "0.2.0")),
+    })
+    assert "Software version unknown" in older.text
+    assert "Unknown" in older.text
 
 
 def test_malformed_comparison_is_a_readable_error():

@@ -28,10 +28,16 @@ class _Input(_Strict):
     ocr: Literal["none", "match", "contradict_warning", "contradict_brand"]
 
 
+class _Evidence(_Strict):
+    detail: str = Field(min_length=1)
+    diff: list[tuple[str, str, str]]
+
+
 class _Case(_Strict):
     id: str = Field(min_length=1, max_length=100)
     input: _Input
     expected: dict[str, Verdict]
+    expected_evidence: dict[str, _Evidence] = Field(min_length=1)
     verdict: Verdict
 
 
@@ -84,9 +90,14 @@ def evaluate(raw: dict, *, verifier=verify) -> dict:
     ids = [case.id for case in manifest.cases]
     if len(ids) != len(set(ids)):
         raise ValueError("Evaluation case IDs must be unique.")
-    rules = {rule.id for rule in rulebook.rules_for("spirits")}
-    if not rules or any(set(case.expected) != rules for case in manifest.cases):
+    applicable = rulebook.rules_for("spirits")
+    rules = {rule.id for rule in applicable}
+    if len(rules) != len(applicable) or not rules or any(
+        set(case.expected) != rules or not set(case.expected_evidence) <= rules
+        for case in manifest.cases
+    ):
         raise ValueError("Every case must declare exactly every applicable rule's expected verdict.")
+    by_rule = {rule.id: rule for rule in applicable}
     reference = next(rule.match.reference for rule in rulebook.rules
                      if rule.match.strategy == "verbatim" and rule.match.reference)
     counts = Counter({verdict.value: 0 for verdict in Verdict})
@@ -108,10 +119,17 @@ def evaluate(raw: dict, *, verifier=verify) -> dict:
             actual = Verdict(finding.verdict).value
             counts[actual] += 1
             if finding.rule_id in case.expected:
+                rule = by_rule[finding.rule_id]
+                if (finding.title, finding.citation) != (rule.title, rule.citation):
+                    problems.append(f"{finding.rule_id}: title or legal citation changed")
                 expected = case.expected[finding.rule_id].value
                 confusion[finding.rule_id][expected][actual] += 1
                 if actual != expected:
                     problems.append(f"{finding.rule_id}: expected {expected}, got {actual}")
+                if finding.rule_id in case.expected_evidence:
+                    evidence = case.expected_evidence[finding.rule_id]
+                    if (finding.detail, finding.diff) != (evidence.detail, evidence.diff):
+                        problems.append(f"{finding.rule_id}: detail or text differences changed")
         errors.extend(f"{case.id}: {problem}" for problem in problems)
         outcomes.append({"id": case.id, "passed": not problems,
                          "report": report.model_dump(mode="json")})

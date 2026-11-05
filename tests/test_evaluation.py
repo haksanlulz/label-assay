@@ -20,7 +20,8 @@ def test_committed_expectations_cover_every_rule_and_preserve_abstentions():
     assert len(result["confusion_by_rule"]) == 4
 
 
-@pytest.mark.parametrize("mutation", ["wrong", "missing", "extra", "duplicate", "version"])
+@pytest.mark.parametrize("mutation", ["wrong", "missing", "extra", "duplicate", "version",
+                                      "citation", "title", "detail", "diff"])
 def test_changed_engine_output_fails_the_gate(mutation):
     from label_assay.verify.engine import verify
 
@@ -34,14 +35,26 @@ def test_changed_engine_output_fails_the_gate(mutation):
             report.findings.append(report.findings[0].model_copy(update={"rule_id": "extra"}))
         elif mutation == "duplicate":
             report.findings.append(report.findings[0])
+        elif mutation == "citation":
+            report.findings[0].citation = "Wrong legal citation"
+        elif mutation == "title":
+            report.findings[0].title = "Wrong heading"
+        elif mutation == "detail":
+            report.findings[0].detail = "No evidence retained"
+        elif mutation == "diff":
+            report.findings[0].diff = []
         else:
             report.rulebook_version = "changed"
         return report
 
-    assert not evaluate(load_manifest(MANIFEST), verifier=changed)["passed"]
+    result = evaluate(load_manifest(MANIFEST), verifier=changed)
+    assert not result["passed"]
+    if mutation in {"citation", "title", "detail", "diff"}:
+        assert any("citation" in error or "text differences" in error for error in result["errors"])
 
 
-@pytest.mark.parametrize("mutation", ["empty", "duplicate", "missing", "unknown", "stale"])
+@pytest.mark.parametrize("mutation", ["empty", "duplicate", "missing", "unknown", "stale",
+                                      "missing_evidence", "unknown_evidence"])
 def test_incomplete_or_stale_baseline_is_rejected(mutation):
     manifest = deepcopy(load_manifest(MANIFEST))
     if mutation == "empty":
@@ -52,6 +65,11 @@ def test_incomplete_or_stale_baseline_is_rejected(mutation):
         manifest["cases"][0]["expected"].pop("health_warning_bold")
     elif mutation == "unknown":
         manifest["cases"][0]["expected"]["imaginary"] = "pass"
+    elif mutation == "missing_evidence":
+        manifest["cases"][0].pop("expected_evidence")
+    elif mutation == "unknown_evidence":
+        manifest["cases"][0]["expected_evidence"]["imaginary"] = {
+            "detail": "Invented", "diff": []}
     else:
         manifest["rulebook_version"] = "stale"
     with pytest.raises(ValueError):

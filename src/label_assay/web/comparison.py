@@ -24,7 +24,12 @@ def read_saved_report(content: bytes, index: int) -> dict:
         if len(report.findings) > 500 or len({f.rule_id for f in report.findings}) != len(report.findings):
             raise ValueError("Report findings must have unique rule IDs and contain at most 500 rules.")
         checked_at = item.get("checked_at")
-        return {"filename": str(item.get("filename", "Unnamed label")), "checked_at": str(checked_at) if checked_at else None, "report": report}
+        declared_version = data.get("app_version")
+        app_version = (declared_version.strip() if isinstance(declared_version, str)
+                       and 0 < len(declared_version.strip()) <= 100 else None)
+        return {"filename": str(item.get("filename", "Unnamed label")),
+                "checked_at": str(checked_at) if checked_at else None,
+                "app_version": app_version, "report": report}
     except (json.JSONDecodeError, UnicodeDecodeError, ValidationError, TypeError) as exc:
         raise ValueError("This file is not a valid LabelAssay report. Export the full JSON report and try again.") from exc
 
@@ -34,6 +39,9 @@ def compare_reports(before: dict, after: dict) -> dict:
     old = {f.rule_id: f for f in old_report.findings}
     new = {f.rule_id: f for f in new_report.findings}
     same_rules = old_report.rulebook_version == new_report.rulebook_version
+    old_version, new_version = before.get("app_version"), after.get("app_version")
+    software_versions = ("unknown" if not old_version or not new_version else
+                         "same_declared" if old_version == new_version else "different_declared")
     rows = []
     for rule_id in dict.fromkeys([*old, *new]):
         a, b = old.get(rule_id), new.get(rule_id)
@@ -44,12 +52,13 @@ def compare_reports(before: dict, after: dict) -> dict:
         elif b.verdict == Verdict.NOT_EVALUABLE:
             change = "Still uncheckable" if a.verdict == b.verdict else "Now uncheckable"
         elif b.verdict == Verdict.PASS and a.verdict != Verdict.PASS:
-            change = "Resolved in this check" if same_rules and a.verdict in (Verdict.FAIL, Verdict.NEEDS_REVIEW) else "Now passes (coverage or rulebook changed)"
+            change = "Now passes in this check"
         elif b.verdict in (Verdict.FAIL, Verdict.NEEDS_REVIEW):
             change = "Still needs attention" if a.verdict in (Verdict.FAIL, Verdict.NEEDS_REVIEW) else "New attention needed"
         else:
             change = "Unchanged result"
         rows.append({"rule_id": rule_id, "title": (b or a).title, "change": change, "before": a, "after": b})
     return {"before": before, "after": after, "rows": rows, "same_rulebook": same_rules,
+            "software_versions": software_versions,
             "coverage_changed": set(old) != set(new) or {k for k, f in old.items() if f.verdict == Verdict.NOT_EVALUABLE} != {k for k, f in new.items() if f.verdict == Verdict.NOT_EVALUABLE},
             "counts": dict(Counter(r["change"] for r in rows))}

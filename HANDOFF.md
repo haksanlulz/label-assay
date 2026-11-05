@@ -2,6 +2,12 @@
 
 ## Last Updated
 
+### 2026-11-05 — Evidence baseline and comparison provenance (gpt-6-sol)
+
+The offline gate now checks reviewer-facing rule titles and citations against the pinned rulebook, and checks an independent expected detail/text-difference record for one evidence-bearing finding in each scenario. Deliberate citation, title, detail and diff corruption must fail the gate while verdicts stay unchanged. The baseline still does not measure vision accuracy, all report prose, model consistency or legal approval.
+
+Saved-report comparison now carries declared app versions through import. It flags differing labels and missing/older version data separately, and calls a fail-to-pass transition “Now passes in this check” without attributing the cause to corrected artwork. Matching declared versions do not authenticate a build or establish identical OCR/model behavior. The rulebook and verifier logic remain unchanged; no push or deployment.
+
 ### 2026-11-04 — Offline evaluation and report-linked human review (gpt-6-astra)
 
 Goal: strengthen reproducible engineering evidence and reviewer handoff without changing the regulatory rulebook. Added a pinned 12-scenario / 48-decision engine baseline, expected/actual matrices, explicit abstention counts, full JSON artifacts and a nondeploying pull-request workflow definition. Added `/review`: upload a completed saved-report row, record per-finding decisions/notes and export a versioned human record with the unchanged normalized report and its SHA-256 digest. Pending decisions remain incomplete; neither completion nor the self-entered reviewer name implies approval/authentication. No model call or persisted review history.

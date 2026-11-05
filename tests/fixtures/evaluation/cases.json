@@ -18,7 +18,13 @@
         "brand_name_matches_application": "pass",
         "alcohol_content_internally_consistent": "pass"
       },
-      "verdict": "pass"
+      "verdict": "pass",
+      "expected_evidence": {
+        "health_warning_verbatim": {
+          "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters.",
+          "diff": []
+        }
+      }
     },
     {
       "id": "wrong-brand",
@@ -35,7 +41,13 @@
         "brand_name_matches_application": "fail",
         "alcohol_content_internally_consistent": "pass"
       },
-      "verdict": "fail"
+      "verdict": "fail",
+      "expected_evidence": {
+        "brand_name_matches_application": {
+          "detail": "Brand names differ ('different distillery' vs 'example spirits').",
+          "diff": []
+        }
+      }
     },
     {
       "id": "missing-brand",
@@ -52,7 +64,13 @@
         "brand_name_matches_application": "needs_review",
         "alcohol_content_internally_consistent": "pass"
       },
-      "verdict": "needs_review"
+      "verdict": "needs_review",
+      "expected_evidence": {
+        "brand_name_matches_application": {
+          "detail": "Brand name missing on the label or the application.",
+          "diff": []
+        }
+      }
     },
     {
       "id": "no-filed-brand",
@@ -69,7 +87,13 @@
         "brand_name_matches_application": "not_evaluable",
         "alcohol_content_internally_consistent": "pass"
       },
-      "verdict": "pass"
+      "verdict": "pass",
+      "expected_evidence": {
+        "brand_name_matches_application": {
+          "detail": "No application brand name was provided to compare against.",
+          "diff": []
+        }
+      }
     },
     {
       "id": "proof-disagrees",
@@ -86,7 +110,13 @@
         "brand_name_matches_application": "pass",
         "alcohol_content_internally_consistent": "fail"
       },
-      "verdict": "fail"
+      "verdict": "fail",
+      "expected_evidence": {
+        "alcohol_content_internally_consistent": {
+          "detail": "The stated proof (70) does not equal twice the alcohol by volume (40).",
+          "diff": []
+        }
+      }
     },
     {
       "id": "missing-alcohol",
@@ -103,7 +133,13 @@
         "brand_name_matches_application": "pass",
         "alcohol_content_internally_consistent": "needs_review"
       },
-      "verdict": "needs_review"
+      "verdict": "needs_review",
+      "expected_evidence": {
+        "alcohol_content_internally_consistent": {
+          "detail": "Could not read the alcohol content to check it.",
+          "diff": []
+        }
+      }
     },
     {
       "id": "lowercase-heading",
@@ -120,7 +156,19 @@
         "brand_name_matches_application": "pass",
         "alcohol_content_internally_consistent": "pass"
       },
-      "verdict": "fail"
+      "verdict": "fail",
+      "expected_evidence": {
+        "health_warning_verbatim": {
+          "detail": "Wording is correct, but the heading is printed as \"Government Warning:\": the two heading words must be in capital letters (27 CFR 16.22(a)(2)).",
+          "diff": [
+            [
+              "replace",
+              "GOVERNMENT WARNING:",
+              "Government Warning:"
+            ]
+          ]
+        }
+      }
     },
     {
       "id": "altered-warning",
@@ -137,7 +185,19 @@
         "brand_name_matches_application": "pass",
         "alcohol_content_internally_consistent": "pass"
       },
-      "verdict": "fail"
+      "verdict": "fail",
+      "expected_evidence": {
+        "health_warning_verbatim": {
+          "detail": "Warning text differs from the mandated statement — a word is changed, missing, or added.",
+          "diff": [
+            [
+              "replace",
+              "problems.",
+              "changed."
+            ]
+          ]
+        }
+      }
     },
     {
       "id": "missing-warning",
@@ -154,7 +214,13 @@
         "brand_name_matches_application": "pass",
         "alcohol_content_internally_consistent": "pass"
       },
-      "verdict": "needs_review"
+      "verdict": "needs_review",
+      "expected_evidence": {
+        "health_warning_verbatim": {
+          "detail": "No Government Warning text was found.",
+          "diff": []
+        }
+      }
     },
     {
       "id": "independent-ocr-match",
@@ -171,7 +237,13 @@
         "brand_name_matches_application": "pass",
         "alcohol_content_internally_consistent": "pass"
       },
-      "verdict": "pass"
+      "verdict": "pass",
+      "expected_evidence": {
+        "health_warning_verbatim": {
+          "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters.",
+          "diff": []
+        }
+      }
     },
     {
       "id": "recited-warning",
@@ -188,7 +260,13 @@
         "brand_name_matches_application": "pass",
         "alcohol_content_internally_consistent": "pass"
       },
-      "verdict": "needs_review"
+      "verdict": "needs_review",
+      "expected_evidence": {
+        "health_warning_verbatim": {
+          "detail": "The reader's transcription matches the mandated warning, but an independent scan of the image did not confirm the statement word-for-word, so a person should verify it.",
+          "diff": []
+        }
+      }
     },
     {
       "id": "unconfirmed-brand",
@@ -205,7 +283,13 @@
         "brand_name_matches_application": "needs_review",
         "alcohol_content_internally_consistent": "pass"
       },
-      "verdict": "needs_review"
+      "verdict": "needs_review",
+      "expected_evidence": {
+        "brand_name_matches_application": {
+          "detail": "Brand names match after normalization. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+          "diff": []
+        }
+      }
     }
   ]
 }
