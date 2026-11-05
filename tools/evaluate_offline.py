@@ -15,7 +15,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     try:
         result = evaluate(load_manifest(args.manifest))
-    except (ValueError, OSError) as exc:
+    except Exception as exc:
         # Replace a previous green artifact even when baseline validation fails.
         (args.output / "results.json").write_text(
             json.dumps({"passed": False, "errors": [str(exc)]}, indent=2) + "\n", encoding="utf-8")

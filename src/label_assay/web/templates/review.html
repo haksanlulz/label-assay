@@ -16,7 +16,7 @@
   <button type="submit">Open for review</button>
 </form>
 {% else %}
-<p><strong>{{ source.filename }}</strong><br>Checked: {{ source.checked_at or 'Not recorded' }}<br>Rulebook: {{ source.report.rulebook_version }}</p>
+<p><strong>{{ source.filename }}</strong><br>Checked: {{ source.checked_at or 'Not recorded' }}<br>Rulebook: {{ source.report.rulebook_version|trim or 'Unknown' }}<br>App version: {{ source.app_version or 'Unknown' }}</p>
 <p>Automated overall verdict: <strong>{{ source.report.verdict.value|replace('_', ' ') }}</strong>. Your decisions will not change it. Consult the original artwork and supporting evidence before recording a decision.</p>
 <form action="/review/export" method="post">
   <input type="hidden" name="source_json" value="{{ source_json }}">
@@ -34,7 +34,7 @@
   </fieldset>
   {% endfor %}
   <label for="notes">Overall notes (optional)</label><textarea id="notes" name="notes" rows="3" maxlength="4000">{{ values.get('notes', '') }}</textarea>
-  <p class="hint">Pending decisions remain explicitly incomplete. “Complete” means every finding has a human decision; it does not mean the label is approved. The download includes the original normalized report, its SHA-256 digest, your self-entered reference, decisions and the export time. The digest checks report consistency, not identity or authorship. The app keeps no review history; save the download.</p>
+  <p class="hint">Pending decisions remain explicitly incomplete. “Complete” means every finding has a human decision; it does not mean the label is approved. The download includes the normalized report and declared app version, their SHA-256 digest, your self-entered reference, decisions and the export time. The digest checks report consistency, not identity or authorship. The app keeps no review history; save the download.</p>
   <button type="submit">Download review record (JSON)</button>
 </form>
 <p><a href="/review">Open another saved report</a></p>

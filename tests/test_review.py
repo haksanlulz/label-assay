@@ -29,7 +29,7 @@ def test_review_preserves_report_and_pending_status(source):
     before = deepcopy(source)
     record = make_review(source, "Reviewer", decisions(source), "Second read needed")
     assert not record.complete
-    assert record.source_report.model_dump(mode="json") == before
+    assert record.source_report.model_dump(mode="json") == {**before, "app_version": None}
     assert source == before
     assert validate_review(record.model_dump(mode="json")) == record
     complete = make_review(source, "Reviewer", decisions(source, "request_correction"), "")
@@ -87,3 +87,32 @@ def test_routes_load_saved_row_export_without_models_and_escape_text(source):
     assert 'value="Reviewer"' in rejected.text and "Needs specialist" in rejected.text
     assert client.post("/review/load", files={"report_file": ("bad.json", "{}")}).status_code == 422
     assert client.post("/review/load", files={"report_file": ("large.json", b" " * (5*1024*1024+1))}).status_code == 413
+
+
+def test_versioned_provenance_and_legacy_digest(source):
+    from label_assay.domain.review import ReviewRecordV1, ReviewSourceV1, report_digest
+
+    old_source = ReviewSourceV1.model_validate(source)
+    legacy = ReviewRecordV1(source_report=old_source, report_sha256=report_digest(old_source),
+                            reviewer="Reviewer", reviewed_at="2026-11-04T00:00:00Z",
+                            decisions=decisions(source), notes="", complete=False)
+    assert validate_review(legacy.model_dump(mode="json")) == legacy
+    one = make_review({**source, "app_version": "0.1"}, "Reviewer", decisions(source), "")
+    two = make_review({**source, "app_version": "0.2"}, "Reviewer", decisions(source), "")
+    assert one.schema_version == 2 and one.report_sha256 != two.report_sha256
+    assert validate_review(one.model_dump(mode="json")) == one
+
+
+def test_web_review_retains_export_version(source):
+    from html import unescape
+    import re
+    client = TestClient(app)
+    export = {"schema_version": 1, "app_version": "0.2.0", "items": [{"status": "done", **source}]}
+    loaded = client.post("/review/load", files={"report_file": ("report.json", json.dumps(export))})
+    hidden = unescape(re.search(r'name="source_json" value="([^"]*)"', loaded.text).group(1))
+    data = {"source_json": hidden, "reviewer": "Reviewer", "notes": "",
+            "decision_0": "pending", "note_0": "", "decision_1": "pending", "note_1": ""}
+    record = client.post("/review/export", data=data).json()
+    assert record["schema_version"] == 2
+    assert record["source_report"]["app_version"] == "0.2.0"
+    validate_review(record)

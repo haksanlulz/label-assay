@@ -23,6 +23,10 @@
         "health_warning_verbatim": {
           "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters.",
           "diff": []
+        },
+        "health_warning_bold": {
+          "detail": "Boldness was not checked (image or OCR not available).",
+          "diff": []
         }
       }
     },

@@ -8,7 +8,9 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Annotated, Literal
+
+from pydantic import TypeAdapter
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
@@ -32,7 +34,7 @@ class _Report(LabelReport):
     findings: list[_Finding] = Field(min_length=1, max_length=500)
 
 
-class ReviewSource(_Strict):
+class ReviewSourceV1(_Strict):
     filename: str = Field(min_length=1, max_length=1000)
     checked_at: str | None = Field(max_length=100)
     report: _Report
@@ -45,22 +47,26 @@ class ReviewSource(_Strict):
         return self
 
 
+class ReviewSource(ReviewSourceV1):
+    app_version: str | None = Field(default=None, max_length=100)
+
+
 class Decision(_Strict):
     rule_id: str
     choice: Literal["pending", "agree", "request_correction", "escalate"]
     note: str = Field(max_length=2000)
 
 
-def report_digest(source: ReviewSource) -> str:
+def report_digest(source: ReviewSourceV1) -> str:
     canonical = json.dumps(source.model_dump(mode="json"), sort_keys=True,
                            separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-class ReviewRecord(_Strict):
+class ReviewRecordV1(_Strict):
     schema_version: Literal[1] = 1
     kind: Literal["label-assay-human-review"] = "label-assay-human-review"
-    source_report: ReviewSource
+    source_report: ReviewSourceV1
     report_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     reviewer: str = Field(min_length=1, max_length=120)
     reviewed_at: AwareDatetime
@@ -83,6 +89,14 @@ class ReviewRecord(_Strict):
         return self
 
 
+class ReviewRecord(ReviewRecordV1):
+    schema_version: Literal[2] = 2
+    source_report: ReviewSource
+
+
+_REVIEW_ADAPTER = TypeAdapter(Annotated[ReviewRecordV1 | ReviewRecord, Field(discriminator="schema_version")])
+
+
 def make_review(source: dict, reviewer: str, decisions: list[dict], notes: str) -> ReviewRecord:
     normalized = ReviewSource.model_validate(source)
     return ReviewRecord(
@@ -93,5 +107,5 @@ def make_review(source: dict, reviewer: str, decisions: list[dict], notes: str) 
     )
 
 
-def validate_review(value: dict) -> ReviewRecord:
-    return ReviewRecord.model_validate(value)
+def validate_review(value: dict) -> ReviewRecordV1 | ReviewRecord:
+    return _REVIEW_ADAPTER.validate_python(value)

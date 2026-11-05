@@ -93,3 +93,39 @@ def test_cli_replaces_stale_green_evidence_on_refusal(tmp_path):
                           "--output", str(tmp_path)], capture_output=True, text=True)
     assert bad.returncode == 2
     assert not json.loads((tmp_path / "results.json").read_text())["passed"]
+
+
+def test_bold_evidence_regression_is_detected():
+    from label_assay.verify.engine import verify
+
+    def broken(*args, **kwargs):
+        report = verify(*args, **kwargs)
+        next(f for f in report.findings if f.rule_id == "health_warning_bold").detail = "Wrong evidence"
+        return report
+
+    result = evaluate(load_manifest(MANIFEST), verifier=broken)
+    assert not result["passed"]
+    assert any("matching-text: health_warning_bold" in e for e in result["errors"])
+
+
+def test_cli_replaces_green_after_unexpected_engine_error(tmp_path):
+    import json
+    import os
+    import subprocess
+    import sys
+
+    runner = MANIFEST.parents[3] / "tools/evaluate_offline.py"
+    output = tmp_path / "output"
+    good = subprocess.run([sys.executable, str(runner), "--output", str(output)], capture_output=True)
+    assert good.returncode == 0
+    (tmp_path / "sitecustomize.py").write_text(
+        "import label_assay.evaluation as e\n"
+        "def broken(*a, **kw): raise RuntimeError('engine crash')\n"
+        "e.evaluate = broken\n", encoding="utf-8")
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(tmp_path) + os.pathsep + env.get("PYTHONPATH", "")
+    bad = subprocess.run([sys.executable, str(runner), "--output", str(output)],
+                         capture_output=True, env=env)
+    assert bad.returncode != 0
+    assert not json.loads((output / "results.json").read_text())["passed"]
+    assert "REFUSED" in (output / "summary.md").read_text()

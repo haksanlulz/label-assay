@@ -1,3 +1,7 @@
+### 2026-11-05 — Preserve review provenance and evaluation failure evidence (gpt-6.1-terra)
+
+Version 2 review records bind the declared app version (or explicit unknown) into the source digest; existing version 1 records retain their original schema and digest validation. Comparisons flag blank rulebook identifiers as unknown; missing identifiers remain invalid imports. Unexpected offline evaluation exceptions replace prior passing artifacts with refusal evidence when the output directory is writable. Added one independent boldness-abstention evidence expectation; evidence assertions remain selective.
+
 # LabelAssay handoff
 
 ## Last Updated

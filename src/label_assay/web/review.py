@@ -34,9 +34,6 @@ async def review_load(request: Request, report_file: UploadFile, report_index: i
         if len(content) > _MAX_BYTES:
             return page(request, error="Choose a report no larger than 5 MB.", status=413)
         selected = read_saved_report(content, report_index)
-        # ReviewSource has its own versioned schema; comparison-only import
-        # metadata is not part of the review record's report digest.
-        selected.pop("app_version", None)
         selected["report"] = selected["report"].model_dump(mode="json")
         source = ReviewSource.model_validate(selected)
         return page(request, source=source)

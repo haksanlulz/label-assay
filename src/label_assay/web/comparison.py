@@ -38,7 +38,8 @@ def compare_reports(before: dict, after: dict) -> dict:
     old_report, new_report = before["report"], after["report"]
     old = {f.rule_id: f for f in old_report.findings}
     new = {f.rule_id: f for f in new_report.findings}
-    same_rules = old_report.rulebook_version == new_report.rulebook_version
+    old_rules, new_rules = old_report.rulebook_version.strip(), new_report.rulebook_version.strip()
+    same_rules = None if not old_rules or not new_rules else old_rules == new_rules
     old_version, new_version = before.get("app_version"), after.get("app_version")
     software_versions = ("unknown" if not old_version or not new_version else
                          "same_declared" if old_version == new_version else "different_declared")

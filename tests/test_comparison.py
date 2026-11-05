@@ -87,3 +87,14 @@ def test_malformed_comparison_is_a_readable_error():
     response = TestClient(app).post("/compare", files={"before_file": ("a.json", b"not json"), "after_file": ("b.json", b"{}")})
     assert response.status_code == 422
     assert "valid LabelAssay report" in response.text
+
+
+def test_blank_rulebook_is_unknown_not_matching():
+    client = TestClient(app)
+    response = client.post("/compare", files={
+        "before_file": ("old.json", export(saved(Verdict.FAIL, ""), "0.2.0")),
+        "after_file": ("new.json", export(saved(Verdict.PASS, " "), "0.2.0")),
+    })
+    assert response.status_code == 200
+    assert "Rulebook version unknown" in response.text
+    assert "Rulebook changed" not in response.text
