@@ -11,6 +11,7 @@
 - Mobile batch results become readable cards while preserving filters; revision metadata stacks on narrow screens and file inputs stay within the form. Printed headers use high-contrast text.
 - Keyboard skip links, announced review-filter counts, reduced-motion progress and focused upload errors. An invalid earlier report remains identified when the corrected report is valid. Compact print spacing prevents a footer-only page; the first batch label can share its introduction page.
 - `tests/browser_server.py` supplies synthetic completed reports to the local cross-browser regression suite without contacting an AI reader.
+- Alcohol-content findings held for review name the reason (more than one value, an unreadable claim, a value out of range) instead of reporting every case as unreadable; a finding held because OCR read nothing says so instead of claiming a second reading.
 
 Rulebook data is unchanged. This candidate has not been deployed or published.
 

@@ -293,6 +293,9 @@ def test_dead_ocr_holds_asserted_fields_for_review() -> None:
     report = verify(extraction, _application(), load_rulebook(), ocr_lines=[])
     finding = next(f for f in report.findings if f.rule_id == "alcohol_content_internally_consistent")
     assert finding.verdict == Verdict.NEEDS_REVIEW
+    # The note must not claim a second reading that never happened.
+    assert "OCR scan could not read the label" in finding.detail
+    assert "second reading" not in finding.detail
     # Explicitly omitted OCR remains available for engine-only callers.
     report = verify(extraction, _application(), load_rulebook(), ocr_lines=None)
     assert next(f for f in report.findings if f.rule_id == finding.rule_id).verdict == Verdict.FAIL
@@ -456,3 +459,16 @@ def test_bold_finding_runs_when_image_and_ocr_supplied() -> None:
     bold = next((f for f in report.findings if f.rule_id == "health_warning_bold"), None)
     assert bold is not None
     assert bold.verdict != Verdict.FAIL
+
+
+def test_conflicting_alcohol_values_are_named_not_called_unreadable() -> None:
+    extraction = _compliant_extraction().model_copy(update={"alcohol_content": _f("40% ALC/VOL (80 PROOF) 100 PROOF")})
+    report = verify(extraction, _application(), load_rulebook())
+    finding = next(f for f in report.findings if f.rule_id == "alcohol_content_internally_consistent")
+    assert finding.verdict == Verdict.NEEDS_REVIEW
+    assert "more than one proof (80 proof and 100 proof)" in finding.detail
+    assert "Could not read" not in finding.detail
+    absent = _compliant_extraction().model_copy(update={"alcohol_content": _f("750 mL")})
+    finding = next(f for f in verify(absent, _application(), load_rulebook()).findings
+                   if f.rule_id == "alcohol_content_internally_consistent")
+    assert finding.detail == "Could not read the alcohol content to check it."

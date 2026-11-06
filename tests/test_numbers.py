@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from label_assay.text.numbers import AlcoholContent, parse_alcohol_content
+from label_assay.text.numbers import AlcoholContent, AlcoholReading, parse_alcohol_content, read_alcohol_content
 
 
 def test_parses_abv_and_proof_from_sample_label() -> None:
@@ -103,3 +103,23 @@ def test_equivalent_repeated_and_existing_legitimate_values_remain_parseable(tex
     assert content.abv == Decimal("40")
     assert content.proof == Decimal("80")
     assert content.proof_matches_abv is True
+
+
+@pytest.mark.parametrize(("text", "reason"), [
+    ("40% ALC/VOL 45% ALC/VOL", "more than one alcohol by volume (40% and 45%)"),
+    ("40% ALC/VOL (80 PROOF) 100 PROOF", "more than one proof (80 proof and 100 proof)"),
+    ("40% ALC/VOL 4O% ALC/VOL", "alcohol content claim could not be read as a number"),
+    ("40% ALC/VOL 8O PROOF", "proof claim could not be read as a number"),
+    ("40% ALC/VOL 999 PROOF", "stated proof (999) is outside 0 to 200"),
+    ("999% ALC/VOL", "stated alcohol by volume (999%) is outside 0 to 100"),
+])
+def test_an_unusable_claim_names_its_reason(text: str, reason: str) -> None:
+    reading = read_alcohol_content(text)
+    assert reading.content is None
+    assert reading.reason is not None and reason in reading.reason
+    assert parse_alcohol_content(text) is None
+
+
+@pytest.mark.parametrize("text", ["", None, "750 mL"])
+def test_nothing_stated_has_no_reason(text: str | None) -> None:
+    assert read_alcohol_content(text) == AlcoholReading(None)

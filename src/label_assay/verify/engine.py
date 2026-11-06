@@ -28,10 +28,10 @@ from label_assay.extract.ocr import OcrLine
 from label_assay.match.brand import BrandVerdict, match_brand
 from label_assay.match.warning import WarningVerdict, compare_warning
 from label_assay.rulebook.loader import Rule, Rulebook
-from label_assay.text.numbers import parse_alcohol_content
+from label_assay.text.numbers import read_alcohol_content
 from label_assay.text.normalize import canon_brand
 from label_assay.verify.confidence import (
-    corroborates_exactly, corroborates_heading_capitals, unconfirmed_fields,
+    corroborates_exactly, corroborates_heading_capitals, ocr_is_alive, unconfirmed_fields,
 )
 
 
@@ -154,9 +154,14 @@ def _match_brand(rule: Rule, ctx: VerifyContext) -> Finding:
 
 def _match_abv_consistency(rule: Rule, ctx: VerifyContext) -> Finding:
     field = getattr(ctx.extraction, rule.match.field)
-    content = parse_alcohol_content(field.verbatim or field.value)
+    reading = read_alcohol_content(field.verbatim or field.value)
+    content = reading.content
     if content is None:
-        return _finding(rule, Verdict.NEEDS_REVIEW, "Could not read the alcohol content to check it.")
+        # "Nothing stated" and "two things stated" are different review jobs;
+        # the detail says which, or "80 and 100 proof" reads as unreadable.
+        detail = ("Could not read the alcohol content to check it." if reading.reason is None
+                  else f"Could not check the alcohol content: {reading.reason}.")
+        return _finding(rule, Verdict.NEEDS_REVIEW, detail)
     if content.proof_matches_abv is False:
         return _finding(
             rule,
@@ -204,6 +209,7 @@ _MATCHERS: dict[str, Callable[[Rule, VerifyContext], Finding]] = {
 }
 
 _REVIEW_NOTE = " (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)"
+_DEAD_OCR_NOTE = " (Unconfirmed: the independent OCR scan could not read the label, so nothing corroborates this and a person should verify it.)"
 
 
 def verify(
@@ -218,6 +224,9 @@ def verify(
     # Prefer the filed class; fall back to what the label itself says (batch mode).
     bev = infer_beverage_class(application.class_type or (extraction.class_type.value or ""))
     unconfirmed = unconfirmed_fields(extraction, ocr_lines) if ocr_lines is not None else set()
+    # A dead OCR read corroborates nothing; "a second reading did not corroborate
+    # this" would claim a reading that never happened.
+    review_note = _DEAD_OCR_NOTE if ocr_lines is not None and not ocr_is_alive(ocr_lines) else _REVIEW_NOTE
 
     findings: list[Finding] = []
     for rule in rulebook.rules_for(bev):
@@ -226,7 +235,7 @@ def verify(
             continue
         finding = matcher(rule, ctx)
         if rule.match.field in unconfirmed and finding.verdict in (Verdict.PASS, Verdict.FAIL):
-            finding = _finding(rule, Verdict.NEEDS_REVIEW, finding.detail + _REVIEW_NOTE)
+            finding = _finding(rule, Verdict.NEEDS_REVIEW, finding.detail + review_note)
         findings.append(finding)
 
     verdicts = {f.verdict for f in findings}

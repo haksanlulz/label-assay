@@ -47,46 +47,68 @@ class AlcoholContent:
         return self.abv * 2 == self.proof
 
 
-def parse_alcohol_content(text: str | None) -> AlcoholContent | None:
+@dataclass(frozen=True)
+class AlcoholReading:
+    """What the parser made of an alcohol-content string: the content, or the
+    reason there is none. ``reason`` is None only when nothing was stated, so a
+    reviewer can tell "the label says nothing" from "the label says two things"."""
+    content: AlcoholContent | None
+    reason: str | None = None
+
+
+def _listed(values: set[Decimal], unit: str) -> str:
+    return " and ".join(f"{value}{unit}" for value in sorted(values))
+
+
+def read_alcohol_content(text: str | None) -> AlcoholReading:
     """Extract ABV (and proof, if present) from a label's alcohol-content string.
-    Returns None when no alcohol content is stated, values conflict, or a proof
-    claim cannot be parsed. Repeating an equivalent value is not a conflict.
-    This checks the supplied field, not statements omitted by the readers."""
+    The content is None when no alcohol content is stated, values conflict, or a
+    claim cannot be parsed; every case but "nothing stated" names its reason.
+    Repeating an equivalent value is not a conflict. This checks the supplied
+    field, not statements omitted by the readers."""
+    unreadable_abv = "an alcohol content claim could not be read as a number"
+    unreadable_proof = "a proof claim could not be read as a number"
     if not text:
-        return None
+        return AlcoholReading(None)
     explicit = list(_ABV_EXPLICIT_PCT.finditer(text))
     words = list(_ABV_WORD.finditer(text))
     if (len(explicit) != len(_ABV_EXPLICIT_MARKER.findall(text)) or
             len(words) != len(_ABV_WORD_MARKER.findall(text))):
-        return None  # e.g. "4O% ALC/VOL" must not disappear beside a valid claim
+        # e.g. "4O% ALC/VOL" must not disappear beside a valid claim
+        return AlcoholReading(None, unreadable_abv)
     matches = [*_ABV_PCT.finditer(text), *explicit, *words]
     if not matches:
-        return None
+        return AlcoholReading(None)
     try:
         abvs = {Decimal(match.group("abv")) for match in matches}
     except InvalidOperation:
-        return None
+        return AlcoholReading(None, unreadable_abv)
     if len(abvs) != 1:
-        return None
+        return AlcoholReading(None, f"the label states more than one alcohol by volume ({_listed(abvs, '%')})")
     abv = abvs.pop()
 
     proof: Decimal | None = None
     proof_matches = list(_PROOF.finditer(text))
     if len(proof_matches) != len(_PROOF_MARKER.findall(text)):
         # A present but unreadable proof is not the same as no proof stated.
-        return None
+        return AlcoholReading(None, unreadable_proof)
     if proof_matches:
         try:
             proofs = {Decimal(match.group("proof")) for match in proof_matches}
         except InvalidOperation:
-            return None
+            return AlcoholReading(None, unreadable_proof)
         if len(proofs) != 1:
-            return None
+            return AlcoholReading(None, f"the label states more than one proof ({_listed(proofs, ' proof')})")
         proof = proofs.pop()
         if not Decimal(0) <= proof <= Decimal(200):
-            return None
+            return AlcoholReading(None, f"the stated proof ({proof}) is outside 0 to 200")
 
     try:
-        return AlcoholContent(abv=abv, proof=proof)
+        return AlcoholReading(AlcoholContent(abv=abv, proof=proof))
     except ValueError:
-        return None
+        return AlcoholReading(None, f"the stated alcohol by volume ({abv}%) is outside 0 to 100")
+
+
+def parse_alcohol_content(text: str | None) -> AlcoholContent | None:
+    """The content alone; ``read_alcohol_content`` also says why it is None."""
+    return read_alcohol_content(text).content
