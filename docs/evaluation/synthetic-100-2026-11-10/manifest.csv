@@ -1,0 +1,101 @@
+filename,defect,expected_verdict,notes
+label_000.png,proof_mismatch,fail,Gold Rum; layout=rules; palette=navy; size=900x700; warning=column; 104 proof printed against 48% ABV -> fail
+label_001.png,brand_mismatch,needs_review,Lager Beer; layout=rules; palette=burgundy; size=700x900; warning=bottom; filed brand 'Larkspur & Sable Brweing Co.' is a typo-level variant -> review
+label_002.png,compliant,pass,Vodka; layout=rules; palette=cream; size=600x1000; warning=bottom; all four checks pass
+label_003.png,compliant,pass,Chardonnay; layout=rules; palette=kraft; size=1000x1400; warning=bottom; all four checks pass
+label_004.png,compliant,pass,Tequila; layout=classic; palette=white; size=900x700; warning=column; all four checks pass
+label_005.png,warning_title_case,fail,"India Pale Ale; layout=classic; palette=black; size=700x900; warning=bottom; heading painted ""Government Warning:"" — 16.22(a)(2) capitalization -> fail"
+label_006.png,proof_mismatch,fail,Straight Rye Whiskey; layout=classic; palette=navy; size=600x1000; warning=bottom; 100 proof printed against 45% ABV -> fail
+label_007.png,compliant,pass,Stout; layout=classic; palette=burgundy; size=1000x1400; warning=column; all four checks pass
+label_008.png,compliant,pass,Cabernet Sauvignon; layout=framed; palette=cream; size=900x700; warning=bottom; all four checks pass
+label_009.png,compliant,pass,Kentucky Straight Bourbon Whiskey; layout=framed; palette=kraft; size=700x900; warning=column; all four checks pass
+label_010.png,warning_not_bold,fail,"Red Table Wine; layout=framed; palette=white; size=1000x1400; warning=bottom; heading in regular weight, thinner than its body -> bold check fail"
+label_011.png,compliant,pass,London Dry Gin; layout=framed; palette=black; size=1000x1400; warning=column; all four checks pass
+label_012.png,brand_mismatch,fail,Gold Rum; layout=banner; palette=navy; size=900x700; warning=column; filed brand 'Dapple Forge Spirits' is a different brand -> fail
+label_013.png,warning_title_case,fail,"Lager Beer; layout=banner; palette=burgundy; size=700x900; warning=bottom; heading painted ""Government Warning:"" — 16.22(a)(2) capitalization -> fail"
+label_014.png,proof_mismatch,fail,Vodka; layout=banner; palette=cream; size=600x1000; warning=bottom; 90 proof printed against 40% ABV -> fail
+label_015.png,warning_not_bold,fail,"Chardonnay; layout=banner; palette=white; size=1000x1400; warning=bottom; heading in regular weight, thinner than its body -> bold check fail"
+label_016.png,compliant,pass,Tequila; layout=rules; palette=white; size=900x700; warning=bottom; all four checks pass
+label_017.png,warning_missing,needs_review,"India Pale Ale; layout=rules; palette=black; size=700x900; warning=none; no warning block painted; absence routes to review, never auto-fail"
+label_018.png,compliant,pass,Straight Rye Whiskey; layout=rules; palette=navy; size=600x1000; warning=bottom; all four checks pass
+label_019.png,compliant,pass,Stout; layout=rules; palette=burgundy; size=1000x1400; warning=column; all four checks pass
+label_020.png,warning_altered_text,fail,Cabernet Sauvignon; layout=classic; palette=cream; size=900x700; warning=bottom; statutory text altered (dropped the Surgeon General clause) -> fail
+label_021.png,warning_missing,needs_review,"Kentucky Straight Bourbon Whiskey; layout=classic; palette=kraft; size=700x900; warning=none; no warning block painted; absence routes to review, never auto-fail"
+label_022.png,warning_body_caps,pass,Red Table Wine; layout=classic; palette=white; size=600x1000; warning=bottom; statement body painted in capitals; 16.22(a)(2) fixes only the heading case -> pass
+label_023.png,compliant,pass,London Dry Gin; layout=classic; palette=black; size=1000x1400; warning=column; all four checks pass
+label_024.png,proof_mismatch,fail,Gold Rum; layout=framed; palette=navy; size=900x700; warning=bottom; 101 proof printed against 45.5% ABV -> fail
+label_025.png,warning_not_bold,fail,"Lager Beer; layout=framed; palette=white; size=1000x1400; warning=bottom; heading in regular weight, thinner than its body -> bold check fail"
+label_026.png,proof_mismatch,fail,Vodka; layout=framed; palette=cream; size=600x1000; warning=bottom; 93 proof printed against 45.5% ABV -> fail
+label_027.png,brand_mismatch,needs_review,Chardonnay; layout=framed; palette=kraft; size=1000x1400; warning=bottom; filed brand 'Vestal Row Cellas' is a typo-level variant -> review
+label_028.png,compliant,pass,Tequila; layout=banner; palette=white; size=900x700; warning=bottom; all four checks pass
+label_029.png,compliant,pass,India Pale Ale; layout=banner; palette=black; size=700x900; warning=bottom; all four checks pass
+label_030.png,proof_mismatch,fail,Straight Rye Whiskey; layout=banner; palette=navy; size=600x1000; warning=bottom; 98 proof printed against 48% ABV -> fail
+label_031.png,warning_altered_text,fail,"Stout; layout=banner; palette=burgundy; size=1000x1400; warning=column; statutory text altered (""birth defects"" -> ""birth effects"") -> fail"
+label_032.png,compliant,pass,Cabernet Sauvignon; layout=rules; palette=cream; size=900x700; warning=column; all four checks pass
+label_033.png,compliant,pass,Kentucky Straight Bourbon Whiskey; layout=rules; palette=kraft; size=700x900; warning=column; all four checks pass
+label_034.png,warning_missing,needs_review,"Red Table Wine; layout=rules; palette=white; size=600x1000; warning=none; no warning block painted; absence routes to review, never auto-fail"
+label_035.png,warning_altered_text,fail,London Dry Gin; layout=rules; palette=black; size=1000x1400; warning=bottom; statutory text altered (dropped the Surgeon General clause) -> fail
+label_036.png,proof_mismatch,fail,Gold Rum; layout=classic; palette=navy; size=900x700; warning=bottom; 92 proof printed against 43% ABV -> fail
+label_037.png,warning_title_case,fail,"Lager Beer; layout=classic; palette=burgundy; size=700x900; warning=column; heading painted ""Government Warning:"" — 16.22(a)(2) capitalization -> fail"
+label_038.png,warning_altered_text,fail,"Vodka; layout=classic; palette=cream; size=600x1000; warning=bottom; statutory text altered (""impairs"" -> ""reduces"") -> fail"
+label_039.png,warning_title_case,fail,"Chardonnay; layout=classic; palette=kraft; size=1000x1400; warning=bottom; heading painted ""Government Warning:"" — 16.22(a)(2) capitalization -> fail"
+label_040.png,compliant,pass,Tequila; layout=framed; palette=white; size=900x700; warning=bottom; all four checks pass
+label_041.png,warning_altered_text,fail,India Pale Ale; layout=framed; palette=black; size=700x900; warning=column; statutory text altered (dropped the Surgeon General clause) -> fail
+label_042.png,compliant,pass,Straight Rye Whiskey; layout=framed; palette=navy; size=600x1000; warning=bottom; all four checks pass
+label_043.png,brand_mismatch,fail,Stout; layout=framed; palette=burgundy; size=1000x1400; warning=column; filed brand 'Copper Harrow Brewery' is a different brand -> fail
+label_044.png,compliant,pass,Cabernet Sauvignon; layout=banner; palette=cream; size=900x700; warning=bottom; all four checks pass
+label_045.png,compliant,pass,Kentucky Straight Bourbon Whiskey; layout=banner; palette=kraft; size=700x900; warning=bottom; all four checks pass
+label_046.png,compliant,pass,Red Table Wine; layout=banner; palette=white; size=600x1000; warning=bottom; all four checks pass
+label_047.png,warning_altered_text,fail,London Dry Gin; layout=banner; palette=black; size=1000x1400; warning=column; statutory text altered (dropped the health-problems clause) -> fail
+label_048.png,compliant,pass,Gold Rum; layout=rules; palette=navy; size=900x700; warning=bottom; all four checks pass
+label_049.png,warning_not_bold,fail,"Lager Beer; layout=rules; palette=white; size=1000x1400; warning=bottom; heading in regular weight, thinner than its body -> bold check fail"
+label_050.png,warning_missing,needs_review,"Vodka; layout=rules; palette=cream; size=600x1000; warning=none; no warning block painted; absence routes to review, never auto-fail"
+label_051.png,compliant,pass,Chardonnay; layout=rules; palette=kraft; size=1000x1400; warning=bottom; all four checks pass
+label_052.png,warning_not_bold,fail,"Tequila; layout=classic; palette=white; size=900x700; warning=bottom; heading in regular weight, thinner than its body -> bold check fail"
+label_053.png,compliant,pass,India Pale Ale; layout=classic; palette=black; size=700x900; warning=bottom; all four checks pass
+label_054.png,compliant,pass,Straight Rye Whiskey; layout=classic; palette=navy; size=600x1000; warning=bottom; all four checks pass
+label_055.png,compliant,pass,Stout; layout=classic; palette=burgundy; size=1000x1400; warning=column; all four checks pass
+label_056.png,brand_mismatch,needs_review,Cabernet Sauvignon; layout=framed; palette=cream; size=900x700; warning=column; filed brand 'Iron Meridan Vineyards' is a typo-level variant -> review
+label_057.png,compliant,pass,Kentucky Straight Bourbon Whiskey; layout=framed; palette=kraft; size=700x900; warning=column; all four checks pass
+label_058.png,warning_missing,needs_review,"Red Table Wine; layout=framed; palette=white; size=600x1000; warning=none; no warning block painted; absence routes to review, never auto-fail"
+label_059.png,warning_title_case,fail,"London Dry Gin; layout=framed; palette=black; size=1000x1400; warning=column; heading painted ""Government Warning:"" — 16.22(a)(2) capitalization -> fail"
+label_060.png,compliant,pass,Gold Rum; layout=banner; palette=navy; size=900x700; warning=column; all four checks pass
+label_061.png,warning_body_caps,pass,Lager Beer; layout=banner; palette=burgundy; size=700x900; warning=bottom; statement body painted in capitals; 16.22(a)(2) fixes only the heading case -> pass
+label_062.png,compliant,pass,Vodka; layout=banner; palette=cream; size=600x1000; warning=bottom; all four checks pass
+label_063.png,compliant,pass,Chardonnay; layout=banner; palette=kraft; size=1000x1400; warning=bottom; all four checks pass
+label_064.png,compliant,pass,Tequila; layout=rules; palette=white; size=900x700; warning=column; all four checks pass
+label_065.png,warning_not_bold,fail,"India Pale Ale; layout=rules; palette=white; size=1000x1400; warning=bottom; heading in regular weight, thinner than its body -> bold check fail"
+label_066.png,compliant,pass,Straight Rye Whiskey; layout=rules; palette=navy; size=600x1000; warning=bottom; all four checks pass
+label_067.png,compliant,pass,Stout; layout=rules; palette=burgundy; size=1000x1400; warning=column; all four checks pass
+label_068.png,compliant,pass,Cabernet Sauvignon; layout=classic; palette=cream; size=900x700; warning=column; all four checks pass
+label_069.png,warning_missing,needs_review,"Kentucky Straight Bourbon Whiskey; layout=classic; palette=kraft; size=700x900; warning=none; no warning block painted; absence routes to review, never auto-fail"
+label_070.png,compliant,pass,Red Table Wine; layout=classic; palette=white; size=600x1000; warning=bottom; all four checks pass
+label_071.png,compliant,pass,London Dry Gin; layout=classic; palette=black; size=1000x1400; warning=column; all four checks pass
+label_072.png,compliant,pass,Gold Rum; layout=framed; palette=navy; size=900x700; warning=column; all four checks pass
+label_073.png,warning_not_bold,fail,"Lager Beer; layout=framed; palette=white; size=1000x1400; warning=bottom; heading in regular weight, thinner than its body -> bold check fail"
+label_074.png,warning_altered_text,fail,"Vodka; layout=framed; palette=cream; size=600x1000; warning=bottom; statutory text altered (""impairs"" -> ""reduces"") -> fail"
+label_075.png,compliant,pass,Chardonnay; layout=framed; palette=kraft; size=1000x1400; warning=column; all four checks pass
+label_076.png,warning_title_case,fail,"Tequila; layout=banner; palette=white; size=900x700; warning=bottom; heading painted ""Government Warning:"" — 16.22(a)(2) capitalization -> fail"
+label_077.png,compliant,pass,India Pale Ale; layout=banner; palette=black; size=700x900; warning=column; all four checks pass
+label_078.png,warning_not_bold,fail,"Straight Rye Whiskey; layout=banner; palette=white; size=1000x1400; warning=bottom; heading in regular weight, thinner than its body -> bold check fail"
+label_079.png,warning_altered_text,fail,"Stout; layout=banner; palette=burgundy; size=1000x1400; warning=bottom; statutory text altered (""impairs"" -> ""reduces"") -> fail"
+label_080.png,brand_mismatch,fail,Cabernet Sauvignon; layout=rules; palette=cream; size=900x700; warning=bottom; filed brand 'Halcyon Furrow Vineyards' is a different brand -> fail
+label_081.png,proof_mismatch,fail,Kentucky Straight Bourbon Whiskey; layout=rules; palette=kraft; size=700x900; warning=column; 90 proof printed against 43% ABV -> fail
+label_082.png,compliant,pass,Red Table Wine; layout=rules; palette=white; size=600x1000; warning=bottom; all four checks pass
+label_083.png,compliant,pass,London Dry Gin; layout=rules; palette=black; size=1000x1400; warning=bottom; all four checks pass
+label_084.png,warning_not_bold,fail,"Gold Rum; layout=classic; palette=white; size=900x700; warning=bottom; heading in regular weight, thinner than its body -> bold check fail"
+label_085.png,brand_mismatch,needs_review,Lager Beer; layout=classic; palette=burgundy; size=700x900; warning=bottom; filed brand 'Dapple Forge Breiwng Co.' is a typo-level variant -> review
+label_086.png,compliant,pass,Vodka; layout=classic; palette=cream; size=600x1000; warning=bottom; all four checks pass
+label_087.png,compliant,pass,Chardonnay; layout=classic; palette=kraft; size=1000x1400; warning=bottom; all four checks pass
+label_088.png,compliant,pass,Tequila; layout=framed; palette=white; size=900x700; warning=bottom; all four checks pass
+label_089.png,warning_title_case,fail,"India Pale Ale; layout=framed; palette=black; size=700x900; warning=bottom; heading painted ""Government Warning:"" — 16.22(a)(2) capitalization -> fail"
+label_090.png,compliant,pass,Straight Rye Whiskey; layout=framed; palette=navy; size=600x1000; warning=bottom; all four checks pass
+label_091.png,compliant,pass,Stout; layout=framed; palette=burgundy; size=1000x1400; warning=column; all four checks pass
+label_092.png,warning_missing,needs_review,"Cabernet Sauvignon; layout=banner; palette=cream; size=900x700; warning=none; no warning block painted; absence routes to review, never auto-fail"
+label_093.png,warning_title_case,fail,"Kentucky Straight Bourbon Whiskey; layout=banner; palette=kraft; size=700x900; warning=bottom; heading painted ""Government Warning:"" — 16.22(a)(2) capitalization -> fail"
+label_094.png,compliant,pass,Red Table Wine; layout=banner; palette=white; size=600x1000; warning=bottom; all four checks pass
+label_095.png,compliant,pass,London Dry Gin; layout=banner; palette=black; size=1000x1400; warning=bottom; all four checks pass
+label_096.png,warning_missing,needs_review,"Gold Rum; layout=rules; palette=navy; size=900x700; warning=none; no warning block painted; absence routes to review, never auto-fail"
+label_097.png,warning_title_case,fail,"Lager Beer; layout=rules; palette=burgundy; size=700x900; warning=column; heading painted ""Government Warning:"" — 16.22(a)(2) capitalization -> fail"
+label_098.png,compliant,pass,Vodka; layout=rules; palette=cream; size=600x1000; warning=bottom; all four checks pass
+label_099.png,brand_mismatch,fail,Chardonnay; layout=rules; palette=kraft; size=1000x1400; warning=column; filed brand 'Juniper Moraine Cellars' is a different brand -> fail

@@ -1,0 +1,1662 @@
+{
+  "run": {
+    "date": "2026-11-10",
+    "engine_commit": "c515dc3",
+    "generator": "tools/make_test_labels.py --seed 20261110 --count 100",
+    "instance": "local uvicorn, 127.0.0.1:8790",
+    "model": "claude-haiku-4-5-20251001"
+  },
+  "summary": {
+    "labels": 100,
+    "compliant": {
+      "total": 50,
+      "pass": 26,
+      "needs_review": 24
+    },
+    "defective": {
+      "total": 50,
+      "needs_review": 14,
+      "fail": 36
+    },
+    "false_passes": 0,
+    "false_fails": 0,
+    "matches_expected_verdict": 74,
+    "errors_or_missing": 0,
+    "elapsed_seconds": 130.4,
+    "seconds_per_label": 1.3,
+    "by_defect": {
+      "brand_mismatch": {
+        "needs_review": 4,
+        "fail": 4
+      },
+      "compliant": {
+        "needs_review": 23,
+        "pass": 25
+      },
+      "proof_mismatch": {
+        "fail": 8
+      },
+      "warning_altered_text": {
+        "fail": 8
+      },
+      "warning_body_caps": {
+        "pass": 1,
+        "needs_review": 1
+      },
+      "warning_missing": {
+        "needs_review": 8
+      },
+      "warning_not_bold": {
+        "fail": 8,
+        "needs_review": 1
+      },
+      "warning_title_case": {
+        "fail": 8,
+        "needs_review": 1
+      }
+    }
+  },
+  "problems": [],
+  "labels": [
+    {
+      "filename": "label_000.png",
+      "defect": "proof_mismatch",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The stated proof (104) does not equal twice the alcohol by volume (48).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "fail"
+      }
+    },
+    {
+      "filename": "label_001.png",
+      "defect": "brand_mismatch",
+      "expected_verdict": "needs_review",
+      "group": "defective",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": true,
+      "detail": "The reader's transcription matches the mandated warning, but an independent scan of the image did not confirm the statement word-for-word, so a person should verify it.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "needs_review",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_002.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Heading weight is borderline (ratio 1.30).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_003.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "The reader's transcription matches the mandated warning, but an independent scan of the image did not confirm the statement word-for-word, so a person should verify it.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_004.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "needs_review"
+      }
+    },
+    {
+      "filename": "label_005.png",
+      "defect": "warning_title_case",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Wording is correct, but the heading is printed as \"Government Warning:\": the two heading words must be in capital letters (27 CFR 16.22(a)(2)).",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_006.png",
+      "defect": "proof_mismatch",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The stated proof (100) does not equal twice the alcohol by volume (45).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "fail"
+      }
+    },
+    {
+      "filename": "label_007.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_008.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_009.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_010.png",
+      "defect": "warning_not_bold",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The heading is not distinctly bolder than the rest of the statement (ratio 0.73).",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "fail",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_011.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_012.png",
+      "defect": "brand_mismatch",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Brand names differ ('osier bend spirits' vs 'dapple forge spirits').",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "fail",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_013.png",
+      "defect": "warning_title_case",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Wording is correct, but the heading is printed as \"Government Warning:\": the two heading words must be in capital letters (27 CFR 16.22(a)(2)).",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_014.png",
+      "defect": "proof_mismatch",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The stated proof (90) does not equal twice the alcohol by volume (40).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "fail"
+      }
+    },
+    {
+      "filename": "label_015.png",
+      "defect": "warning_not_bold",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The heading is not distinctly bolder than the rest of the statement (ratio 0.74).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "fail",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_016.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "needs_review"
+      }
+    },
+    {
+      "filename": "label_017.png",
+      "defect": "warning_missing",
+      "expected_verdict": "needs_review",
+      "group": "defective",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": true,
+      "detail": "No Government Warning text was found.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_018.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_019.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_020.png",
+      "defect": "warning_altered_text",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Warning text differs from the mandated statement — a word is changed, missing, or added.",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_021.png",
+      "defect": "warning_missing",
+      "expected_verdict": "needs_review",
+      "group": "defective",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": true,
+      "detail": "No Government Warning text was found.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_022.png",
+      "defect": "warning_body_caps",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_023.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_024.png",
+      "defect": "proof_mismatch",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The stated proof (101) does not equal twice the alcohol by volume (45.5).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "fail"
+      }
+    },
+    {
+      "filename": "label_025.png",
+      "defect": "warning_not_bold",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The heading is not distinctly bolder than the rest of the statement (ratio 0.73).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "fail",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_026.png",
+      "defect": "proof_mismatch",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The stated proof (93) does not equal twice the alcohol by volume (45.5).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "fail"
+      }
+    },
+    {
+      "filename": "label_027.png",
+      "defect": "brand_mismatch",
+      "expected_verdict": "needs_review",
+      "group": "defective",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": true,
+      "detail": "Brand names are close but not identical after normalization ('vestal row cellars' vs 'vestal row cellas').",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "needs_review",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_028.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "The reader's transcription matches the mandated warning, but an independent scan of the image did not confirm the statement word-for-word, so a person should verify it.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_029.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_030.png",
+      "defect": "proof_mismatch",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The stated proof (98) does not equal twice the alcohol by volume (48).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "fail"
+      }
+    },
+    {
+      "filename": "label_031.png",
+      "defect": "warning_altered_text",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Warning text differs from the mandated statement — a word is changed, missing, or added.",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_032.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_033.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_034.png",
+      "defect": "warning_missing",
+      "expected_verdict": "needs_review",
+      "group": "defective",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": true,
+      "detail": "No Government Warning text was found.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_035.png",
+      "defect": "warning_altered_text",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Warning text differs from the mandated statement — a word is changed, missing, or added.",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "needs_review"
+      }
+    },
+    {
+      "filename": "label_036.png",
+      "defect": "proof_mismatch",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The stated proof (92) does not equal twice the alcohol by volume (43).",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "fail"
+      }
+    },
+    {
+      "filename": "label_037.png",
+      "defect": "warning_title_case",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Wording is correct, but the heading is printed as \"Government Warning:\": the two heading words must be in capital letters (27 CFR 16.22(a)(2)).",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_038.png",
+      "defect": "warning_altered_text",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Warning text differs from the mandated statement — a word is changed, missing, or added.",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_039.png",
+      "defect": "warning_title_case",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Wording is correct, but the heading is printed as \"Government Warning:\": the two heading words must be in capital letters (27 CFR 16.22(a)(2)).",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_040.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "The reader's transcription matches the mandated warning, but an independent scan of the image did not confirm the statement word-for-word, so a person should verify it.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_041.png",
+      "defect": "warning_altered_text",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Warning text differs from the mandated statement — a word is changed, missing, or added.",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_042.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Heading weight is borderline (ratio 1.26).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_043.png",
+      "defect": "brand_mismatch",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Brand names differ ('palisade ember brewery' vs 'copper harrow brewery').",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "fail",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_044.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_045.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_046.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_047.png",
+      "defect": "warning_altered_text",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Warning text differs from the mandated statement — a word is changed, missing, or added.",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_048.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "The reader's transcription matches the mandated warning, but an independent scan of the image did not confirm the statement word-for-word, so a person should verify it.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_049.png",
+      "defect": "warning_not_bold",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The heading is not distinctly bolder than the rest of the statement (ratio 0.74).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "fail",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_050.png",
+      "defect": "warning_missing",
+      "expected_verdict": "needs_review",
+      "group": "defective",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": true,
+      "detail": "No Government Warning text was found.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_051.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_052.png",
+      "defect": "warning_not_bold",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The heading is not distinctly bolder than the rest of the statement (ratio 0.76).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "fail",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_053.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_054.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Heading weight is borderline (ratio 1.26).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_055.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_056.png",
+      "defect": "brand_mismatch",
+      "expected_verdict": "needs_review",
+      "group": "defective",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": true,
+      "detail": "Brand names are close but not identical after normalization ('iron meridian vineyards' vs 'iron meridan vineyards').",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "needs_review",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_057.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_058.png",
+      "defect": "warning_missing",
+      "expected_verdict": "needs_review",
+      "group": "defective",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": true,
+      "detail": "No Government Warning text was found.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_059.png",
+      "defect": "warning_title_case",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Wording is correct, but the heading is printed as \"Government Warning:\": the two heading words must be in capital letters (27 CFR 16.22(a)(2)).",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_060.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_061.png",
+      "defect": "warning_body_caps",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "The reader's transcription matches the mandated warning, but an independent scan of the image did not confirm the statement word-for-word, so a person should verify it.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_062.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_063.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_064.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "needs_review"
+      }
+    },
+    {
+      "filename": "label_065.png",
+      "defect": "warning_not_bold",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The heading is not distinctly bolder than the rest of the statement (ratio 0.73).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "fail",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_066.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_067.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_068.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_069.png",
+      "defect": "warning_missing",
+      "expected_verdict": "needs_review",
+      "group": "defective",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": true,
+      "detail": "No Government Warning text was found.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_070.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_071.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_072.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_073.png",
+      "defect": "warning_not_bold",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The heading is not distinctly bolder than the rest of the statement (ratio 0.75).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "fail",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_074.png",
+      "defect": "warning_altered_text",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Warning text differs from the mandated statement — a word is changed, missing, or added.",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_075.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_076.png",
+      "defect": "warning_title_case",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Wording is correct, but the heading is printed as \"Government Warning:\": the two heading words must be in capital letters (27 CFR 16.22(a)(2)). (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_077.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_078.png",
+      "defect": "warning_not_bold",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The heading is not distinctly bolder than the rest of the statement (ratio 0.74).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "fail",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_079.png",
+      "defect": "warning_altered_text",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Warning text differs from the mandated statement — a word is changed, missing, or added.",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "needs_review"
+      }
+    },
+    {
+      "filename": "label_080.png",
+      "defect": "brand_mismatch",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Brand names differ ('larkspur and sable vineyards' vs 'halcyon furrow vineyards').",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "fail",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_081.png",
+      "defect": "proof_mismatch",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "The stated proof (90) does not equal twice the alcohol by volume (43).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "fail"
+      }
+    },
+    {
+      "filename": "label_082.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Heading weight is borderline (ratio 1.28).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_083.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_084.png",
+      "defect": "warning_not_bold",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_085.png",
+      "defect": "brand_mismatch",
+      "expected_verdict": "needs_review",
+      "group": "defective",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": true,
+      "detail": "Brand names are close but not identical after normalization ('dapple forge brewing' vs 'dapple forge breiwng').",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "needs_review",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_086.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_087.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "The reader's transcription matches the mandated warning, but an independent scan of the image did not confirm the statement word-for-word, so a person should verify it.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_088.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "The reader's transcription matches the mandated warning, but an independent scan of the image did not confirm the statement word-for-word, so a person should verify it.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_089.png",
+      "defect": "warning_title_case",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Wording is correct, but the heading is printed as \"Government Warning:\": the two heading words must be in capital letters (27 CFR 16.22(a)(2)).",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_090.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_091.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "needs_review"
+      }
+    },
+    {
+      "filename": "label_092.png",
+      "defect": "warning_missing",
+      "expected_verdict": "needs_review",
+      "group": "defective",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": true,
+      "detail": "No Government Warning text was found.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_093.png",
+      "defect": "warning_title_case",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Wording is correct, but the heading is printed as \"Government Warning:\": the two heading words must be in capital letters (27 CFR 16.22(a)(2)).",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_094.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Matches the mandated warning: word-for-word, with the heading in capital letters. (Unconfirmed: a second reading of the label did not corroborate this, so a person should verify it.)",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_095.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "pass",
+      "matches_expected": true,
+      "detail": "All automated checks passed.",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_096.png",
+      "defect": "warning_missing",
+      "expected_verdict": "needs_review",
+      "group": "defective",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": true,
+      "detail": "No Government Warning text was found.",
+      "rules": {
+        "health_warning_verbatim": "needs_review",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_097.png",
+      "defect": "warning_title_case",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Wording is correct, but the heading is printed as \"Government Warning:\": the two heading words must be in capital letters (27 CFR 16.22(a)(2)).",
+      "rules": {
+        "health_warning_verbatim": "fail",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_098.png",
+      "defect": "compliant",
+      "expected_verdict": "pass",
+      "group": "compliant",
+      "status": "done",
+      "verdict": "needs_review",
+      "matches_expected": false,
+      "detail": "Heading weight is borderline (ratio 1.30).",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "needs_review",
+        "brand_name_matches_application": "pass",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    },
+    {
+      "filename": "label_099.png",
+      "defect": "brand_mismatch",
+      "expected_verdict": "fail",
+      "group": "defective",
+      "status": "done",
+      "verdict": "fail",
+      "matches_expected": true,
+      "detail": "Brand names differ ('windrow atlas cellars' vs 'juniper moraine cellars').",
+      "rules": {
+        "health_warning_verbatim": "pass",
+        "health_warning_bold": "pass",
+        "brand_name_matches_application": "fail",
+        "alcohol_content_internally_consistent": "pass"
+      }
+    }
+  ]
+}
