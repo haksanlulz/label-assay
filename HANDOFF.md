@@ -1,3 +1,11 @@
+### 2026-11-10 — A 100-label scored run with a kept ledger (Fable 5.2)
+
+DESIGN cited a 2026-07-17 100-label run as 49 defective and 51 compliant with "19 passed, 31 abstained". Those two numbers cover 50 of the 51, and no per-label results from that run exist in the repo or its history. Operator ruling: re-run and keep the ledger. A fresh corpus (`make_test_labels.py --seed 20261110 --count 100`) went through `/batch` on a local instance at `c515dc3` with the live reader: 0 false passes across 50 defective labels (36 failed, 14 held), 0 false fails across 50 compliant ones (26 passed, 24 held), no processing errors. `docs/evaluation/synthetic-100-2026-11-10/` holds the ledger, manifest and applications; `tools/score_batch.py` is the scorer; DESIGN cites this run and says what the earlier one lacked.
+
+Not changed: the README's 300-label paragraph. That run's per-label results were not kept either; it has no arithmetic gap, but it is equally unreproducible from the record. The 24 holds on compliant labels are mostly warning corroboration and borderline heading weight (see the ledger's `detail` column).
+
+Validation: `uv run pytest -q` 379 passed, 3 skipped; ruff check and format clean on the new tool. One paid step: 100 reader calls plus the warm-up. No push or deployment.
+
 ### 2026-11-06 — Alcohol-content review details say why (Fable 5.1)
 
 Audit findings LA-2 and LA-5 (`F:/claude/.coord/reviews/fable-audit-codex-2026-11-06.md`). `parse_alcohol_content` returned None for absent, conflicting, malformed and out-of-range claims alike, so the engine reported the 11-05 headline catch ("80 PROOF" beside "100 PROOF") as "Could not read the alcohol content to check it." `read_alcohol_content` now returns an `AlcoholReading` with the content or the reason, and the finding reads "Could not check the alcohol content: the label states more than one proof (80 proof and 100 proof)."; the absent case keeps its wording, so the evaluation baseline is unchanged. The review note on findings held because OCR read nothing no longer claims "a second reading of the label did not corroborate this"; it says the OCR scan could not read the label. Verdicts unchanged; details only.
