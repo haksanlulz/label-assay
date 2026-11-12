@@ -1,6 +1,6 @@
 ### 2026-11-12 — Audit with refuters, and the fixes it led to (Fable 5.2)
 
-Branch `audit-2026-11`, five commits on top of `5098adc`. Not merged, not pushed, not deployed.
+Merged to `main` and pushed to GitHub on 2026-11-12 (owner's call, including `/review` and `/compare` going public). **Not deployed.** Three workflow runs: the first stopped at the dependency audit (pillow 12.3.0, fixed by moving the lock to 13.0.0 with certifi); the second failed one new test that assumed Windows behaviour for deeply nested JSON (the test was loosened, no app change); the third passed the Linux suite and failed at the push to the Space with "Invalid username or password": the `HF_TOKEN` repository secret is no longer accepted. The live instance still serves 0.1.0 and answers healthy. Until a new token is set and the workflow re-run, nothing in this entry is live.
 
 Start: a TTB-approved filing whose heading is printed `GOVERMENT WARNING` (`tests/fixtures/cola/cola_24100001000120.png`) came back "needs review" with no pointer. The reader had written the correct text; the scan had read the misprint at 0.98 confidence and that was thrown away. A held warning now names the words the scan read differently. The reader was not fixed: it corrects the misprint 3 of 3 times on the shipped prompt, with a letter-by-letter instruction, and on `claude-haiku-5-5`. The prompt is unchanged; the live test recording this is marked xfail.
 
