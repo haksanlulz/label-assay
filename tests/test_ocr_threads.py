@@ -51,16 +51,35 @@ def test_usable_cpus_is_the_lower_of_the_quota_and_the_visible_cores(
     assert ocr.usable_cpus(_cgroup(tmp_path / "c", {"cpu.max": "800000 100000\n"})) == 1
 
 
-def test_an_explicit_setting_wins_over_detection(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.fixture(autouse=True)
+def _detection_restored():
+    yield
+    ocr.set_engine_threads(0)
+
+
+def test_a_stated_count_wins_over_detection(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ocr, "usable_cpus", lambda: 2)
-    monkeypatch.setenv("OCR_THREADS", "3")
+    ocr.set_engine_threads(3)
     assert ocr.engine_threads() == 3
-    monkeypatch.setenv("OCR_THREADS", "0")
+    ocr.set_engine_threads(0)
     assert ocr.engine_threads() == 2
+    with pytest.raises(ValueError):
+        ocr.set_engine_threads(-1)
+
+
+def test_startup_hands_the_setting_to_the_engine(monkeypatch: pytest.MonkeyPatch) -> None:
+    from fastapi.testclient import TestClient
+
+    import label_assay.web.app as webapp
+    from label_assay.config import Settings
+
+    monkeypatch.setattr(webapp, "get_settings", lambda: Settings(anthropic_api_key=None, ocr_threads=3))
+    monkeypatch.setattr(ocr.os, "cpu_count", lambda: 16)
+    with TestClient(webapp.app) as client:
+        assert client.get("/health").json()["ocr_threads"] == 3
 
 
 def test_the_engine_is_left_alone_when_every_core_is_usable(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("OCR_THREADS", raising=False)
     monkeypatch.setattr(ocr, "usable_cpus", lambda: 16)
     monkeypatch.setattr(ocr.os, "cpu_count", lambda: 16)
     assert ocr.engine_options() == {}
@@ -83,5 +102,4 @@ def test_health_reports_the_thread_count(monkeypatch: pytest.MonkeyPatch) -> Non
 
     monkeypatch.setattr(ocr, "usable_cpus", lambda: 2)
     monkeypatch.setattr(ocr.os, "cpu_count", lambda: 16)
-    monkeypatch.delenv("OCR_THREADS", raising=False)
     assert TestClient(app).get("/health").json()["ocr_threads"] == 2

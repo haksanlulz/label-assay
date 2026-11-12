@@ -137,6 +137,10 @@ async def _lifespan(_app: FastAPI):
     # init should be paid before traffic, not inside the first user's check.
     logging.basicConfig(level=logging.INFO)
     load_rulebook()
+    from label_assay.extract.ocr import engine_options, set_engine_threads
+
+    set_engine_threads(get_settings().ocr_threads)  # before the first read builds the engine
+    logger.info("OCR engine options: %s", engine_options() or "engine default")
     await asyncio.to_thread(_ocr_status)
     if _WARM_ON_STARTUP and get_settings().anthropic_api_key:
         # Fire-and-forget: startup never blocks on (or crashes from) a network

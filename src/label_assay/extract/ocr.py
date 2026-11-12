@@ -142,12 +142,25 @@ def usable_cpus(root: Path = _CGROUP_ROOT) -> int:
     return max(1, min(visible, quota) if quota is not None else visible)
 
 
-def engine_threads() -> int:
-    """Threads for one OCR inference: the ``OCR_THREADS`` setting when it is
-    set, otherwise the usable CPU count."""
-    from label_assay.config import get_settings
+_configured_threads = 0
 
-    return get_settings().ocr_threads or usable_cpus()
+
+def set_engine_threads(count: int) -> None:
+    """State the thread count outright; 0 goes back to detection. The web shell
+    passes its ``OCR_THREADS`` setting here at startup. This module does not
+    read configuration itself: the deciding layer imports ``OcrLine`` from it,
+    and that layer stays clear of the settings module."""
+    global _configured_threads
+    if count < 0:
+        raise ValueError(f"thread count must be 0 or more, not {count}")
+    _configured_threads = count
+    _engine.cache_clear()
+
+
+def engine_threads() -> int:
+    """Threads for one OCR inference: the stated count when there is one,
+    otherwise the usable CPU count."""
+    return _configured_threads or usable_cpus()
 
 
 def engine_options() -> dict[str, int]:
