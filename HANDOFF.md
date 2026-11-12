@@ -33,7 +33,7 @@ Not done:
 - The live tests were not run after the change that makes a rejected key fail them.
 - `hf-deploy.yml` still goes green on the push without waiting for the Space. Closing that needs `/health` to name the build it is serving; the rulebook version alone cannot tell a new build from the old one still answering.
 - The uptime probe's speed check is still a warning: the first model call after an idle stretch has measured 8.9 s, so a hard limit there would page on a known condition.
-- The README calls `/review` and `/compare` local candidates, and they are mounted unconditionally; the next push to main deploys them. Gate them or change the README: an owner's call.
+- `/review` and `/compare` were described as local candidates while mounted unconditionally. Owner's call 2026-11-12: they ship with this push, and the README now says so.
 - No rate limit on the paid `/check` route beyond the daily budget.
 - About 60 confirmed findings are untouched, nearly all low severity. The full list with both refuters' notes is outside this repo.
 - README line on code size is still the older dated figure.
@@ -48,7 +48,7 @@ Validation: `uv run pytest -q` 379 passed, 3 skipped; ruff check and format clea
 
 ### 2026-11-06 — Alcohol-content review details say why (Fable 5.1)
 
-Audit findings LA-2 and LA-5 (`F:/claude/.coord/reviews/fable-audit-codex-2026-11-06.md`). `parse_alcohol_content` returned None for absent, conflicting, malformed and out-of-range claims alike, so the engine reported the 11-05 headline catch ("80 PROOF" beside "100 PROOF") as "Could not read the alcohol content to check it." `read_alcohol_content` now returns an `AlcoholReading` with the content or the reason, and the finding reads "Could not check the alcohol content: the label states more than one proof (80 proof and 100 proof)."; the absent case keeps its wording, so the evaluation baseline is unchanged. The review note on findings held because OCR read nothing no longer claims "a second reading of the label did not corroborate this"; it says the OCR scan could not read the label. Verdicts unchanged; details only.
+Audit findings LA-2 and LA-5 (a review kept outside this repo). `parse_alcohol_content` returned None for absent, conflicting, malformed and out-of-range claims alike, so the engine reported the 11-05 headline catch ("80 PROOF" beside "100 PROOF") as "Could not read the alcohol content to check it." `read_alcohol_content` now returns an `AlcoholReading` with the content or the reason, and the finding reads "Could not check the alcohol content: the label states more than one proof (80 proof and 100 proof)."; the absent case keeps its wording, so the evaluation baseline is unchanged. The review note on findings held because OCR read nothing no longer claims "a second reading of the label did not corroborate this"; it says the OCR scan could not read the label. Verdicts unchanged; details only.
 
 Validation: `uv run pytest -q -m "not live"` 379 passed, 3 deselected; ruff clean; the two new engine tests fail with the old wording restored. No paid APIs, push or deployment.
 
@@ -94,7 +94,7 @@ Owners: `evaluation.py` + `tests/fixtures/evaluation/cases.json`; `domain/review
 
 `verify: uv run pytest -q -m "not live"` — **313 passed, 3 live tests deselected**. Ruff and package build pass. Focused review/evaluation tests: 23 passed; mutations reject wrong/missing/duplicate/extra findings and stale versions, while CLI refusal replaces old green artifacts. Baseline: 26 pass, 5 needs_review, 4 fail, 13 not_evaluable, rulebook `d0550ba69224`. This is fixture agreement, not vision accuracy or comprehensive regulatory coverage.
 
-Workbench's combined suite: **54 browser tests passed** across Chromium/Firefox/WebKit. New review scenarios cover invalid uploads, explicit pending/complete records, unchanged automated failures, download validation, no-JavaScript operation, keyboard, 320/640/1280px and WCAG scans. The downloaded browser record passes the real verifier CLI. All 11 combined PDFs (17 pages) pass text/margins and visual inspection. Evidence: `artifacts/evaluation/`, Workbench `artifacts/browser/`, and `C:/Users/abish/Documents/Codex/2026-11-03/give/outputs/fde-integration/`.
+Workbench's combined suite: **54 browser tests passed** across Chromium/Firefox/WebKit. New review scenarios cover invalid uploads, explicit pending/complete records, unchanged automated failures, download validation, no-JavaScript operation, keyboard, 320/640/1280px and WCAG scans. The downloaded browser record passes the real verifier CLI. All 11 combined PDFs (17 pages) pass text/margins and visual inspection. Evidence: `artifacts/evaluation/`, Workbench `artifacts/browser/`, and a run folder kept outside this repo.
 
 No subagents, remote CI run, pushes or deployments. New features remain local; hosted demo unchanged. Reviewer identity/authentication, representative real-artwork evaluation, physical-device and assistive-speech checks remain explicit limitations.
 
@@ -102,6 +102,6 @@ No subagents, remote CI run, pushes or deployments. New features remain local; h
 
 Goal: complete the accepted compatibility, regression and accessibility follow-up. Added keyboard skip links (including WebKit's explicit tab stop), announced review-filter counts, persistent per-file comparison errors, focused validation messages, reduced-motion progress and compact printed footers/batch introductions. Existing visual style and rulebook are preserved. `tests/browser_server.py` provides real templates/routes with synthetic completed reports and no AI calls; the browser suite lives in Civic Workbench.
 
-Verification: `uv run ruff check .` passed; `uv run pytest -q` **293 passed**, including the three live reader tests. After final CSS changes, focused web/comparison/contrast tests **45 passed**; `uv build` succeeded. Workbench's all-tools suite **42 passed** across Chromium/Firefox/WebKit; this includes six LabelAssay page layouts, keyboard/filter/upload-error behavior and single/batch/comparison exports. PDF text/margin and visual checks passed. Full evidence: `C:/Users/abish/Documents/Codex/2026-11-03/give/outputs/all-next/NEXT-PASS.md`.
+Verification: `uv run ruff check .` passed; `uv run pytest -q` **293 passed**, including the three live reader tests. After final CSS changes, focused web/comparison/contrast tests **45 passed**; `uv build` succeeded. Workbench's all-tools suite **42 passed** across Chromium/Firefox/WebKit; this includes six LabelAssay page layouts, keyboard/filter/upload-error behavior and single/batch/comparison exports. PDF text/margin and visual checks passed. Full evidence is in a run folder kept outside this repo.
 
 Remaining: physical iPhone/touch, actual screen-reader speech and native print dialogs are not certified. No subagents, push or deployment. Local existing preview remains at port 8790; the isolated test fixture uses 18790.

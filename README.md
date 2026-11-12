@@ -4,7 +4,7 @@ Checks alcohol beverage labels against TTB labeling requirements (27 CFR parts 5
 
 **Live:** https://haksanlulz-label-assay.hf.space
 
-**Local candidate updates:** keyboard skip links, announced batch-filter counts and per-file comparison errors accompany the review queue, saved revision comparisons and printable reports. These changes remain local until a separate release. The Civic Workbench `start-local.ps1` launcher can start both apps; point `LABEL_ASSAY_ROOT` at this checkout if it is not under `~/code/label-assay`.
+**Added in 0.2.0:** keyboard skip links, announced batch-filter counts and per-file comparison errors accompany the review queue, saved revision comparisons and printable reports. They are part of the deployed build as of 2026-11-12. The Civic Workbench `start-local.ps1` launcher can start both apps; point `LABEL_ASSAY_ROOT` at this checkout if it is not under `~/code/label-assay`.
 
 For repeatable UI checks, `uv run python tests/browser_server.py` serves the real app with three synthetic completed reports at `http://127.0.0.1:18790/batch/browser-fixture`. It disables reader warm-up and makes no AI calls. Civic Workbench's `npm run test:browser:all` owns the Chromium/Firefox/WebKit suite and automatically starts/stops this fixture. Its `npm run test:pdf` validates the resulting single-label, batch and revision PDFs alongside the civic reports. Physical devices, actual screen-reader speech and native print dialogs remain separate checks.
 
@@ -53,7 +53,7 @@ Images are never retained. Single-label checks are processed in memory, and the 
 
 The label artwork in scope is public COLA-registry material with no personal data, so the disclosure risk is low. Anthropic's handling of API inputs is governed by its own commercial terms, not by this project; review Anthropic's commercial and data-usage terms (anthropic.com/legal) before sending any non-public content. The outbound dependency is swappable: the extractor port ([docs/adr/0004-swappable-extractor.md](docs/adr/0004-swappable-extractor.md)) exists so a local or in-tenant vision model can replace the hosted API by writing one adapter and changing the one-line selection in `web/service.py`. The compliance engine is untouched.
 
-## Review and Compare Saved Checks (0.2.0 local candidate)
+## Review and Compare Saved Checks (0.2.0)
 
 The batch **Review queue** includes corrections, human-review findings, unchecked rules and processing errors. Separate filters show **Uncheckable findings** and **Could not be read**. A label whose available checks passed but has an uncheckable finding appears as **Checks incomplete**, rather than under Compliant; underlying rule verdicts remain unchanged.
 
