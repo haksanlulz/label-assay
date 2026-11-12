@@ -173,7 +173,7 @@ def test_full_pipeline_image_to_verdict() -> None:
             FIXTURE.read_bytes()
         )
     except anthropic.AuthenticationError:
-        pytest.skip("ANTHROPIC_API_KEY is invalid or expired")
+        pytest.fail("ANTHROPIC_API_KEY is configured and the API rejected it. A dead key is a failure of this run, not a reason to skip it.")
     report = verify(extraction, fixture_corpus.application_for(SPEC), load_rulebook())
     # A compliant label must never FAIL; PASS expected, REVIEW tolerated.
     assert report.verdict in (Verdict.PASS, Verdict.NEEDS_REVIEW)
@@ -435,7 +435,7 @@ def test_altered_warning_labels_are_never_passed_live() -> None:
         try:
             extraction = extractor.extract(image)
         except anthropic.AuthenticationError:
-            pytest.skip("ANTHROPIC_API_KEY is invalid or expired")
+            pytest.fail("ANTHROPIC_API_KEY is configured and the API rejected it. A dead key is a failure of this run, not a reason to skip it.")
         report = verify(
             extraction,
             fixture_corpus.application_for(spec),

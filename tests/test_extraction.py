@@ -142,7 +142,7 @@ def test_haiku_extracts_expected_fields_from_fixture_label() -> None:
     try:
         result = extractor.extract(_fixture_bytes())
     except anthropic.AuthenticationError:
-        pytest.skip("ANTHROPIC_API_KEY is invalid or expired")
+        pytest.fail("ANTHROPIC_API_KEY is configured and the API rejected it. A dead key is a failure of this run, not a reason to skip it.")
 
     assert result.brand_name.found
     assert result.government_warning.found

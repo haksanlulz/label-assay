@@ -41,6 +41,25 @@ import httpx
 
 FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "cola"
 
+# The one approved filing whose label carries a real defect (see the module
+# docstring); a fail on it is correct, and so is a review.
+KNOWN_TRUE_POSITIVES = frozenset({"cola_24100001000120.png"})
+
+
+def outcome_problems(rows: list[dict[str, str]], expected_rows: int) -> list[str]:
+    """What makes this run a failure: a row that could not be processed, a fail
+    on an approved label that is not the documented defect, or rows missing
+    from the export. A review is legitimate abstention and never one."""
+    problems = []
+    if len(rows) != expected_rows:
+        problems.append(f"the export has {len(rows)} rows for {expected_rows} labels uploaded")
+    for row in rows:
+        if row["status"] == "error":
+            problems.append(f"{row['filename']}: could not be processed: {row['detail'][:200]}")
+        elif row["verdict"] == "fail" and row["filename"] not in KNOWN_TRUE_POSITIVES:
+            problems.append(f"{row['filename']}: failed an approved label: {row['detail'][:200]}")
+    return problems
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -104,10 +123,12 @@ def main() -> int:
         f"{sum(r['verdict'] == 'needs_review' for r in rows)} needs review, "
         f"{len(fails)} fail, {len(errors)} error."
     )
-    if fails:
-        print("A FAIL on an approved label is a candidate false positive — investigate each:")
-        for r in fails:
-            print(f"  {r['filename']}: {r['detail'][:200]}")
+    problems = outcome_problems(rows, expected_rows=len(images))
+    if problems:
+        print("\nNOT CLEAN. A fail on an approved label is a candidate false positive:", file=sys.stderr)
+        for problem in problems:
+            print(f"  - {problem}", file=sys.stderr)
+        return 1
     return 0
 
 

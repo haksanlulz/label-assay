@@ -30,7 +30,9 @@ def read_saved_report(content: bytes, index: int) -> dict:
         return {"filename": str(item.get("filename", "Unnamed label")),
                 "checked_at": str(checked_at) if checked_at else None,
                 "app_version": app_version, "report": report}
-    except (json.JSONDecodeError, UnicodeDecodeError, ValidationError, TypeError) as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError, ValidationError, TypeError, RecursionError) as exc:
+        # RecursionError: JSON nested thousands deep. Its own message describes
+        # the interpreter's stack, which is nobody's business on a public page.
         raise ValueError("This file is not a valid LabelAssay report. Export the full JSON report and try again.") from exc
 
 

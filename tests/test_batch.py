@@ -421,6 +421,12 @@ def test_batch_keeps_rejected_files_visible_as_error_rows(
         assert by_name["empty.png"]["status"] == "error"
         assert "empty" in by_name["empty.png"]["detail"]
         assert data["summary"]["error"] == 2
+        # good.png has not been checked (run_job is stubbed out), and an
+        # unfinished batch is not exported.
+        assert c.get(f"/batch/{job_id}/export.csv").status_code == 409
+        for item in batchmod.get_job(job_id).items:
+            if item.status == "pending":
+                item.status, item.detail = "error", "stubbed: never run"
         export = c.get(f"/batch/{job_id}/export.csv").text
         assert "notes.txt" in export and "empty.png" in export
 
@@ -582,22 +588,42 @@ def test_run_job_sweeps_temp_files_when_the_job_is_cancelled(
 ) -> None:
     # A shutdown mid-batch cancels the job task; the job-level sweep must not
     # strand the remaining spooled files.
-    def slow_check(path, application, extractor, budget, recover_rotation):
-        time.sleep(0.4)
+    #
+    # The stub takes whatever run_job passes. It once named five parameters
+    # while run_job passed six, so it raised TypeError at once, every item
+    # "finished" before the cancel, and this test passed without cancelling
+    # anything (2026-11-12 audit). The events below prove an item was in
+    # flight, with its file still on disk, when the cancel landed.
+    started, release = threading.Event(), threading.Event()
+
+    def slow_check(*args, **kwargs):
+        started.set()
+        release.wait(5)
         raise AssertionError("cancelled before any item could finish")
 
     monkeypatch.setattr(batchmod, "_check_spooled", slow_check)
     files = [_spooled(tmp_path, f"l{i}.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 8) for i in range(3)]
     job = create_job([name for name, _ in files])
+    seen: dict[str, object] = {}
 
     async def scenario() -> None:
         task = asyncio.create_task(run_job(job, files, FixtureExtractor({})))
-        await asyncio.sleep(0.05)
+        for _ in range(200):
+            if started.is_set():
+                break
+            await asyncio.sleep(0.01)
+        seen["started"] = started.is_set()
+        seen["pending"] = sum(item.status == "pending" for item in job.items)
+        seen["on_disk"] = sum(path.exists() for _name, path in files)
         task.cancel()
+        release.set()
         with contextlib.suppress(asyncio.CancelledError):
             await task
 
     asyncio.run(scenario())
+    assert seen["started"] is True, "no item was in flight when the job was cancelled"
+    assert seen["pending"] == len(files)
+    assert seen["on_disk"] == len(files)
     assert not any(path.exists() for _name, path in files)
 
 
@@ -906,7 +932,9 @@ def test_job_ids_are_full_width_uuids_and_routes_still_resolve() -> None:
     int(job.id, 16)  # pure hex, no separators
     assert client.get(f"/batch/{job.id}").status_code == 200
     assert client.get(f"/batch/{job.id}/data").status_code == 200
-    assert client.get(f"/batch/{job.id}/export.csv").status_code == 200
+    # The id resolves: 409 is "this batch is still running", where an unknown id is 404.
+    assert client.get(f"/batch/{job.id}/export.csv").status_code == 409
+    assert client.get(f"/batch/{'0' * 32}/export.csv").status_code == 404
 
 
 def test_finished_jobs_evict_beyond_the_most_recent_50(monkeypatch: pytest.MonkeyPatch) -> None:

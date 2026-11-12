@@ -30,6 +30,7 @@ import asyncio
 import csv
 import io
 import logging
+import re
 import uuid
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
@@ -224,7 +225,9 @@ def parse_application_csv(data: bytes) -> dict[str, Application]:
     try:
         if not reader.fieldnames:
             return {}
-        header = [(name or "").strip().lower() for name in reader.fieldnames]
+        # "Brand Name" and "brand-name" are the same column as brand_name: a
+        # spreadsheet's header style must not silently unpair the whole file.
+        header = [re.sub(r"[\s-]+", "_", (name or "").strip().lower()) for name in reader.fieldnames]
         # Undecodable or control bytes in the header row mean a binary file, not
         # a CSV with the wrong columns — say so instead of "no filename column".
         if any("�" in name or any(ord(ch) < 32 for ch in name) for name in header):
@@ -242,6 +245,13 @@ def parse_application_csv(data: bytes) -> dict[str, Application]:
             raise ApplicationCSVError(
                 "The applications file has no 'filename' column. Expected columns: "
                 "filename, brand_name, class_type."
+            )
+        if "brand_name" not in header:
+            # Without it every brand comparison abstains and the results read
+            # as if nothing was wrong with the file.
+            raise ApplicationCSVError(
+                "The applications file has no 'brand_name' column, so no brand could be "
+                "compared. Expected columns: filename, brand_name, class_type."
             )
 
         for row in reader:

@@ -105,7 +105,7 @@ def test_warning_text_fail_reports_comparator_drift() -> None:
 
 
 def test_warning_text_abstention_is_not_claimed_live() -> None:
-    page = '<div class="alert alert--needs_review"></div><li class="finding finding--needs_review"><div class="finding__head"><span class="badge badge--needs_review">x</span><span class="finding__cite">27 CFR 16.21</span></div><p class="finding__detail">d</p></li><li class="finding finding--pass"><div class="finding__head"><span class="badge badge--pass">x</span><span class="finding__cite">27 CFR 16.22(a)(2)</span></div><p class="finding__detail">d</p></li>'
+    page = '<div class="alert alert--needs_review"></div><li class="finding finding--needs_review"><div class="finding__head"><span class="badge badge--needs_review">x</span><span class="finding__cite">27 CFR 16.21</span></div><p class="finding__detail">d</p></li><li class="finding finding--pass"><div class="finding__head"><span class="badge badge--pass">x</span><span class="finding__cite">27 CFR 16.22(a)(2)</span></div><p class="finding__detail">d</p></li><li class="finding finding--pass"><div class="finding__head"><span class="badge badge--pass">x</span><span class="finding__cite">27 CFR 5.64</span></div><p class="finding__detail">d</p></li><li class="finding finding--pass"><div class="finding__head"><span class="badge badge--pass">x</span><span class="finding__cite">27 CFR 5.65</span></div><p class="finding__detail">d</p></li>'
     problems = verify_deploy.check_problems(200, page)
     assert len(problems) == 1
     assert "16.21" in problems[0]

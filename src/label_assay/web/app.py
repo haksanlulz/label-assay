@@ -849,7 +849,7 @@ async def compare_saved(request: Request, before_file: UploadFile, after_file: U
                 raise ValueError("Each saved report must be no larger than 5 MB.")
             saved.append(read_saved_report(content, index))
         comparison = compare_reports(*saved)
-    except (ValueError, RecursionError) as exc:
+    except ValueError as exc:  # every ValueError raised above carries text written for the page
         return _error_page(request, str(exc), 422)
     finally:
         await before_file.close()
@@ -864,6 +864,11 @@ def batch_csv(job_id: str) -> Response:
     job = batchmod.get_job(job_id)
     if job is None:
         return Response("batch not found", status_code=404, media_type="text/plain")
+    if not job.finished:
+        # Same rule as the JSON export: half a batch must not leave here
+        # looking like a finished one, with pending rows and empty verdicts.
+        return Response("This batch is still running. Download the CSV when it finishes.",
+                        status_code=409, media_type="text/plain")
     # After the summary columns, one column per rulebook rule (headers are the
     # stable rule ids, in loader order): an importer reconciling hundreds of
     # applications needs the per-check grid, not just the worst finding's

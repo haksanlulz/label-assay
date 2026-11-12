@@ -133,15 +133,43 @@ def check_problems(status_code: int, page: str) -> list[str]:
             "capitals-body fixture — the deployed comparator does not behave like "
             "this tree's"
         )
+    # Every rule must have produced a finding: a rule that silently stopped
+    # running leaves a page that still reads as passing.
+    for cite in _EXPECTED_CITATIONS:
+        if cite != "16.21" and not any(cite in found for _verdict, found in findings):
+            problems.append(f"no 27 CFR {cite} finding on the result page; the rule did not run")
     for verdict, cite in findings:
         if verdict == "fail":
             problems.append(f"the deployed checker failed {cite} on a known-compliant label")
+        elif verdict == "not_evaluable" and "16.21" not in cite:
+            problems.append(
+                f"{cite} was not evaluated on a complete, legible label; the check "
+                "is not running on this instance"
+            )
         elif verdict == "needs_review" and "16.22" not in cite and "16.21" not in cite:
             problems.append(
                 f"{cite} abstained on a known-legible fixture; investigate the "
                 "instance's OCR read"
             )
     return problems
+
+
+_EXPECTED_CITATIONS = ("16.21", "16.22", "5.64", "5.65")
+
+# The README's target for one label. Enforced on the instance's own measurement,
+# which leaves the network between this machine and the host out of it.
+SPEED_TARGET_SECONDS = 5.0
+
+
+def timing_problems(measured: float | None, limit: float | None) -> list[str]:
+    """Hold the live check to the speed target. ``limit`` None switches it off."""
+    if limit is None:
+        return []
+    if measured is None:
+        return ["the result page carries no timing line, so the speed target cannot be checked"]
+    if measured > limit:
+        return [f"the instance took {measured:.1f}s to check one label, over the {limit:g}s target"]
+    return []
 
 
 def pick_probe(rows: list[dict[str, str]]) -> dict[str, str]:
@@ -175,6 +203,11 @@ def main() -> int:
     )
     parser.add_argument(
         "--timeout", type=float, default=120.0, help="seconds to allow the live check"
+    )
+    parser.add_argument(
+        "--max-seconds", type=float, default=SPEED_TARGET_SECONDS,
+        help="fail when the instance's own time for the live check exceeds this (default: the "
+             "README's 5-second target); pass 0 to report the time without enforcing it",
     )
     args = parser.parse_args()
     base_url = args.base_url or default_base_url()
@@ -224,6 +257,8 @@ def main() -> int:
                 wall = time.perf_counter() - started
                 problems += check_problems(response.status_code, response.text)
                 measured = server_elapsed(response.text)
+                if response.status_code == 200:
+                    problems += timing_problems(measured, args.max_seconds or None)
                 print(
                     f"  live check of {probe['filename']}: {wall:.1f}s round trip"
                     + (f", {measured:.1f}s on the instance" if measured is not None else "")

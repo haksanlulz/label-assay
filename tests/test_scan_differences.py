@@ -151,7 +151,7 @@ def test_a_long_list_of_differences_is_capped() -> None:
 
 
 @pytest.mark.live
-@pytest.mark.xfail(strict=False, reason=(
+@pytest.mark.xfail(strict=False, raises=AssertionError, reason=(
     "Known limit, measured 2026-11-12: the reader writes GOVERNMENT for the printed "
     "GOVERMENT, 3 of 3 on claude-haiku-4-5 with the shipped prompt, 3 of 3 with a "
     "letter-by-letter instruction added, 3 of 3 on claude-haiku-5-5. The scan note "
