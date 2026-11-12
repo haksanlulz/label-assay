@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased, 2026-11-12
+
+- The OCR engine's thread pool follows the CPUs the container may use (cgroup quota, or the visible cores), not the host's core count. `OCR_THREADS` overrides it; `/health` reports `ocr_threads`.
+- The reader no longer writes the warning twice. The second copy was sometimes a summary, which failed the scan cross-check and held a warning whose quote matched.
+- `docs/evaluation/synthetic-100-2026-11-12/`: the 100 generated labels re-scored on the current verdict logic.
+
+Not deployed.
+
 ## 0.2.0 — prepared locally, 2026-11-04
 
 - Review queue separates corrections, review findings, uncheckable checks and unreadable files.

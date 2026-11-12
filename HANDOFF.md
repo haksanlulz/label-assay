@@ -1,3 +1,20 @@
+### 2026-11-12 — Why live checks ran 7 to 8 s, and the 100 labels re-scored (Fable 5.2)
+
+Branch `speed-rescore`, three code commits on `a2160cb`. Not merged, not pushed, not deployed.
+
+- **Speed.** The OCR engine (onnxruntime under RapidOCR) sizes its thread pool from the machine's core count. In a container held to two CPUs that is one spinning thread per host core. Reproduced in the built image with `--cpus=2` on a sixteen-core machine, 11 registry labels through `/check`: median 6.9 s, longest 15.4 s, ten of eleven over 5 s. With the pool sized to the quota: median 3.5 s, longest 4.2 s, none over. OCR alone: 6.85 s a label down to 1.41 s, identical text. `extract/ocr.py` reads the cgroup quota; `OCR_THREADS` overrides; `/health` shows `ocr_threads`. The Space itself has not been timed with it, so whether the host applies a quota the same way is unproven until a deploy shows `ocr_threads: 2` and a faster check.
+- **Reader.** The reply is 0.5 s to first token and the rest generation, about 125 tokens a second; a JPEG upload changed nothing. The warning's value slot is now told to stay null (372 to 345 output tokens at the median). Local checks on the 11 registry labels: median 3.7 s and longest 4.9 s before, 3.3 s and 3.9 s after.
+- **Scored run.** `docs/evaluation/synthetic-100-2026-11-12/`: 0 false passes, 0 false fails; compliant 35 passed and 15 held, defective 37 failed and 13 held. The old request held roughly one label in five on the warning at random (18 of 100 in the first old-code run): in 13 of 40 old-style calls the reader wrote a summary in the value slot, which failed the scan cross-check though the quote matched. Two old-code runs agreed in total (27/23, 26/24) and swapped 15 labels between them; three new-code runs differ by one label.
+
+Validation: `pytest -m "not live"` 497 passed; ruff clean. The first thread commit (`5500ed2`) fails the deciding-layer import scan; `801fc6c` fixes it, so squash or keep both.
+
+Not done:
+- Deploy, then read `ocr_threads` and the check time on the Space.
+- The site figure says "Checked in 6.9 s"; retake it after a deploy.
+- The uptime probe's speed check is still a warning. Revisit once the Space's time is known.
+- The reader still corrects a misprinted word some of the time (one label of 100 moved between runs on it).
+- Live tests not run. About 770 paid reader calls were made for these measurements, 600 of them the six 100-label runs.
+
 ### 2026-11-12 — Audit with refuters, and the fixes it led to (Fable 5.2)
 
 Merged to `main` and pushed to GitHub on 2026-11-12 (owner's call, including `/review` and `/compare` going public). **Deployed on the fourth workflow run**, after the owner replaced the Space token: the Space served 0.2.0 about 50 s after the workflow went green, and `tools/verify_deploy.py` then passed against the live URL (served rulebook `d0550ba69224`, all four rules present and evaluated, 3.4 s on the instance for `label_011.png`). The misprinted filing through the live `/check`: held for review, the note names GOVERNMENT read as GOVERMENT, bold "borderline (ratio 1.25)", alcohol content compliant; that label took 8.4 s on the instance, over the 5-second target. `/review` and `/compare` answer 200; `/sample` 404. The three earlier runs: the first stopped at the dependency audit (pillow 12.3.0, fixed by moving the lock to 13.0.0 with certifi); the second failed one new test that assumed Windows behaviour for deeply nested JSON (the test was loosened, no app change); the third passed the Linux suite and failed at the push to the Space with "Invalid username or password": the `HF_TOKEN` repository secret is no longer accepted.
