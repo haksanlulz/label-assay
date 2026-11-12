@@ -17,6 +17,10 @@ on:
     - cron: "17 */6 * * *"
   workflow_dispatch:
 
+# Nothing here writes to the repository; do not inherit a wider default.
+permissions:
+  contents: read
+
 jobs:
   health:
     runs-on: ubuntu-latest
@@ -34,6 +38,10 @@ jobs:
           import json, sys
           d = json.load(sys.stdin)
           problems = []
+          # The headline too, as tools/verify_deploy.py requires: it also goes
+          # degraded when the daily budget is spent and no check can be served.
+          if d.get('status') != 'ok':
+              problems.append(f\"status: {d.get('status')} (budget: {d.get('budget')})\")
           if d.get('ocr') != 'ready':
               problems.append(f\"ocr: {d.get('ocr')}\")
           if d.get('ai_reader') != 'configured':
@@ -80,9 +88,14 @@ jobs:
           page = open("response.html", encoding="utf-8").read()
           verdict = re.search(r'class="alert alert--([a-z_]+)"', page).group(1)
           print(f"verdict marker: {verdict}")
+          # label_023 is compliant. A review is the reader or the scan
+          # abstaining, which happens; anything else is the checker being wrong
+          # about a known label, and that is what this probe is for.
+          if verdict not in ("pass", "needs_review"):
+              raise SystemExit(f"::error::the known-compliant fixture came back {verdict!r}")
           elapsed = re.search(r"Checked in ([0-9.]+)", page)
           if elapsed is None:
-              print("::warning::no 'Checked in' timing printed on the result page")
+              raise SystemExit("::error::no 'Checked in' timing on the result page; the page is not the one this probe reads")
           else:
               seconds = float(elapsed.group(1))
               print(f"checked in {seconds}s on the instance")

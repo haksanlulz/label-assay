@@ -16,6 +16,11 @@ concurrency:
   group: hf-deploy
   cancel-in-progress: true
 
+# The deploy pushes to the Space with HF_TOKEN; nothing writes to this
+# repository, so the workflow token is read-only.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -25,7 +30,10 @@ jobs:
       - name: System libraries the vision stack imports at runtime
         run: sudo apt-get update -qq && sudo apt-get install -y -qq libgl1 libglib2.0-0 libgomp1 libxcb1 libsm6 libxext6 libxrender1
       - name: Install dependencies
-        run: uv sync
+        # --locked: test what the image will run. The Dockerfile installs from
+        # uv.lock; a bare sync here may resolve newer versions and go green on
+        # packages the deployed image does not contain.
+        run: uv sync --locked
       - name: Audit dependencies for known vulnerabilities
         # Audits the lock export rather than the environment (uv venvs carry no
         # pip, which pip-audit's environment mode drives). A finding fails this

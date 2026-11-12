@@ -62,7 +62,8 @@ input[type=text], input[type=file], select, textarea {
 textarea { font-family: inherit; resize: vertical; }
 /* Script-only controls ship hidden; no display rule below may bring one back. */
 [hidden] { display: none !important; }
-input:focus, select:focus, textarea:focus, button:focus, a:focus { outline: 0.25rem solid #2491ff; outline-offset: 2px; }
+/* :focus-visible, so a mouse click on a button or link does not draw the ring a keyboard user needs. */
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 0.25rem solid #2491ff; outline-offset: 2px; }
 button {
   margin-top: 1.25rem; min-height: 44px; padding: 0.6rem 1.4rem; font-size: 1.05rem;
   font-weight: 600; color: #fff; background: var(--primary); border: 0;
@@ -136,6 +137,8 @@ form.is-busy .progress__fill { animation: progress-fill 4s ease-out forwards; }
 .chip { min-height: 44px; padding: 0.35rem 0.85rem; font-size: 0.9rem; background: #fff;
   color: var(--primary); border: 1px solid var(--primary); border-radius: 999px; cursor: pointer; }
 .chip--on { background: var(--primary); color: #fff; }
+/* Forced colours replace both of those, so the pressed chip gets a mark that survives. */
+@media (forced-colors: active) { .chip[aria-pressed="true"] { outline: 2px solid; outline-offset: -5px; } }
 .csv-link { font-weight: 600; white-space: nowrap; }
 table.results { width: 100%; border-collapse: collapse; }
 table.results th, table.results td { text-align: left; padding: 0.5rem 0.6rem;

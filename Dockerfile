@@ -36,10 +36,12 @@ RUN uv sync --frozen --no-dev
 # Drop privileges for the runtime. The process needs only read access to /app:
 # batch uploads spool through tempfile (TMPDIR, /tmp by default), the OCR
 # models ship inside the installed wheel, and nothing writes the app tree at
-# runtime. --create-home gives library caches (~/.cache) a writable landing
-# spot; the chown keeps `uv run` unsurprised by ownership regardless of the
-# build user's umask.
-RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
+# runtime. So /app stays owned by root: the code, the rulebook and the
+# environment the process runs from are not its to rewrite, whatever a
+# dependency parsing a hostile image is talked into. --create-home gives
+# library caches (~/.cache) a writable landing spot; a+rX makes the tree
+# readable whatever the build user's umask was.
+RUN useradd --create-home --uid 10001 appuser && chmod -R a+rX /app
 USER appuser
 
 EXPOSE 8080

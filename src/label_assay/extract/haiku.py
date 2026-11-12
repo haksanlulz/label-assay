@@ -90,6 +90,12 @@ class HaikuExtractor:
                 }
             ],
         )
+        # A reply cut off at the token limit, or declined, can still carry a
+        # tool call with half its fields; say what happened instead of
+        # reporting a schema error or validating a truncated transcript.
+        stop_reason = getattr(response, "stop_reason", None)
+        if stop_reason in ("max_tokens", "refusal"):
+            raise RuntimeError(f"model stopped before finishing the extraction ({stop_reason})")
         for block in response.content:
             if block.type == "tool_use":
                 try:

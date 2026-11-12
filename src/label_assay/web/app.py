@@ -177,6 +177,20 @@ _TOO_LARGE_BODY = (
 )
 
 
+_STALLED_BODY = b"The upload stopped arriving, so it was abandoned. Please try again."
+# How long a request body may go quiet, and how long it may take in all. The
+# second bound is what stops a body sent one byte at a time.
+_BODY_IDLE_SECONDS = 30.0
+_BODY_TOTAL_SECONDS = 120.0
+_BATCH_BODY_TOTAL_SECONDS = 900.0
+
+
+class _UploadStalled(MultiPartException):
+    """The request body stopped arriving. A MultiPartException so that the
+    multipart parser closes its partly written files, as it does for a
+    disconnect."""
+
+
 class _UploadLease:
     """Keep the batch admission slot until both request and job have finished."""
 
@@ -234,11 +248,30 @@ class _RequestSizeCeiling:
 
         received = 0
         exceeded = False
+        stalled = False
+        body_done = False
+        response_started = False
         error_body_sent = False
+        loop = asyncio.get_running_loop()
+        give_up_at = loop.time() + (_BATCH_BODY_TOTAL_SECONDS if is_batch else _BODY_TOTAL_SECONDS)
 
         async def bounded_receive():
-            nonlocal received, exceeded
-            message = await receive()
+            nonlocal received, exceeded, stalled, body_done
+            if body_done or lease is None:
+                # After the body, a receive waits for the client to go away;
+                # that wait is the server's to make, with no deadline.
+                return await receive()
+            # A body that stops arriving, or arrives a byte at a time, would
+            # otherwise hold its upload slot for as long as the sender liked:
+            # four such requests refused every real upload.
+            patience = min(_BODY_IDLE_SECONDS, give_up_at - loop.time())
+            try:
+                message = await asyncio.wait_for(receive(), timeout=max(patience, 0.001))
+            except asyncio.TimeoutError:
+                stalled = True
+                raise _UploadStalled("Upload stalled") from None
+            if message["type"] == "http.request" and not message.get("more_body", False):
+                body_done = True
             if message["type"] == "http.disconnect":
                 # MultiPartParser closes its partial files on this exception;
                 # its ordinary ClientDisconnect path does not do so explicitly.
@@ -253,20 +286,30 @@ class _RequestSizeCeiling:
             return message
 
         async def bounded_send(message):
-            nonlocal error_body_sent
-            if exceeded:
+            nonlocal error_body_sent, response_started
+            if exceeded or stalled:
+                status, body = (413, _TOO_LARGE_BODY) if exceeded else (408, _STALLED_BODY)
                 if message["type"] == "http.response.start":
-                    await send({"type": "http.response.start", "status": 413,
+                    response_started = True
+                    await send({"type": "http.response.start", "status": status,
                                 "headers": [(b"content-type", b"text/plain; charset=utf-8"),
-                                            (b"content-length", str(len(_TOO_LARGE_BODY)).encode())]})
+                                            (b"content-length", str(len(body)).encode())]})
                 elif message["type"] == "http.response.body" and not error_body_sent:
                     error_body_sent = True
-                    await send({"type": "http.response.body", "body": _TOO_LARGE_BODY})
+                    await send({"type": "http.response.body", "body": body})
                 return
+            if message["type"] == "http.response.start":
+                response_started = True
             await send(message)
 
         try:
             await self._app(scope, bounded_receive, bounded_send)
+        except _UploadStalled:
+            # Raised outside multipart parsing, where nothing turns it into a
+            # response. Answer here if no one has.
+            if not response_started:
+                await bounded_send({"type": "http.response.start"})
+                await bounded_send({"type": "http.response.body"})
         finally:
             if lease is not None:
                 lease.release()
@@ -318,6 +361,12 @@ async def _security_headers(request: Request, call_next):
     response = await call_next(request)
     for name, value in _SECURITY_HEADERS.items():
         response.headers[name] = value
+    # Result pages, batch data and exports carry what was read off a label and
+    # what was filed for it; none of it belongs in a shared machine's browser
+    # cache or a proxy. Static assets stay cacheable. A route that set its own
+    # policy keeps it.
+    if not request.url.path.startswith("/static/") and "cache-control" not in response.headers:
+        response.headers["Cache-Control"] = "no-store"
     return response
 
 
@@ -434,9 +483,14 @@ def health() -> dict[str, object]:
     rulebook = load_rulebook()
     settings = get_settings()
     ocr = _ocr_status()
+    spent = _BUDGET.exhausted()
     return {
         # The top-level status must not contradict the subsystem fields below.
-        "status": "ok" if ocr == "ready" and settings.anthropic_api_key else "degraded",
+        # A spent daily budget refuses every check, so it is not "ok" either.
+        # ai_reader says a key is present, not that the provider accepts it;
+        # only a real check can show that (tools/verify_deploy.py runs one).
+        "status": "ok" if ocr == "ready" and settings.anthropic_api_key and not spent else "degraded",
+        "budget": "exhausted" if spent else "available",
         "version": __version__,
         "rulebook_version": rulebook.version,
         "rulebook_rules": len(rulebook.rules),

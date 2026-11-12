@@ -11,8 +11,12 @@ import hashlib
 import importlib.resources as resources
 from functools import lru_cache
 
+from typing import Literal
+
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from label_assay.extract.base import Extraction
 
 # The closed vocabulary of match strategies the engine knows how to dispatch.
 # A rule naming anything outside this set fails to load. New strategies are
@@ -23,19 +27,43 @@ KNOWN_STRATEGIES = frozenset({"verbatim", "brand_match", "abv_consistency", "war
 
 
 class Match(BaseModel):
+    # A misspelled key ("feild", "refrence") used to be dropped without a word,
+    # leaving a rule that loaded and then never applied or crashed at verify
+    # time. Unknown keys now fail the load.
+    model_config = ConfigDict(extra="forbid")
+
     strategy: str
-    field: str | None = None       # the extraction field this rule checks
+    field: str                     # the extraction field this rule checks
     reference: str | None = None   # statutory text, for verbatim comparisons
+
+    @model_validator(mode="after")
+    def _checkable(self) -> Match:
+        if self.field not in Extraction.model_fields:
+            raise ValueError(
+                f"match.field {self.field!r} is not a field the reader extracts; "
+                f"known: {sorted(Extraction.model_fields)}"
+            )
+        if self.strategy == "verbatim" and not (self.reference or "").strip():
+            raise ValueError("a verbatim rule needs the reference text it is compared against")
+        return self
 
 
 class Rule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     id: str
     # Required, like the citation: the short plain-language name (AP headline
     # case) a finding is displayed under. A rule a person cannot name at a
     # glance cannot load.
     title: str = Field(min_length=1)
     citation: str = Field(min_length=1)  # required: an uncited rule cannot load
-    beverage_classes: list[str]
+    # "all", or the classes infer_beverage_class can return. A rule listing
+    # none, or a class that does not exist, would load and never run.
+    beverage_classes: list[Literal["all", "spirits", "wine", "malt"]] = Field(min_length=1)
+    # Every shipped rule says "fail", and nothing reads it: what a finding's
+    # verdict is, the matcher decides. Declared so the key is accepted and so a
+    # different value is refused instead of silently meaning nothing.
+    severity: Literal["fail"] = "fail"
     description: str
     match: Match
 
@@ -74,5 +102,16 @@ def load_rulebook() -> Rulebook:
 
     if not rules:
         raise ValueError("rulebook is empty — no rules loaded from rules/*.yaml")
+    require_unique_ids(rules)
 
     return Rulebook(rules=rules, version=hasher.hexdigest()[:12])
+
+
+def require_unique_ids(rules: list[Rule]) -> None:
+    """Rule ids key the CSV grid, saved reports and comparisons; two rules
+    sharing one would overwrite each other there."""
+    seen: set[str] = set()
+    for rule in rules:
+        if rule.id in seen:
+            raise ValueError(f"rule id {rule.id!r} appears more than once in the rulebook")
+        seen.add(rule.id)

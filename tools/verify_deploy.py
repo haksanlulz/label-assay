@@ -228,7 +228,13 @@ def main() -> int:
             if health.status_code != 200:
                 problems.append(f"GET /health returned {health.status_code}, expected 200")
             else:
-                payload = health.json()
+                try:
+                    payload = health.json()
+                except ValueError:
+                    # A host's "building" or "sleeping" page answers 200 with HTML.
+                    payload = {}
+                    problems.append("GET /health answered 200 with a body that is not JSON; "
+                                    "the host is serving its own page, not the app")
                 problems += health_problems(payload, expected)
                 print(
                     f"  instance {payload.get('instance')!r}, "

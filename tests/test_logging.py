@@ -143,8 +143,9 @@ def test_completed_check_logs_one_phase_timing_line_with_no_user_data(
 def test_bold_check_failure_is_logged_and_degrades(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    # A cv2/numpy regression must degrade the 16.22 bold check to NOT_EVALUABLE
-    # (never sink a verdict) — but not silently, or the dead check is invisible.
+    # A cv2/numpy regression must not sink the report, and must not vanish: the
+    # 16.22 bold check is held for a person (a not-evaluated finding would not
+    # block a pass), and the crash is logged or the dead check is invisible.
     import label_assay.match.bold as boldmod
     from label_assay.extract.ocr import OcrLine
     from label_assay.rulebook.loader import load_rulebook
@@ -163,6 +164,6 @@ def test_bold_check_failure_is_logged_and_degrades(
     )
     with caplog.at_level(logging.ERROR, logger="label_assay.verify.engine"):
         finding = engmod._match_warning_bold(rule, ctx)
-    assert finding.verdict == Verdict.NOT_EVALUABLE
+    assert finding.verdict == Verdict.NEEDS_REVIEW
     record = next(r for r in caplog.records if "warning_bold" in r.getMessage())
     assert record.exc_info is not None

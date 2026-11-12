@@ -9,5 +9,11 @@ fixtures/
 tests/
 tools/
 docs/
+dist/
+artifacts/
+.claude/
+.coverage
+.hypothesis/
+*.log
 .env
 *.md

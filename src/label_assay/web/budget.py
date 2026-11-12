@@ -48,6 +48,13 @@ class DailyBudget:
     def spent_usd(self) -> float:
         return self._spent_usd
 
+    def exhausted(self, *, today: dt.date | None = None) -> bool:
+        """Would the next label be refused? Spends nothing; for /health."""
+        today = today or dt.date.today()
+        with self._lock:
+            spent = self._spent_usd if self._day == today else 0.0
+            return not (spent + EST_COST_PER_LABEL_USD <= self.limit_usd)
+
     def reserve(self, *, today: dt.date | None = None) -> None:
         """Account for one label, or raise if it would exceed today's limit."""
         today = today or dt.date.today()

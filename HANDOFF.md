@@ -14,11 +14,28 @@ Then an audit: five read-only lanes (readers, deciding layer, server, pages, too
 
 Validation: `pytest -m "not live"` 448 passed; ruff clean; offline gate 14 cases / 56 decisions unchanged; browser check passes in three engines. The new added-words hold fires on 0 of 20 committed labels whose statement scans exactly. Nine paid reader calls during the reader experiments.
 
+Second round, same day, same branch (reproduced red at `2cf4862`: 17 of 29 tests):
+
+- A crash inside the bold check is held for review; it used to be "not evaluated", which does not block a pass.
+- Beverage class is read from whole words with spirit words first (`Porter` was wine, `Imported Vodka` was wine, `Single Malt Scotch Whisky` was malt). No verdict changes today: every shipped rule applies to all classes.
+- The rulebook loader refuses unknown keys, a field the reader does not extract, a verbatim rule without reference text, an unknown or empty class list, and duplicate ids. The shipped rulebook loads unchanged, version `d0550ba69224`.
+- `/health` reports `budget` and goes degraded when the day's budget is spent. `ai_reader` still means a key is present, not that it works.
+- A request body that stops arriving, or arrives a byte at a time, is abandoned with 408 and gives its upload slot back (30 s idle; 120 s in all, 900 s for a batch).
+- The container's `/app` is owned by root. Built and run locally: starts, OCR ready, uid 10001, cannot write `/app/src` or `/app/.venv`, can write `/tmp` and its home.
+- Pages and JSON carrying label data are sent `Cache-Control: no-store`; static assets are not. Each page has its own title; focus rings use `:focus-visible`; the pressed filter chip is marked under forced colours; comparison headers carry `scope`.
+- The reader names a reply cut off at the token limit or declined, instead of reporting a schema error.
+- Workflows: both declare `permissions: contents: read`; the deploy gate installs with `--locked`; the uptime probe requires the headline status, fails on a verdict other than pass or review for its compliant fixture, and fails when the timing line is missing. These three files were parsed, not run.
+
+Validation after round two: `pytest -m "not live"` 481 passed; ruff clean; offline gate unchanged; `uv lock --check` clean; the browser check passes again in all three engines.
+
 Not done:
-- The 2026-11-10 scored run describes `c515dc3`. The verdict logic has changed since (two new holds, one fail turned into a hold); the 100 labels have not been re-run on it.
+- The 2026-11-10 scored run describes `c515dc3`. The verdict logic has changed since (three new holds, one fail turned into a hold); the 100 labels have not been re-run on it.
 - The live tests were not run after the change that makes a rejected key fail them.
-- CI files, unprovable locally: `hf-deploy.yml` goes green without waiting for the Space or running `verify_deploy.py`; `uptime.yml` accepts any verdict and only warns on speed; the deploy gate's `uv sync` is not `--locked`.
-- About 85 confirmed findings are untouched, most low severity: beverage class inferred from substrings, the rulebook loader ignoring unknown keys, `/health` reporting ok with the budget spent, no rate limit on the paid route, container hardening, page semantics. The full list with both refuters' notes is outside this repo.
+- `hf-deploy.yml` still goes green on the push without waiting for the Space. Closing that needs `/health` to name the build it is serving; the rulebook version alone cannot tell a new build from the old one still answering.
+- The uptime probe's speed check is still a warning: the first model call after an idle stretch has measured 8.9 s, so a hard limit there would page on a known condition.
+- The README calls `/review` and `/compare` local candidates, and they are mounted unconditionally; the next push to main deploys them. Gate them or change the README: an owner's call.
+- No rate limit on the paid `/check` route beyond the daily budget.
+- About 60 confirmed findings are untouched, nearly all low severity. The full list with both refuters' notes is outside this repo.
 - README line on code size is still the older dated figure.
 
 ### 2026-11-10 — A 100-label scored run with a kept ledger (Fable 5.2)

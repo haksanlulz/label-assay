@@ -19,6 +19,7 @@ Two safety layers wrap the matchers:
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -44,11 +45,29 @@ class VerifyContext:
     image: bytes | None = None
 
 
+_SPIRIT_WORDS = frozenset({
+    "whisky", "whiskey", "whiskies", "bourbon", "scotch", "vodka", "gin", "rum", "tequila", "mezcal",
+    "brandy", "cognac", "pisco", "grappa", "liqueur", "cordial", "schnapps", "spirits",
+})
+_WINE_WORDS = frozenset({"wine", "port", "sherry", "vermouth", "madeira", "champagne", "cider", "mead", "sake"})
+_MALT_WORDS = frozenset({"beer", "ale", "lager", "porter", "stout", "malt", "pilsner", "pils"})
+
+
 def infer_beverage_class(class_type: str | None) -> str:
-    t = (class_type or "").lower()
-    if any(w in t for w in ("wine", "port", "sherry", "vermouth", "madeira", "champagne")):
+    """spirits, wine or malt, from whole words of the class and type.
+
+    Whole words, because "port" is inside "Porter" and "Imported", and "ale"
+    inside most of the dictionary. Spirit words win, because spirits are
+    routinely described by what they were made from or aged in: "Single Malt
+    Scotch Whisky", "Sherry Cask Bourbon". Unrecognised text is spirits, the
+    class whose rules (part 5) this rulebook was written from."""
+    words = set(re.findall(r"[a-z]+", (class_type or "").lower()))
+    words |= {word[:-1] for word in words if word.endswith("s")}
+    if words & _SPIRIT_WORDS:
+        return "spirits"
+    if words & _WINE_WORDS:
         return "wine"
-    if any(w in t for w in ("beer", "ale", "lager", "porter", "stout", "malt")):
+    if words & _MALT_WORDS:
         return "malt"
     return "spirits"
 
@@ -221,13 +240,16 @@ def _match_warning_bold(rule: Rule, ctx: VerifyContext) -> Finding:
 
         result = check_warning_bold(ctx.image, ctx.ocr_lines)
     except Exception:
-        # A vision-library failure degrades this one check; it never sinks a
-        # verdict. Logged because a silent degrade would also hide a permanent
-        # regression — a dead regulatory check looks identical to a hard image.
-        logging.getLogger(__name__).exception(
-            "warning_bold check failed; degrading to NOT_EVALUABLE"
+        # A vision-library failure must not sink the whole report, and must not
+        # vanish either: NOT_EVALUABLE does not block a pass, so a check that
+        # crashed would let a label through with its heading's weight never
+        # looked at. A person looks instead. Logged because a silent degrade
+        # would also hide a permanent regression.
+        logging.getLogger(__name__).exception("warning_bold check failed; holding for review")
+        return _finding(
+            rule, Verdict.NEEDS_REVIEW,
+            "The heading's boldness could not be measured on this image, so a person should check it.",
         )
-        return _finding(rule, Verdict.NOT_EVALUABLE, "Boldness could not be checked on this image.")
 
     mapping = {
         BoldVerdict.BOLD_OK: Verdict.PASS,
