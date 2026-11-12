@@ -199,4 +199,9 @@ def test_compare_does_not_show_interpreter_internals() -> None:
     assert response.status_code == 422
     assert "Stack overflow" not in response.text
     assert "recursion" not in response.text.lower()
-    assert "not a valid LabelAssay report" in response.text
+    # Which of the two written messages appears depends on the interpreter:
+    # where the decoder gives up on the nesting the file is "not a valid
+    # report"; where it parses, the file is a list and not a report export.
+    # Either is text written for the page.
+    assert ("not a valid LabelAssay report" in response.text
+            or "Choose a LabelAssay full-report JSON export" in response.text)
