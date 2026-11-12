@@ -17,6 +17,7 @@ this runs on. It is a cost bound, not an authorization mechanism.
 from __future__ import annotations
 
 import datetime as dt
+import math
 import threading
 from dataclasses import dataclass, field
 
@@ -37,6 +38,12 @@ class DailyBudget:
     # atomic or concurrent reserves race past the daily bound.
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
+    def __post_init__(self) -> None:
+        # NaN compares False against everything, so a limit that is not a
+        # number would never refuse a label. Refuse to start instead.
+        if not math.isfinite(self.limit_usd) or self.limit_usd < 0:
+            raise ValueError(f"the daily budget must be a finite, non-negative number, not {self.limit_usd!r}")
+
     @property
     def spent_usd(self) -> float:
         return self._spent_usd
@@ -47,7 +54,8 @@ class DailyBudget:
         with self._lock:
             if self._day != today:  # a new day resets the tally
                 self._day, self._spent_usd = today, 0.0
-            if self._spent_usd + EST_COST_PER_LABEL_USD > self.limit_usd:
+            # Written so that a comparison that cannot be made refuses.
+            if not (self._spent_usd + EST_COST_PER_LABEL_USD <= self.limit_usd):
                 raise BudgetExhausted(
                     "This server has reached its daily limit for automated label reading. "
                     "Try again tomorrow."

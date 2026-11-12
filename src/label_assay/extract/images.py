@@ -138,4 +138,32 @@ def open_bounded(image: bytes) -> Image.Image:
     # After the size gate, so an oversized image is still rejected on its
     # header alone; in_place leaves an untagged image lazy and uncopied.
     ImageOps.exif_transpose(img, in_place=True)
+    return _plain(img)
+
+
+_DEEP_MODES = frozenset({"I", "F", "I;16", "I;16L", "I;16B", "I;16N"})
+
+
+def _plain(img: Image.Image) -> Image.Image:
+    """Eight bits a channel and no transparency, which is what every consumer
+    of a decode assumes. Pillow's own conversions get both cases wrong for a
+    label: a 16-bit grayscale scan is clipped at 255 and comes out blank, and
+    an alpha channel is dropped rather than composited, so artwork on a
+    transparent background comes out black. Ordinary images pass through
+    untouched and still lazy."""
+    if img.mode in _DEEP_MODES:
+        import numpy as np
+
+        values = np.asarray(img, dtype=np.float64)
+        low, high = float(values.min()), float(values.max())
+        if high > 65535 or low < 0:      # float or 32-bit data: stretch what is there
+            values = (values - low) * (255.0 / max(high - low, 1e-9))
+        elif high > 255:                 # 16-bit samples
+            values = values / 257.0
+        return Image.fromarray(values.round().clip(0, 255).astype(np.uint8))
+    if img.mode in ("RGBA", "LA", "PA") or "transparency" in img.info:
+        layer = img.convert("RGBA")
+        paper = Image.new("RGBA", layer.size, (255, 255, 255, 255))
+        paper.alpha_composite(layer)
+        return paper.convert("RGB")
     return img

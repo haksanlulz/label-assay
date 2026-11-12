@@ -7,6 +7,7 @@ real environment variable (the host's secret store); .env is a dev convenience.
 
 from __future__ import annotations
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,7 +15,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     anthropic_api_key: str | None = None
-    daily_budget_usd: float = 5.0
+    daily_budget_usd: float = Field(5.0, ge=0, allow_inf_nan=False)
     haiku_model: str = "claude-haiku-4-5-20251001"
 
 
