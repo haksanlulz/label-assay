@@ -20,10 +20,11 @@ from rapidfuzz.distance import Levenshtein
 from label_assay.extract.base import Extraction
 from label_assay.extract.ocr import OcrLine
 from label_assay.text.normalize import squash as _squash
+from label_assay.text.numbers import decimal_commas
 
 _SUPPORT_FLOOR = 0.60  # below this, the model's quote is not corroborated by OCR
 _FIELDS = tuple(Extraction.model_fields)
-_NUMBER = re.compile(r"(?<![\d.])(\d+(?:\.\d+)?)(?![\d.])\s*(%|percent\b|proof\b)?", re.I)
+_NUMBER = re.compile(r"(?<![\d.,])(\d+(?:\.\d+)?)(?![\d.]|,\d)\s*(%|percent\b|proof\b)?", re.I)
 
 
 def ocr_is_alive(lines: list[OcrLine]) -> bool:
@@ -55,6 +56,27 @@ def corroborates_exactly(reference: str, ocr_lines: list[OcrLine]) -> bool:
     contain the statute itself."""
     target = _squash(reference)
     return bool(target) and target in _squash(" ".join(line.text for line in ocr_lines))
+
+
+def statement_shares_its_lines(reference: str, ocr_lines: list[OcrLine]) -> bool:
+    """Do the scan lines that hold ``reference`` also hold text outside it?
+
+    Exact corroboration is containment, and containment is satisfied by a
+    statement with a word put in front of it or after it. Judged per scan line
+    rather than over the joined read: whatever is printed on the lines above
+    and below the statement is the rest of the label, not an addition to it.
+    False when the scan does not contain the statement at all."""
+    target = _squash(reference)
+    pieces = [_squash(line.text) for line in ocr_lines]
+    at = "".join(pieces).find(target)
+    if not target or at < 0:
+        return False
+    end, offset = at + len(target), 0
+    for piece in pieces:
+        start, offset = offset, offset + len(piece)
+        if start < end and offset > at and (start < at or offset > end):
+            return True
+    return False
 
 
 def corroborates_heading_capitals(reference: str, ocr_lines: list[OcrLine]) -> bool:
@@ -101,11 +123,18 @@ def scan_differences(reference: str, ocr_lines: list[OcrLine]) -> list[tuple[str
         spans.append((len(target), len(target) + len(folded)))
         target += folded
     # Reading order interleaves the statement with whatever is printed beside
-    # it (a seal, a certifier's mark). Keep only the lines whose text is found
-    # in the statement; a line of the statement with a changed word still is.
-    own = [line.text for line in ocr_lines
-           if len(_alnum(line.text)[0]) >= _LINE_MIN
-           and fuzz.partial_ratio(_alnum(line.text)[0], target) >= _LINE_FLOOR]
+    # it (a seal, a certifier's mark). Keep only the lines at least four-fifths
+    # alike to some stretch of the statement: a long line with one changed word
+    # stays, a short line that was mostly rewritten does not and is reported as
+    # unread. A line wholly contained in another kept line is a second copy
+    # (a rotation retry, a statement printed twice) and would be aligned as an
+    # insertion, so it goes too.
+    kept = [(line.text, _alnum(line.text)[0]) for line in ocr_lines]
+    kept = [(text, folded) for text, folded in kept
+            if len(folded) >= _LINE_MIN and fuzz.partial_ratio(folded, target) >= _LINE_FLOOR]
+    own = [text for i, (text, folded) in enumerate(kept)
+           if not any(i != j and folded in other and (len(other) > len(folded) or j < i)
+                      for j, (_, other) in enumerate(kept))]
     blob, printed = _alnum(" ".join(own))
     if len(words) < 2 * _ANCHOR_WORDS or len(blob) < len(target) // 2:
         return []
@@ -143,7 +172,13 @@ def scan_differences(reference: str, ocr_lines: list[OcrLine]) -> list[tuple[str
         if group and index != group[-1] + 1:
             first, last = spans[group[0]][0], spans[group[-1]][1]
             expected = " ".join(words[i].strip(".,:;()") for i in group)
-            out.append((expected, shown[starts[first]:ends[last]]))
+            found = shown[starts[first]:ends[last]]
+            if len(found) > 3 * (last - first) + 12:
+                # Far more text than the words it stands for: the alignment
+                # has swallowed something that is not this statement. Say
+                # nothing rather than attribute it to these words.
+                return []
+            out.append((expected, found))
             group = []
         group.append(index)
     return out
@@ -163,7 +198,7 @@ def _numeric_evidence(asserted: str, ocr_text: str) -> bool:
             result.append((Decimal(match.group(1)), "%" if unit == "percent" else unit))
         return result
 
-    expected, actual = tokens(asserted), tokens(ocr_text)
+    expected, actual = tokens(decimal_commas(asserted)), tokens(decimal_commas(ocr_text))
     if not expected:
         return True
     for start in range(len(actual) - len(expected) + 1):

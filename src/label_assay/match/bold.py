@@ -216,10 +216,13 @@ def is_warning_heading(text: str) -> bool:
     letter or two in GOVERNMENT, because a misprinted or misread heading still
     has a weight to measure — its spelling is the wording check's business."""
     squashed = re.sub(r"[^a-z0-9]", "", text.casefold())
-    at = squashed.find("warning")
-    if at < 8:
-        return False
-    return max(fuzz.ratio("government", squashed[at - width:at]) for width in (9, 10, 11) if at >= width) >= 80
+    # Every "warning" on the line, not only the first: an allergen notice can
+    # sit ahead of the statement in one scan line.
+    return any(
+        fuzz.ratio("government", squashed[at - width:at]) >= 80
+        for at in (m.start() for m in re.finditer("warning", squashed))
+        for width in (8, 9, 10, 11) if at >= width
+    )
 
 
 def check_warning_bold(image: bytes, ocr_lines) -> BoldFinding:

@@ -32,7 +32,7 @@ from label_assay.text.numbers import read_alcohol_content
 from label_assay.text.normalize import canon_brand
 from label_assay.verify.confidence import (
     corroborates_exactly, corroborates_heading_capitals, ocr_is_alive, scan_differences,
-    unconfirmed_fields,
+    statement_shares_its_lines, unconfirmed_fields,
 )
 
 
@@ -115,6 +115,27 @@ def _match_warning_verbatim(rule: Rule, ctx: VerifyContext) -> Finding:
                 rule, Verdict.NEEDS_REVIEW,
                 "The independent scan did not confirm the warning heading's required "
                 "capital letters, so a person should verify them.",
+            )
+        if statement_shares_its_lines(reference, ctx.ocr_lines):
+            # The statute is on the label, and so is something else, on the
+            # same printed line: an added word reads exactly like this.
+            return _finding(
+                rule, Verdict.NEEDS_REVIEW,
+                "Both reads contain the mandated warning, but the scan found other text on "
+                "the same line as the statement, so a person should check nothing was added to it.",
+            )
+    if result.verdict in (WarningVerdict.ALTERED, WarningVerdict.CAPITALIZATION) and ctx.ocr_lines is not None:
+        # The mirror of the recitation defense: the reader's transcript is not
+        # evidence enough to fail a label the scan read correctly. A slipped
+        # letter or a title-cased heading in the transcript is the reader's.
+        if (corroborates_exactly(reference, ctx.ocr_lines)
+                and corroborates_heading_capitals(reference, ctx.ocr_lines)):
+            return _finding(
+                rule, Verdict.NEEDS_REVIEW,
+                "The reader's transcription differs from the mandated warning, but an "
+                "independent scan read the mandated statement word-for-word, so a person "
+                "should verify it. What the reader reported is listed below.",
+                result.diff,
             )
     return _finding(rule, verdict, result.detail, result.diff)
 
@@ -254,7 +275,9 @@ def verify(
             continue
         finding = matcher(rule, ctx)
         if rule.match.field in unconfirmed and finding.verdict in (Verdict.PASS, Verdict.FAIL):
-            finding = _finding(rule, Verdict.NEEDS_REVIEW, finding.detail + review_note)
+            # Held, not erased: the differences the reader reported stay with
+            # the finding for whoever reviews it.
+            finding = _finding(rule, Verdict.NEEDS_REVIEW, finding.detail + review_note, tuple(finding.diff))
         findings.append(finding)
 
     verdicts = {f.verdict for f in findings}

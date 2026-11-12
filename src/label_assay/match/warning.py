@@ -66,7 +66,11 @@ def compare_warning(found_text: str | None, reference: str) -> WarningFinding:
         return WarningFinding(WarningVerdict.ABSENT, "No Government Warning text was found.")
 
     ref = canon_statutory(reference)
-    got = canon_statutory(found_text)
+    if len(ref.split()) < 3:
+        raise ValueError("the warning reference must carry a heading and a statement")
+    # A transcript wrapped in quotation marks is the reader's punctuation, not
+    # the label's; the statement itself begins and ends with a letter or stop.
+    got = canon_statutory(found_text).strip("\"'` ")
 
     ref_words = ref.split()
     ref_heading, ref_body = " ".join(ref_words[:2]), " ".join(ref_words[2:])

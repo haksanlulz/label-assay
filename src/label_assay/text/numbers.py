@@ -13,20 +13,32 @@ from decimal import Decimal, InvalidOperation
 # "45% Alc./Vol.", "13.5% ALC BY VOL", "5.5% alc/vol". The lookbehind keeps a
 # longer digit run from matching by truncation: without it, the "00%" inside
 # "TEQUILA 100% AGAVE" parses as ABV 0 and the real "40%" is never reached.
-_ABV_PCT = re.compile(r"(?<![\d.])(?P<abv>[+-]?\d{1,2}(?:\.\d+)?)\s*%")
+_ABV_PCT = re.compile(r"(?<![\d.,])(?P<abv>[+-]?\d{1,2}(?:\.\d+)?)\s*%")
 # Longer percentages are normally marketing ("100% DE AGAVE"), but an explicit
 # alcohol unit makes even an out-of-range number a claim we must not discard.
 _ABV_EXPLICIT_PCT = re.compile(
-    r"(?<![\d.])(?P<abv>[+-]?\d+(?:\.\d+)?)\s*%\s*(?:alc(?:ohol)?\b|abv\b)",
+    r"(?<![\d.,])(?P<abv>[+-]?\d+(?:\.\d+)?)\s*%\s*(?:alc(?:ohol)?\b|abv\b)",
     re.IGNORECASE,
 )
 _ABV_EXPLICIT_MARKER = re.compile(r"%\s*(?:alc(?:ohol)?\b|abv\b)", re.IGNORECASE)
 # "ALCOHOL 40 PERCENT BY VOLUME" (no percent sign)
 _ABV_WORD = re.compile(r"alc(?:ohol)?\.?\s*(?P<abv>[+-]?\d+(?:\.\d+)?)\s*percent", re.IGNORECASE)
 _ABV_WORD_MARKER = re.compile(r"alc(?:ohol)?\.?\s*\S+?\s*percent\b", re.IGNORECASE)
-_PROOF = re.compile(r"(?<![\d.+-])(?P<proof>\d{1,3}(?:\.\d+)?)\s*proof\b", re.IGNORECASE)
+_PROOF = re.compile(r"(?<![\d.,+-])(?P<proof>\d{1,3}(?:\.\d+)?)\s*proof\b", re.IGNORECASE)
 # Permit joined OCR such as "80PROOF", but not ordinary words such as waterproof.
 _PROOF_MARKER = re.compile(r"(?<![a-z])proof(?![a-z])", re.IGNORECASE)
+
+
+# "11,5% vol", "40,0% ALC/VOL": the decimal comma of most imported labels. Only
+# a comma between digits whose fraction runs straight into the unit is a
+# decimal; "1,000 PROOF" is left alone, and the lookbehinds above keep its tail
+# from being read as a number of its own.
+_DECIMAL_COMMA = re.compile(r"(?<=\d),(?=\d{1,2}\s*(?:%|percent\b|proof\b))", re.IGNORECASE)
+
+
+def decimal_commas(text: str) -> str:
+    """Rewrite decimal commas in alcohol claims as points."""
+    return _DECIMAL_COMMA.sub(".", text)
 
 
 @dataclass(frozen=True)
@@ -70,6 +82,7 @@ def read_alcohol_content(text: str | None) -> AlcoholReading:
     unreadable_proof = "a proof claim could not be read as a number"
     if not text:
         return AlcoholReading(None)
+    text = decimal_commas(text)
     explicit = list(_ABV_EXPLICIT_PCT.finditer(text))
     words = list(_ABV_WORD.finditer(text))
     if (len(explicit) != len(_ABV_EXPLICIT_MARKER.findall(text)) or
