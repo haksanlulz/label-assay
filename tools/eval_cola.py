@@ -25,7 +25,7 @@ engine, and the export all sit in the measured path.
 httpx is a dev-group dependency (it ships for the test client), so this script
 runs under the dev environment: `uv run` from the repo root provides it.
 
-Run:  uv run python tools/eval_cola.py --base-url http://127.0.0.1:8000
+Run:  uv run python tools/eval_cola.py --base-url http://127.0.0.1:8001
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ def outcome_problems(rows: list[dict[str, str]], expected_rows: int) -> list[str
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base-url", default="http://127.0.0.1:8000")
+    parser.add_argument("--base-url", default="http://127.0.0.1:8001")
     parser.add_argument("--fixtures", type=Path, default=FIXTURES)
     parser.add_argument("--timeout", type=float, default=900.0, help="seconds to wait for the batch")
     args = parser.parse_args()

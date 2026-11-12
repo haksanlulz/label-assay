@@ -88,10 +88,10 @@ Results go to ignored `artifacts/evaluation/results.json` and `summary.md`, with
 ```
 uv sync
 cp .env.example .env          # then add an ANTHROPIC_API_KEY
-uv run uvicorn label_assay.web.app:app --reload
+uv run uvicorn label_assay.web.app:app --reload --port 8001
 ```
 
-Open <http://127.0.0.1:8000>. Health at `/health`, batch at `/batch`. Batch results export as a CSV that carries, after the per-label summary columns, one verdict column per rulebook rule (headers are the rule ids), with an empty cell where a rule produced no finding for that label. The single-label form has a "Label image is rotated" select for sideways or upside-down scans: the image is straightened once before it's read, and the result page echoes the straightened image that was judged. The batch form has a "Retry sideways reads" checkbox, on by default: a label whose government warning isn't found upright is re-read rotated, up to three extra read passes for that label, and unchecking it trades that recovery for maximum throughput.
+Open <http://127.0.0.1:8001>. Health at `/health`, batch at `/batch`. Batch results export as a CSV that carries, after the per-label summary columns, one verdict column per rulebook rule (headers are the rule ids), with an empty cell where a rule produced no finding for that label. The single-label form has a "Label image is rotated" select for sideways or upside-down scans: the image is straightened once before it's read, and the result page echoes the straightened image that was judged. The batch form has a "Retry sideways reads" checkbox, on by default: a label whose government warning isn't found upright is re-read rotated, up to three extra read passes for that label, and unchecking it trades that recovery for maximum throughput.
 
 Application CSVs must be UTF-8, with one row per image and unique column names. Filename pairing ignores folders and capitalization, so `labels/A.PNG` and `a.png` collide; duplicate CSV rows or uploaded filenames are rejected before a job starts. Duplicate columns, invalid UTF-8, and extra unquoted cells also produce an actionable error instead of silently changing the application data. Fields containing commas must be quoted.
 

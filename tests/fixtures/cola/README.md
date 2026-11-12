@@ -46,4 +46,4 @@ What remains, by class:
 - **Correlated misread, fails closed** (`cola_24100001000210`, Andechs): the warning is printed correctly in an ultra-condensed face at low scan resolution, and *both* reading channels misread the same glyphs. Two channels are not independent when the failure is glyph-level legibility; the result oscillates between a wording fail and a review across runs, and never a false pass. This is the corpus's standing demonstration of the design's epistemic limit.
 - **Stylized letterforms** (`cola_24093001000375`, the V-diamond-DKA "7" mark): the reader's brand read varies run to run ("vodka 7", "vodka"), redistributing the row between review and fail. Reader variance on decorative marks, not a comparator defect.
 
-Run the evaluation against a running instance: `uv run python tools/eval_cola.py --base-url http://127.0.0.1:8000` (see the script's docstring). `tests/test_cola_corpus.py` checks corpus integrity offline.
+Run the evaluation against a running instance: `uv run python tools/eval_cola.py --base-url http://127.0.0.1:8001` (see the script's docstring). `tests/test_cola_corpus.py` checks corpus integrity offline.
