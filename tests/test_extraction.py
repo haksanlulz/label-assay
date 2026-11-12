@@ -149,3 +149,17 @@ def test_haiku_extracts_expected_fields_from_fixture_label() -> None:
     painted_abv = parse_alcohol_content(SPEC.alcohol_text)
     assert painted_abv is not None
     assert str(painted_abv.abv) in (result.alcohol_content.verbatim or "")
+
+
+def test_only_the_warning_is_told_not_to_repeat_its_quote() -> None:
+    """The warning is judged on its quote, so a second copy in the value slot
+    is output the reviewer waits for and nothing reads."""
+    from label_assay.extract import haiku
+
+    fields =haiku._TOOL["input_schema"]["properties"]
+    assert "Always null" in fields["government_warning"]["properties"]["value"]["description"]
+    for name in ("brand_name", "class_type", "alcohol_content", "net_contents"):
+        assert fields[name] is haiku._FIELD_SCHEMA
+    # The shared schema is not mutated, and the warning still requires all three parts.
+    assert "Always null" not in haiku._FIELD_SCHEMA["properties"]["value"]["description"]
+    assert fields["government_warning"]["required"] == ["verbatim", "found", "value"]

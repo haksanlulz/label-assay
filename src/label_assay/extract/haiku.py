@@ -40,13 +40,30 @@ _FIELD_SCHEMA = {
     },
     "required": ["verbatim", "found", "value"],
 }
+# The warning is judged on its quote alone (verify/engine.py), and the quote is
+# the longest thing the model writes. Asked for a value too, it usually wrote
+# the statement out a second time: measured on the 11 registry labels, 372
+# output tokens at the median against 345 without, and the reply's time is
+# almost all generation. So this one field's value slot is told to stay null.
+_WARNING_SCHEMA = {
+    **_FIELD_SCHEMA,
+    "properties": {
+        **_FIELD_SCHEMA["properties"],
+        "value": {
+            "type": ["string", "null"],
+            "description": "Always null for this field: the verbatim quote is the value. Do not repeat it.",
+        },
+    },
+}
 _FIELDS = tuple(Extraction.model_fields)
 _TOOL = {
     "name": "record_label_fields",
     "description": "Record the mandatory fields visible on the alcohol beverage label.",
     "input_schema": {
         "type": "object",
-        "properties": {name: _FIELD_SCHEMA for name in _FIELDS},
+        "properties": {
+            name: _WARNING_SCHEMA if name == "government_warning" else _FIELD_SCHEMA for name in _FIELDS
+        },
         "required": list(_FIELDS),
     },
 }
