@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     daily_budget_usd: float = Field(5.0, ge=0, allow_inf_nan=False)
     haiku_model: str = "claude-haiku-4-5-20251001"
+    # Threads for one OCR inference. 0 means the CPUs the process can use,
+    # container quota included (see extract/ocr.py).
+    ocr_threads: int = Field(0, ge=0)
 
 
 def get_settings() -> Settings:

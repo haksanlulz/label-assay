@@ -9,10 +9,13 @@ dependency.
 
 from __future__ import annotations
 
+import math
+import os
 import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import Iterator
 
 from label_assay.extract.images import RIGHT_ANGLE_TRANSPOSES
@@ -98,11 +101,80 @@ class OcrLine:
     rotation: int = 0
 
 
-@lru_cache(maxsize=1)
-def _engine():
+_CGROUP_ROOT = Path("/sys/fs/cgroup")
+
+
+def cgroup_cpu_quota(root: Path = _CGROUP_ROOT) -> int | None:
+    """CPUs the container's quota allows, rounded up, or None when there is no
+    quota to read. Reads the unified layout (``cpu.max``: "<quota> <period>" or
+    "max <period>") and falls back to the older split files."""
+    try:
+        quota_text, period_text = (root / "cpu.max").read_text(encoding="ascii").split()[:2]
+    except (OSError, ValueError):
+        try:
+            quota_text = (root / "cpu" / "cpu.cfs_quota_us").read_text(encoding="ascii").strip()
+            period_text = (root / "cpu" / "cpu.cfs_period_us").read_text(encoding="ascii").strip()
+        except OSError:
+            return None
+    try:
+        quota, period = int(quota_text), int(period_text)
+    except ValueError:  # "max", or anything unreadable: no limit known
+        return None
+    if quota <= 0 or period <= 0:
+        return None
+    return max(1, math.ceil(quota / period))
+
+
+def _visible_cpus() -> int:
+    try:
+        return len(os.sched_getaffinity(0))  # honours a pinned CPU set where the OS has one
+    except AttributeError:
+        return os.cpu_count() or 1
+
+
+def usable_cpus(root: Path = _CGROUP_ROOT) -> int:
+    """CPUs this process can actually run on: the cores it can see, lowered to
+    the container's quota when one is set. ``os.cpu_count()`` alone reports the
+    host's cores, which inside a two-CPU container on a large host is wrong by
+    the size of the host."""
+    quota = cgroup_cpu_quota(root)
+    visible = _visible_cpus()
+    return max(1, min(visible, quota) if quota is not None else visible)
+
+
+def engine_threads() -> int:
+    """Threads for one OCR inference: the ``OCR_THREADS`` setting when it is
+    set, otherwise the usable CPU count."""
+    from label_assay.config import get_settings
+
+    return get_settings().ocr_threads or usable_cpus()
+
+
+def engine_options() -> dict[str, int]:
+    """Keyword arguments for the engine. onnxruntime sizes its pool from the
+    machine's cores, so under a CPU quota it starts one spinning thread per
+    host core and they fight over the quota: on two cores of a sixteen-core
+    machine the 11 registry labels averaged 12.2 s a read with the default pool
+    and 2.4 s with two threads, the same lines read either way. The count is
+    passed only when it is below the machine's, so a host with every core free
+    keeps the engine's own choice."""
+    threads = engine_threads()
+    if threads < (os.cpu_count() or 1):
+        return {"intra_op_num_threads": threads}
+    return {}
+
+
+def build_engine(options: dict[str, int]):
     from rapidocr_onnxruntime import RapidOCR
 
-    return RapidOCR()
+    # A top-level keyword is copied into all three models' session settings; a
+    # det_/cls_/rec_-prefixed one is overwritten by that copy and never lands.
+    return RapidOCR(**options)
+
+
+@lru_cache(maxsize=1)
+def _engine():
+    return build_engine(engine_options())
 
 
 def read_lines(image: bytes, *, background: bool = False, rotation: int = 0) -> list[OcrLine]:

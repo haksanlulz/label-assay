@@ -476,6 +476,12 @@ def _ocr_status() -> str:
         return "failed"
 
 
+def _ocr_threads() -> int:
+    from label_assay.extract.ocr import engine_options
+
+    return engine_options().get("intra_op_num_threads", 0)
+
+
 @app.get("/health")
 def health() -> dict[str, object]:
     """Readiness of each subsystem, so an uptime check or a reviewer sees a
@@ -496,6 +502,11 @@ def health() -> dict[str, object]:
         "rulebook_rules": len(rulebook.rules),
         "ai_reader": "configured" if settings.anthropic_api_key else "not-configured",
         "ocr": ocr,
+        # Threads one OCR read runs on; 0 means the engine sized its own pool
+        # because every core is usable. On a host with a CPU quota this is the
+        # quota, and a number near the host's core count here would explain a
+        # slow scan (see extract/ocr.py).
+        "ocr_threads": _ocr_threads(),
         # Which instance answered. Batch job state lives in this process, so the
         # app must run as a single instance; seeing two ids here means it does not.
         "instance": os.environ.get("HOSTNAME", "local"),
