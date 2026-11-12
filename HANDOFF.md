@@ -1,3 +1,26 @@
+### 2026-11-12 — Audit with refuters, and the fixes it led to (Fable 5.2)
+
+Branch `audit-2026-11`, five commits on top of `5098adc`. Not merged, not pushed, not deployed.
+
+Start: a TTB-approved filing whose heading is printed `GOVERMENT WARNING` (`tests/fixtures/cola/cola_24100001000120.png`) came back "needs review" with no pointer. The reader had written the correct text; the scan had read the misprint at 0.98 confidence and that was thrown away. A held warning now names the words the scan read differently. The reader was not fixed: it corrects the misprint 3 of 3 times on the shipped prompt, with a letter-by-letter instruction, and on `claude-haiku-5-5`. The prompt is unchanged; the live test recording this is marked xfail.
+
+Then an audit: five read-only lanes (readers, deciding layer, server, pages, tooling), each finding checked by two refuters. 122 findings; 90 confirmed by both, 2 refuted. Fixed here, each reproduced as a failing test first:
+
+- Deciding layer: a reader slip no longer fails a label the scan read correctly; a recited warning no longer passes over words added on the statement's own line; decimal commas parse (`11,5%` was read as 5%, `40,0% ... 80 PROOF` failed); the heading locator no longer raises; a demoted finding keeps its differences.
+- Readers: 16-bit grayscale scans were blank to both readers; transparent artwork was black to the scan; `DAILY_BUDGET_USD=nan` switched the spend bound off.
+- Checks that could not fail: live tests skipped on a rejected key; `verify_deploy.py` accepted a page missing rules and never compared the time to the 5-second target; `eval_cola.py` always exited 0; the batch cancel test never cancelled anything (now fails with the cleanup removed). New import scan for the deciding layer, with a planted-fault test.
+- Server: the CSV export served unfinished batches; a CSV headed "Brand Name" silently skipped every brand check; `/compare` printed the interpreter's stack message.
+- Pages: the batch table was rebuilt every 1.5 s, dropping keyboard focus and re-announcing three live regions; polling had no back-off; script-only buttons showed without scripting. `tools/browser_check.cjs` drives these in Chromium, Firefox and WebKit; the old script fails it in all three.
+
+Validation: `pytest -m "not live"` 448 passed; ruff clean; offline gate 14 cases / 56 decisions unchanged; browser check passes in three engines. The new added-words hold fires on 0 of 20 committed labels whose statement scans exactly. Nine paid reader calls during the reader experiments.
+
+Not done:
+- The 2026-11-10 scored run describes `c515dc3`. The verdict logic has changed since (two new holds, one fail turned into a hold); the 100 labels have not been re-run on it.
+- The live tests were not run after the change that makes a rejected key fail them.
+- CI files, unprovable locally: `hf-deploy.yml` goes green without waiting for the Space or running `verify_deploy.py`; `uptime.yml` accepts any verdict and only warns on speed; the deploy gate's `uv sync` is not `--locked`.
+- About 85 confirmed findings are untouched, most low severity: beverage class inferred from substrings, the rulebook loader ignoring unknown keys, `/health` reporting ok with the budget spent, no rate limit on the paid route, container hardening, page semantics. The full list with both refuters' notes is outside this repo.
+- README line on code size is still the older dated figure.
+
 ### 2026-11-10 — A 100-label scored run with a kept ledger (Fable 5.2)
 
 DESIGN cited a 2026-07-17 100-label run as 49 defective and 51 compliant with "19 passed, 31 abstained". Those two numbers cover 50 of the 51, and no per-label results from that run exist in the repo or its history. Operator ruling: re-run and keep the ledger. A fresh corpus (`make_test_labels.py --seed 20261110 --count 100`) went through `/batch` on a local instance at `c515dc3` with the live reader: 0 false passes across 50 defective labels (36 failed, 14 held), 0 false fails across 50 compliant ones (26 passed, 24 held), no processing errors. `docs/evaluation/synthetic-100-2026-11-10/` holds the ledger, manifest and applications; `tools/score_batch.py` is the scorer; DESIGN cites this run and says what the earlier one lacked.

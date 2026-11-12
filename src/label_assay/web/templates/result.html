@@ -13,9 +13,9 @@
 <h2>Findings</h2>
 <p class="hint">Rulebook {{ report.rulebook_version }}</p>
 <p class="hint">Checked: {{ checked_at or 'Not recorded in this older report' }}. Automated findings cover only the listed rules, not a complete regulatory approval.</p>
-<button type="button" class="no-print" data-print>Print report / save PDF</button>
-<button type="button" class="no-print" data-download-html>Download printable HTML</button>
-<button type="button" class="no-print" data-save-report="{{ saved_report|tojson|forceescape }}">Save report for comparison (JSON)</button>
+<button type="button" class="no-print" data-print hidden>Print report / save PDF</button>
+<button type="button" class="no-print" data-download-html hidden>Download printable HTML</button>
+<button type="button" class="no-print" data-save-report="{{ saved_report|tojson|forceescape }}" hidden>Save report for comparison (JSON)</button><noscript><p class="hint">Printing works from your browser’s own Print command. Saving this report as a file needs JavaScript.</p></noscript>
 <ul class="findings">
   {% for f in report.findings %}
   <li class="finding finding--{{ f.verdict.value }}">

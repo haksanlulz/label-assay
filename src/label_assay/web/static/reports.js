@@ -1,5 +1,10 @@
 (function () {
   "use strict";
+  // These buttons do nothing without this script, so the page ships them
+  // hidden and they appear only once it is running.
+  document.querySelectorAll("[data-print],[data-download-html],[data-save-report]").forEach(function (button) {
+    button.hidden = false;
+  });
   document.querySelectorAll("[data-print]").forEach(function (button) {
     button.addEventListener("click", function () { window.print(); });
   });

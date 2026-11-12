@@ -288,8 +288,8 @@ app.add_middleware(_RequestSizeCeiling, max_bytes=_MAX_REQUEST_BYTES)
 
 
 # Response hardening, applied to every route. Every script is an external
-# same-origin static file — the upload forms' submit guard and the batch page's
-# poller — and every asset is same-origin, so the policy stays strict: no
+# same-origin static file — the upload forms' submit guard, the batch page's
+# poller and the report buttons — and every asset is same-origin, so the policy stays strict: no
 # inline script or style is required (the one inline style lives in app.css),
 # the batch page's /batch/{id}/data fetch is same-origin, and the result
 # page's collapsible preview rides back as a data: image — the only non-'self'

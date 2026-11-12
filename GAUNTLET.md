@@ -43,14 +43,14 @@ instance**.
 | prod hygiene | the demo route must not exist in prod | `GET /sample` → 404 | ✅ asserted by `verify_deploy.py` |
 | the second channel | OCR degrades or dies | health degrades; findings hold rather than pass; no internals leak | ✅ 3 tests in `test_smoke.py` / `test_service.py` |
 | the rulebook | a rule change reaches prod | served version matches the tree | ✅ version-pinned in `verify_deploy.py` |
-| **speed** | a reviewer waits, or goes back to checking by eye | the README's **5-second target** | 🔴 **REPORTED, NOT ASSERTED** — see gaps |
-| the repo | a stranger clones and runs `pytest` | 270 tests green | ✅ |
+| **speed** | a reviewer waits, or goes back to checking by eye | the README's **5-second target** | ✅ since 2026-11-12: `verify_deploy.py` fails when the instance's own time exceeds `--max-seconds` (default 5). The `uptime.yml` probe still only warns — see gaps |
+| the repo | a stranger clones and runs `pytest` | the offline suite green (448 on 2026-11-12; count it with `pytest --collect-only -q -m "not live"`) | ✅ |
 
 ## §3 Invariants — scans
 
 | Invariant | Scan | Status |
 |---|---|---|
-| The deciding layer never calls a model | ADR-0002 + `verify/engine.py` is pure by construction | 🟡 documented and true, but no AST scan enforces it (a sibling project has one — portable) |
+| The deciding layer never calls a model | ADR-0002 + `verify/engine.py` is pure by construction | ✅ since 2026-11-12: `tests/test_audit_tooling.py` walks the imports of `verify/`, `match/`, `text/`, `rulebook/` and `domain/` transitively and fails on a model client, a network client, the web package or the settings; a second test plants both faults in a copy of the tree and requires the scan to name them |
 | Rules live in data | `rulebook/rules/*.yaml` + ADR-0003 | ✅ structural |
 | A model reciting the warning cannot pass an altered label | independent OCR must contain the statute | ✅ the legibility gate |
 | Deployed rulebook == tree rulebook | `verify_deploy.py` | ✅ |
@@ -60,7 +60,9 @@ instance**.
 | Class | Rungs |
 |---|---|
 | docs-only | none |
-| code-touch | `pytest` (270) |
+| code-touch | `pytest -m "not live"` |
+| page or script touch | + `node tools/browser_check.cjs http://127.0.0.1:18790 browser-fixture` against `tests/browser_server.py` (needs Playwright; `PLAYWRIGHT_MODULE` may point at an install) |
+| reader touch | + `pytest -m live` with a working key: a key the API rejects now fails these tests |
 | rulebook edit | + `pytest` + **`verify_deploy.py` after deploy** (the version pin is the point) |
 | deploy | + `verify_deploy.py` against the **live URL**, never localhost |
 
@@ -94,6 +96,13 @@ CSV rows sharing a normalized filename silently overwrote one another, and dupli
 Nine new regressions failed before the fixes (the rendering test's initial fixture-construction error was corrected before its red assertion was measured). Final: **279 passed, including all three live vision tests**, and `ruff check .` passed. Through the actual localhost server, `verify_deploy.py --base-url http://127.0.0.1:8790` passed in 4.0 seconds, the browser displayed the incomplete-check result from a real vision/OCR read, three malformed batch requests returned the expected 400/415, and a valid batch completed with a matched application and CSV export. These are local-channel checks; production was not deployed or claimed to contain the changes.
 
 ## Known gaps, ranked by blast radius
+
+*(2026-11-12: gaps 1 and 3 below are closed for `verify_deploy.py` and the suite; the
+text is kept as the record of why. Still open from the same audit, all in CI
+files no local run can prove: `hf-deploy.yml` goes green on the push without
+waiting for the Space or running `verify_deploy.py`; `uptime.yml` requires only
+HTTP 200 and any verdict marker, and its speed check is a warning; the deploy
+gate runs `uv sync` without `--locked`.)*
 
 1. **The 5-second target is measured and never enforced.** `verify_deploy.py`
    extracts the instance's own elapsed time and *prints* it — no threshold, no

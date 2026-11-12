@@ -4,7 +4,7 @@ Target: WCAG 2.1 AA, to be Section 508-ready. This is a prototype and has not be
 
 **Built in**
 
-- The single-label flow is server-rendered and works with JavaScript disabled; no script is required. With scripting on, the upload forms add a submit guard that disables the button during the check (the busy wording remains the button's accessible name) and reveals a `role="status"` progress line, announced once; with scripting off the button stays enabled and the form submits as before. The batch results page carries the other script, which polls for progress.
+- The single-label flow is server-rendered and works with JavaScript disabled; no script is required. With scripting on, the upload forms add a submit guard that disables the button during the check (the busy wording remains the button's accessible name) and reveals a `role="status"` progress line, announced once; with scripting off the button stays enabled and the form submits as before. The batch results page carries a second script, which polls for progress and updates rows in place, so keyboard focus and a screen reader's position survive each update. A third script drives the Print, Download and Save buttons on result, comparison and review pages; those buttons are hidden until it runs, so with scripting off a single result can be read and printed from the browser but not saved as a file.
 - Status is never carried by colour alone: every verdict has a text label and a distinct left border.
 - 18px base text and 44px targets, suiting the reviewer audience (about half the team is over 50).
 - Semantic HTML: labelled inputs, a real table with column headers, visible focus rings, keyboard-operable throughout.

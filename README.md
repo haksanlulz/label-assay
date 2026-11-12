@@ -106,10 +106,10 @@ docker compose up             # http://localhost:8080
 Offline suite (measured 2026-09-11, Windows, Python 3.14.4):
 
 ```
-uv run python -m pytest                              # 267 passed, 3 skipped, about 35 to 40 s
-uv run python -m pytest -m "not slow and not live"   # fast tier: 265 tests
-uv run python -m pytest -m live                      # 3 tests that call the Anthropic API; skip without ANTHROPIC_API_KEY
-uv run python -m pytest -m slow                      # 2 tests over 5 s: real OCR over the committed corpus
+uv run python -m pytest -m "not live"                # 448 tests on 2026-11-12, about 45 s
+uv run python -m pytest -m "not slow and not live"   # fast tier: 444 tests
+uv run python -m pytest -m live                      # 4 tests that call the Anthropic API; skip without ANTHROPIC_API_KEY, fail on a key the API rejects
+uv run python -m pytest -m slow                      # 4 tests over 5 s: real OCR over the committed corpus
 ```
 
 Markers are registered in `pyproject.toml` under `--strict-markers`. The 3 `live` tests are the only ones that reach the network; everything else runs against the committed fixtures and stubbed extractors.
