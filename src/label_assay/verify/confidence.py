@@ -15,6 +15,7 @@ import re
 from decimal import Decimal
 
 from rapidfuzz import fuzz
+from rapidfuzz.distance import Levenshtein
 
 from label_assay.extract.base import Extraction
 from label_assay.extract.ocr import OcrLine
@@ -66,6 +67,86 @@ def corroborates_heading_capitals(reference: str, ocr_lines: list[OcrLine]) -> b
         observed[index:index + len(expected)].casefold() == expected
         for index in range(max(0, len(observed) - len(expected) + 1))
     )
+
+
+_ANCHOR_WORDS = 5       # words at each end of the statement used to find it in the scan
+_ANCHOR_FLOOR = 75.0    # an end of the statement the scan did not read: make no claim
+_SCAN_FLOOR = 0.60      # the located text barely resembles the statement: make no claim
+_LINE_MIN = 6           # shorter scan lines match any long text by accident
+_LINE_FLOOR = 80.0      # a scan line this close to some stretch of the statement belongs to it
+
+
+def _alnum(text: str) -> tuple[str, str]:
+    """(casefolded alphanumerics, the same characters as printed)."""
+    kept = [ch for ch in text if len(ch.casefold()) == 1 and (ch.casefold().isascii() and ch.casefold().isalnum())]
+    return "".join(ch.casefold() for ch in kept), "".join(kept)
+
+
+def scan_differences(reference: str, ocr_lines: list[OcrLine]) -> list[tuple[str, str]]:
+    """Where the scan's read of the statement differs from ``reference``:
+    (reference words, what the scan read there), in order; an empty second
+    element means the scan read nothing for those words.
+
+    Evidence for a reviewer, never a verdict — a scan misreads small print, so
+    its read alone cannot fail a label. Compared on the squashed alphanumerics
+    because the scan runs words together. The statement is located by its
+    opening and closing words; when the scan shows neither end, or what lies
+    between barely resembles the statement, nothing is claimed.
+    """
+    words = reference.split()
+    spans: list[tuple[int, int]] = []  # each reference word's span in the squashed target
+    target = ""
+    for word in words:
+        folded, _ = _alnum(word)
+        spans.append((len(target), len(target) + len(folded)))
+        target += folded
+    # Reading order interleaves the statement with whatever is printed beside
+    # it (a seal, a certifier's mark). Keep only the lines whose text is found
+    # in the statement; a line of the statement with a changed word still is.
+    own = [line.text for line in ocr_lines
+           if len(_alnum(line.text)[0]) >= _LINE_MIN
+           and fuzz.partial_ratio(_alnum(line.text)[0], target) >= _LINE_FLOOR]
+    blob, printed = _alnum(" ".join(own))
+    if len(words) < 2 * _ANCHOR_WORDS or len(blob) < len(target) // 2:
+        return []
+
+    head = target[: spans[_ANCHOR_WORDS - 1][1]]
+    tail = target[spans[-_ANCHOR_WORDS][0]:]
+    start = fuzz.partial_ratio_alignment(head, blob)
+    end = fuzz.partial_ratio_alignment(tail, blob)
+    if (start is None or end is None or start.score < _ANCHOR_FLOOR or end.score < _ANCHOR_FLOOR
+            or end.dest_end <= start.dest_start):
+        return []
+    window, shown = blob[start.dest_start:end.dest_end], printed[start.dest_start:end.dest_end]
+    if Levenshtein.normalized_similarity(target, window) < _SCAN_FLOOR:
+        return []
+
+    # Per boundary in the target, where the scan's text for it starts and ends.
+    starts: dict[int, int] = {}
+    ends: dict[int, int] = {}
+    touched: set[int] = set()  # target character positions inside a difference
+    for tag, i1, i2, j1, j2 in Levenshtein.opcodes(target, window).as_list():
+        for k in range(i1, i2 + 1):
+            at = j1 + (k - i1 if tag == "equal" else round((k - i1) * (j2 - j1) / max(1, i2 - i1)))
+            starts.setdefault(k, at)
+            ends[k] = at
+        if tag == "insert":
+            ends[i1] = j2
+            touched.add(max(0, i1 - 1))
+        elif tag != "equal":
+            touched.update(range(i1, i2))
+
+    differing = [index for index, (a, b) in enumerate(spans) if any(a <= pos < b for pos in touched)]
+    out: list[tuple[str, str]] = []
+    group: list[int] = []
+    for index in differing + [-1]:
+        if group and index != group[-1] + 1:
+            first, last = spans[group[0]][0], spans[group[-1]][1]
+            expected = " ".join(words[i].strip(".,:;()") for i in group)
+            out.append((expected, shown[starts[first]:ends[last]]))
+            group = []
+        group.append(index)
+    return out
 
 
 def _numeric_evidence(asserted: str, ocr_text: str) -> bool:

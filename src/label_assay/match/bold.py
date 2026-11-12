@@ -43,6 +43,8 @@ import re
 from dataclasses import dataclass
 from statistics import median
 
+from rapidfuzz import fuzz
+
 _MIN_CAP_PX = 14.0
 _BOLD_RATIO = 1.30
 _NOT_BOLD_RATIO = 1.12
@@ -208,6 +210,18 @@ def bold_ratio_verdict(head_gray, body_gray) -> BoldFinding:
     return BoldFinding(BoldVerdict.REVIEW, f"Heading weight is borderline (ratio {ratio:.2f}).", ratio)
 
 
+def is_warning_heading(text: str) -> bool:
+    """Does this scan line carry the statement's heading? Space-insensitive,
+    because OCR drops the space between rendered words, and tolerant of a
+    letter or two in GOVERNMENT, because a misprinted or misread heading still
+    has a weight to measure — its spelling is the wording check's business."""
+    squashed = re.sub(r"[^a-z0-9]", "", text.casefold())
+    at = squashed.find("warning")
+    if at < 8:
+        return False
+    return max(fuzz.ratio("government", squashed[at - width:at]) for width in (9, 10, 11) if at >= width) >= 80
+
+
 def check_warning_bold(image: bytes, ocr_lines) -> BoldFinding:
     """Locate the warning heading via OCR and compare stroke widths: against the
     body text on the same line when there is any, otherwise across the
@@ -219,10 +233,7 @@ def check_warning_bold(image: bytes, ocr_lines) -> BoldFinding:
     gray = np.asarray(open_bounded(image).convert("L"))
     # OCR often drops the space between rendered words ("GOVERNMENTWARNING"), so
     # locate the heading on the space-insensitive form.
-    line = next(
-        (ln for ln in ocr_lines if ln.box and "governmentwarning" in re.sub(r"[^a-z0-9]", "", ln.text.casefold())),
-        None,
-    )
+    line = next((ln for ln in ocr_lines if ln.box and is_warning_heading(ln.text)), None)
     if line is None:
         return BoldFinding(BoldVerdict.REVIEW, "Could not locate the warning heading to check boldness.", None)
     if line.rotation:

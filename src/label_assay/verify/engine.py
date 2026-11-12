@@ -31,7 +31,8 @@ from label_assay.rulebook.loader import Rule, Rulebook
 from label_assay.text.numbers import read_alcohol_content
 from label_assay.text.normalize import canon_brand
 from label_assay.verify.confidence import (
-    corroborates_exactly, corroborates_heading_capitals, ocr_is_alive, unconfirmed_fields,
+    corroborates_exactly, corroborates_heading_capitals, ocr_is_alive, scan_differences,
+    unconfirmed_fields,
 )
 
 
@@ -73,6 +74,23 @@ _WARNING_VERDICTS = {
 }
 
 
+_SCAN_NOTE_LIMIT = 4
+
+
+def _scan_note(differences: list[tuple[str, str]]) -> str:
+    """Tell the reviewer where the scan and the reader part ways. The scan's
+    read is a pointer, not a finding: it is quoted, and never decides."""
+    if not differences:
+        return ""
+    parts = [f"read “{expected}” as “{found}”" if found else f"did not read “{expected}”"
+             for expected, found in differences[:_SCAN_NOTE_LIMIT]]
+    more = len(differences) - _SCAN_NOTE_LIMIT
+    if more > 0:
+        parts.append(f"differed in {more} more place{'s' if more > 1 else ''}")
+    return (" The scan " + "; ".join(parts) + ". A scan can misread small print, "
+            "so check those words on the label.")
+
+
 def _match_warning_verbatim(rule: Rule, ctx: VerifyContext) -> Finding:
     field = getattr(ctx.extraction, rule.match.field)
     reference = rule.match.reference or ""
@@ -89,7 +107,8 @@ def _match_warning_verbatim(rule: Rule, ctx: VerifyContext) -> Finding:
                 rule, Verdict.NEEDS_REVIEW,
                 "The reader's transcription matches the mandated warning, but an "
                 "independent scan of the image did not confirm the statement "
-                "word-for-word, so a person should verify it.",
+                "word-for-word, so a person should verify it."
+                + _scan_note(scan_differences(reference, ctx.ocr_lines)),
             )
         if not corroborates_heading_capitals(reference, ctx.ocr_lines):
             return _finding(
